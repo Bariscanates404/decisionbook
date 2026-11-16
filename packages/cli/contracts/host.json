@@ -1,0 +1,24 @@
+{
+  "$comment": [
+    "The host edge as data, read only by adapters/host.cjs.",
+    "No git rule is allowed (`git diff`, `git log`, `git show` take --output=<file>, so none of them is read-only); a person may add their own. `productMarker`: the file only this product's own tree holds.",
+    "`hostCommands`: the slash commands the host has itself; no command file a package places may take one of these names (a file of ours would stand in for the host's own).",
+    "`gateProbe`: the file nobody reads that doctor's probe names to ask the gates; a session's write tool may write it, and what a package's manifest declares (`sessionWrites`); the gate seals the rest of the product's store.",
+    "`ignoreEntries`: the block setup writes into `.gitignore`; a path a wired package's manifest names in `teamFiles` follows it as `!<path>`, left to git."
+  ],
+  "settings": ".claude/settings.local.json",
+  "settingsFiles": [".claude/settings.json", ".claude/settings.local.json"],
+  "rowGone": "atlasbound: gates off: the node or program its hooks name is gone. Fix: atlasbound setup (or reinstall atlasbound), then restart the session.",
+  "mcp": ".mcp.json",
+  "ignore": ".gitignore",
+  "projectEnv": "CLAUDE_PROJECT_DIR",
+  "sessionEnv": "CLAUDE_CODE_SESSION_ID",
+  "pidEnv": "CLAUDE_PID",
+  "gateProbe": ".atlasbound/doctor-probe",
+  "productMarker": "packages/cli/release.json",
+  "ignoreMarks": ["# >>> atlasbound (generated block: lines outside survive) >>>", "# <<< atlasbound <<<"],
+  "ignoreEntries": [".atlasbound/*", ".claude/settings.local.json", ".mcp.json"],
+  "hostCommands": ["resume", "clear", "compact", "help", "init", "review", "model", "config", "status", "login", "logout", "memory", "agents", "mcp", "permissions", "cost", "doctor",
+    "exit", "export", "hooks", "ide", "bug", "add-dir", "vim", "terminal-setup", "release-notes", "pr-comments", "rewind", "context", "usage", "plugin", "skills", "tasks"],
+  "unsafeRoots": { "env": ["HOME", "TMPDIR"], "paths": ["/tmp", "/var/tmp"] }
+}

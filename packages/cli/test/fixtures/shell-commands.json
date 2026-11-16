@@ -1,0 +1,1021 @@
+{
+ "$comment": "119 Bash commands of the kind an AI coding session runs on a web application: 72 reads, 47 writes with code bodies, search patterns and heredoc contents replaced by a, b, x (shell forms, assignments and write calls kept; the rows `kit #n` are the commands of kit/test/fixtures/shell-denials.json, row n, the same text). The world folder is /work/world, replaced by the test repository. from: the row's number. cwd: the shell folder under the world when the command ran with no cd. human: the verdict a careful person gives under policy (protect: what the DecisionBook gate guards; plan: the READY plan scope): allow = it writes no protected file outside the plan (a read never asks); ask + file = the protected file outside the plan it writes, which the gate must name. human.unplaced: a write no one can place from the text, which the gate must ask as such.",
+ "policy": {
+  "protect": [
+   "app/**",
+   "config/**"
+  ],
+  "plan": [
+   "app/models/status.rb",
+   "app/models/concerns/status/threading_concern.rb",
+   "app/models/concerns/user/has_settings.rb",
+   "app/javascript/web/locales/en.json"
+  ]
+ },
+ "rows": [
+  {
+   "from": "#0",
+   "command": "cd /work/world; grep -rn \"quote_approval_policy\\|canQuote\\|QuoteRequest\" app lib config --include=*.rb -l | head -60; grep -n \"quote_approval\\|interaction_policy\" db/schema.rb",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#77",
+   "command": "cd /work/world; grep -rn \"PostStatusService.new\" app lib | grep -v \"^app/services/post_status_service.rb\"",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#153",
+   "command": "cd /work/world; grep -n \"describe '#descendants'\" -A12 spec/models/concerns/status/threading_concern_spec.rb | head -20",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#228",
+   "command": "grep -rn \"reply_rejected\\|reply_allowed_for\\|reply_policy_for_account\\|ReplyNotAllowed\" app lib config --include=*.rb | grep -v \"^app/models/concerns/status/interaction_policy_concern.rb\"; sed -n 40,70p app/helpers/context_helper.rb; grep -n \"approval_uri_for\" -A12 app/lib/activitypub/tag_manager.rb",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#353",
+   "command": "grep -n \"def key\" -A8 app/models/user_settings/setting.rb",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#400",
+   "command": "grep -n \"createDataLoadingThunk\" -A20 app/javascript/web/actions/statuses_typed.ts | head -40; grep -n \"export function importFetchedStatus\\b\\|export function importFetchedStatuses\" app/javascript/web/actions/importer/index.js",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#433",
+   "command": "grep -n \"def for_signed_account\" -A12 app/controllers/activitypub/collections_controller.rb",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#521",
+   "command": "grep -n \"reply policy\\|reply_policy\\|RejectReply\\|reply_rejected\\|context 'with a reply\" spec/lib/activitypub/activity/create_spec.rb | head -30",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#565",
+   "command": "grep -n \"quote_approval_policy\\|def \\|silent\\|mention\" app/services/activitypub/process_status_update_service.rb | head -60; grep -n \"silent\\|def \" app/services/process_mentions_service.rb | head -30; grep -n \"silent\\|mention\" app/models/quote.rb | head",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#653",
+   "command": "grep -n \"def build_object\" -B3 spec/lib/activitypub/activity/create_spec.rb; grep -rn \"Sidekiq::Testing\" spec/rails_helper.rb spec/support/*.rb | head -3",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#794",
+   "command": "grep -n \"default_reply_policy\" -B2 -A12 app/views/settings/preferences/posting_defaults/show.html.haml; grep -n \"setting_default_sensitive\\|setting_default_reply_policy\" config/locales/simple_form.en.yml; grep -n \"def user_params\" -A8 app/controllers/settings/preferences/base_controller.rb",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#866",
+   "command": "grep -n \"context 'when sender replies to a local thread with a reply policy'\" spec/lib/activitypub/activity/create_spec.rb; grep -n \"def build_object\" -A12 spec/lib/activitypub/activity/create_spec.rb | head -16",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#5",
+   "command": "cd /work/world; cat app/models/interaction_policy.rb; cat app/services/post_status_service.rb",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#49",
+   "command": "cd /work/world; cat db/migrate/20260706122112_add_end_of_support_to_software_updates.rb; sed -n 1215,1270p db/schema.rb",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#255",
+   "command": "cat /tmp/plan_links.json",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#375",
+   "command": "cat features/notifications_v2/components/notification_with_status.tsx | head -80; grep -n \"export\\|interface\\|Props\\|: \\|actions\" features/notifications_v2/components/notification_with_status.tsx | head -40",
+   "cwd": "app/javascript/web",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#446",
+   "command": "cat app/serializers/activitypub/note_serializer.rb | sed -n 1,400p | grep -n -i -A12 'reply\\|interaction'; echo ----; grep -n -i -B2 -A20 'reply' app/serializers/rest/status_serializer.rb",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#457",
+   "command": "cat $(grep -rl 'module AccountableConcern' app); sed -n 160,200p config/routes/admin.rb; cat app/models/admin/action_log_filter.rb | sed -n 1,90p",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#484",
+   "command": "cat app/workers/activitypub/status_update_distribution_worker.rb; ls app/workers/ | head -80 | tr '\\n' ' '; grep -rn 'perform_at' app/services | head -3",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#559",
+   "command": "cat app/models/user_settings.rb | sed -n 40,200p; cat app/models/user_settings/glue.rb; grep -n \"def \\[\\]=\\|def update\\|def \\[\\]\\|def keys\\|@original_hash\\|def as_json\\|default\" app/models/user_settings.rb app/models/user_settings/dsl.rb",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#614",
+   "command": "cat features/ui/components/visibility_modal.tsx",
+   "cwd": "app/javascript/web",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#710",
+   "command": "cat app/lib/activitypub/activity/accept.rb app/lib/activitypub/activity/reject.rb; ls app/controllers/activitypub/; grep -rn \"QuoteAuthorization\\|quote_authorization\" config/routes* app --include=*.rb | head -30",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#51",
+   "command": "cd /work/world; git diff db/schema.rb | head -30; sed -n 1,60p app/models/status.rb; sed -n 430,500p app/models/status.rb",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#211",
+   "command": "cd /work/world; git diff --stat app/javascript | tail -3; which tsc node npx 2>&1 | head; ls /usr/local/bin 2>/dev/null",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#223",
+   "command": "git show --stat HEAD | head -80 && git show --stat HEAD~1 | head -40",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#308",
+   "command": "git show HEAD -- spec/requests/api/v1/statuses_spec.rb | sed -n 60,150p",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#344",
+   "command": "git show HEAD -- spec/lib/activitypub/parser/status_parser_spec.rb | sed -n 8,60p; git show HEAD -- spec/serializers/activitypub/note_serializer_spec.rb | sed -n 8,75p",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#349",
+   "command": "git show HEAD -- spec/requests/api/v1/accounts/credentials_spec.rb spec/models/user_spec.rb spec/requests/api/v1/statuses/interaction_policies_spec.rb spec/system/settings/preferences/posting_defaults_spec.rb | grep \"^+\" | head -200",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#444",
+   "command": "git show --stat HEAD HEAD~1 | head -150; cat CLAUDE.md 2>/dev/null | head -50",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#723",
+   "command": "git show HEAD --stat -- app/javascript && git show HEAD -- app/javascript | head -1500",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#18",
+   "command": "cd /work/world; ls spec/requests/api/v1/statuses/ | head -30; ls spec/lib/activitypub/activity/ spec/serializers/activitypub/ spec/services | grep -i \"create\\|note\\|post_status\\|update\\|quote\\|reject\" ; grep -rn \"interaction_polic\" spec -l | head",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#162",
+   "command": "cd /work/world; ls spec/config 2>&1 | head; ls spec/config/initializers 2>&1 | head -5",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#364",
+   "command": "ls spec/models/concerns/status/; sed -n 1,30p spec/lib/status_filter_spec.rb",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#438",
+   "command": "ls spec/validators/ | grep -i pin; grep -n \"pin_errors:\" -A8 config/locales/en.yml",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#606",
+   "command": "ls spec/workers | grep -i thread; ls spec/requests/api/v1/accounts/ | grep -i cred; ls spec/models | grep -i \"user_settings\\|^status_spec\"; ls spec/lib/activitypub/activity/ | head -30",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#722",
+   "command": "ls node_modules | wc -l; ls node_modules/.bin | grep -E \"^(tsc|eslint|vitest|jest)$\"; git show HEAD --stat -- app/javascript | tail -3",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#26",
+   "command": "cd /work/world; sed -n 60,100p app/services/activitypub/process_status_update_service.rb; cat app/views/settings/preferences/posting_defaults/show.html.haml; sed -n 1,40p app/serializers/rest/credential_account_serializer.rb",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#103",
+   "command": "cd /work/world; sed -n 1,12p spec/requests/api/v1/statuses_spec.rb; sed -n 135,140p spec/requests/api/v1/statuses_spec.rb; sed -n 428,472p spec/requests/api/v1/statuses_spec.rb",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#241",
+   "command": "sed -n 56,140p app/models/notification.rb; sed -n 166,260p app/models/notification.rb; grep -rn \"quote\\b\\|:quote\\|'quote'\" app/serializers/rest/notification_serializer.rb app/serializers/rest/notification_group_serializer.rb app/models/notification_group.rb app/services/notify_service.rb | head -20",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#280",
+   "command": "sed -n 1875,1885p config/locales/en.yml; grep -n \"reply_not_allowed\\|invalid_reply_policy\" config/locales/en.yml",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#394",
+   "command": "sed -n 425,462p app/javascript/web/components/status.jsx; sed -n 1,30p app/javascript/web/components/status.jsx | grep -n \"import\"; sed -n 560,620p app/javascript/web/components/status.jsx",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#488",
+   "command": "sed -n 85,100p app/controllers/api/base_controller.rb; cat app/policies/application_policy.rb",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#593",
+   "command": "sed -n 1,40p app/lib/activitypub/parser/status_parser.rb; grep -n \"def visibility\" -A25 app/lib/activitypub/parser/status_parser.rb",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#719",
+   "command": "sed -n 100,145p app/services/notify_service.rb; sed -n 210,300p app/services/notify_service.rb; cat app/serializers/concerns/notification_fallback_concern.rb 2>/dev/null || grep -rln \"module NotificationFallbackConcern\" app",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#178",
+   "command": "cd /work/world/app/javascript/web; sed -n 1,60p api/statuses.ts; sed -n 100,140p api_types/statuses.ts; grep -n \"QuotePolicy\\|quote_policy\\|quotePolicy\" -n features/ui/components/visibility_modal.tsx | head -60",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#183",
+   "command": "cd /work/world/app/javascript/web; grep -n \"isStatusVisibility\\|export type StatusVisibility\" -A6 api_types/statuses.ts | head -20",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#386",
+   "command": "cd /work/world",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#728",
+   "command": "cd /work/world/app/javascript/web; grep -n \"HYDRATE\\|hydrate\" -A8 reducers/compose.js | head -40; sed -n 1,140p reducers/compose.js | grep -n \"reply\\|quote\"; grep -n \"STORE_HYDRATE\\|compose\" actions/store.js",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#750",
+   "command": "cd /work/world/app/javascript; grep -rn \"reply-indicator__attachments\" -A14 styles | head -30; grep -rn \"status__prepend\\b\\|\\.status__prepend {\" styles/web/components.scss | head",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#776",
+   "command": "cd /work/world/app/javascript/web/features/notifications_v2/components; ls; cat notification_group.tsx; cat notification_mention.tsx notification_quoted_update.tsx",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#20",
+   "command": "cd /work/world; bin/rspec spec/requests/api/v1/statuses/interaction_policies_spec.rb 2>&1 | tail -8",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#148",
+   "command": "cd /work/world; bin/rspec spec/requests/activitypub/replies_spec.rb 2>&1 | grep -E \"examples|rspec \\./\" | head -3; grep -n \"replies_count\\|describe\\|context\" spec/lib/web/cli/cache_spec.rb | head; grep -n \"describe\\|context\\|skip_notifications\" spec/services/fan_out_on_write_service_spec.rb | head -30",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#300",
+   "command": "bin/rspec spec/lib/account_statuses_filter_spec.rb:95 spec/services/fan_out_on_write_service_spec.rb:47 spec/lib/activitypub/activity/create_spec.rb:118 spec/models/user_spec.rb:528 2>&1 | grep -B3 -A15 \"Failure/Error\" | head -90",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#443",
+   "command": "bin/rspec spec/validators/status_pin_validator_spec.rb spec/requests/api/v1/statuses/pins_spec.rb 2>&1 | grep -E \"examples|^rspec \\./\"; bin/rubocop app/validators/status_pin_validator.rb spec/validators/status_pin_validator_spec.rb 2>&1 | tail -1; ruby -ryaml -e 'YAML.load_file(\"config/locales/en.yml\")' && echo yaml ok",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#541",
+   "command": "bundle exec rubocop $(git diff --name-only -- '*.rb'; git ls-files --others --exclude-standard -- '*.rb') 2>&1 | tail -3; bundle exec haml-lint $(git diff --name-only -- '*.haml') 2>&1 | tail -2; bundle exec i18n-tasks check-normalized 2>&1 | tail -1; bundle exec i18n-tasks unused 2>&1 | tail -1; ls node_modules/.bin/tsc 2>&1 | head -1",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#644",
+   "command": "bundle exec rspec spec/requests/api/v1/statuses_spec.rb 2>&1 | grep -vE \"^\\s+# /usr/local/bin\" | tail -40",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#213",
+   "command": "cd /work/world; for f in app/javascript/web/reducers/compose.js app/javascript/web/reducers/statuses.js app/javascript/web/actions/compose.js app/javascript/web/actions/importer/normalizer.js; do node --check \"$f\" 2>&1 | head -3; done; echo done; git diff app/javascript/web/features/ui/components/visibility_modal.tsx | head -80",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#355",
+   "command": "for s in 1 2 3; do bin/rspec spec/models/user_spec.rb:70 --seed $s 2>&1 | grep -E \"examples\"; done; sed -n 60,75p spec/models/user_spec.rb",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#172",
+   "command": "cd /work/world; RAILS_ENV=test bin/rails runner 'p Web::Version.api_versions' 2>&1 | tail -1; ls node_modules 2>/dev/null | wc -l",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#356",
+   "command": "RAILS_ENV=test bin/rails runner 'p User.count, Account.count, Status.count' 2>&1 | tail -1",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#670",
+   "command": "tail -30 spec/services/fan_out_on_write_service_spec.rb; grep -n \"LocalNotificationWorker\\|have_enqueued\" spec/services/fan_out_on_write_service_spec.rb | head -5",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#43",
+   "command": "cd /work/world; head -c 1500 .decisionbook/2026-11-05-the-plan.jsonl; echo; grep -n 'spec/\\*\\*' .decisionbook/2026-11-05-the-plan.jsonl",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#970",
+   "command": "cd /work/world; find spec/views/admin -name \"*.rb\" | head -3 | xargs cat | head -40; cat spec/helpers/admin/action_logs_helper_spec.rb | head -30",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#427",
+   "command": "sort -u /tmp/rbfiles.txt | grep -v \"db/schema.rb\" | xargs bin/rubocop --format simple 2>&1 | grep -v \"^$\" | grep -B1 \"^[CWEF]:\" | head -60; sort -u /tmp/rbfiles.txt | grep -v \"db/schema.rb\" | xargs bin/rubocop --format simple 2>&1 | tail -1",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#19",
+   "command": "cd /work/world; timeout 300 bin/rspec spec/requests/api/v1/statuses/interaction_policies_spec.rb 2>&1 | tail -8",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#218",
+   "command": "cd /work/world; bin/rubocop app/lib/activitypub/parser/status_parser.rb 2>&1 | tail -2; bin/haml-lint app/views/settings/preferences/posting_defaults/show.html.haml 2>&1 | tail -3; bundle exec i18n-tasks normalize --help >/dev/null 2>&1; bundle exec i18n-tasks check-normalized 2>&1 | tail -5; bundle exec i18n-tasks unused 2>&1 | tail -5",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#291",
+   "command": "bin/rails routes 2>/dev/null | grep -E \"reply_authoriz|reply_requests\"",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#691",
+   "command": "files=$(git status --short | awk '{print $2}' | grep -E \"\\.rb$\"); bundle exec rubocop $files 2>&1 | tail -40",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#215",
+   "command": "cd /work/world; (git diff --name-only; git ls-files --others --exclude-standard) | grep \"\\.rb$\" | grep -v \"db/schema.rb\" | xargs bin/rubocop --force-exclusion 2>&1 | grep -v \"^$\" | tail -30",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#464",
+   "command": "atlasbound decisionbook show 2026-11-05-another-plan gaps",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#39",
+   "command": "cd /work/world; atlasbound decisionbook add --help 2>&1 | head -40",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "#209",
+   "command": "cd /work/world; python3 - <<'EOF'\nimport json\np='app/javascript/web/locales/en.json'\nraw=open(p).read()\nd=json.loads(raw)\nagain=json.dumps(d,indent=2,ensure_ascii=False)+\"\\n\"\nprint(raw==again, list(d)==sorted(d))\nEOF",
+   "cwd": "",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only"
+   }
+  },
+  {
+   "from": "kit #1",
+   "cwd": "",
+   "command": "cd /work/world; python3 - <<'EOF'\np='app/models/status.rb'; s=open(p).read()\ns=s.replace('''a''','''b''',1)\ns=s.replace(\"a\",\"b\")\nopen(p,'w').write(s)\nEOF\ngit diff --stat app/models/status.rb; grep -n \"x\" app/models/concerns/status/visibility.rb",
+   "human": {
+    "verdict": "allow",
+    "why": "writes app/models/status.rb, in the plan; the grep only reads visibility.rb"
+   }
+  },
+  {
+   "from": "kit #2",
+   "cwd": "",
+   "command": "cd /work/world; python3 - <<'EOF'\np='app/models/concerns/status/threading_concern.rb'; s=open(p).read()\nold=\"\"\"a\"\"\"\nnew=\"\"\"b\"\"\"\nassert old in s; s=s.replace(old,new); open(p,'w').write(s)\nEOF\ngrep -rn \"x\" app/controllers/activitypub/replies_controller.rb app/controllers/api/v1/statuses/contexts_controller.rb | head; grep -rn \"x\" app --include=*.rb | grep -v \"x\" | head",
+   "human": {
+    "verdict": "allow",
+    "why": "writes threading_concern.rb, in the plan; the two controllers are only read"
+   }
+  },
+  {
+   "from": "kit #4",
+   "cwd": "",
+   "command": "cd /work/world; python3 - <<'EOF'\np='app/controllers/api/v1/accounts/credentials_controller.rb'; s=open(p).read()\nold=\"\"\"a\"\"\"\nassert old in s; s=s.replace(old,\"\")\ns=s.replace(\"a\",\"b\",1)\nopen(p,'w').write(s)\nEOF\ngrep -n \"x\" app/controllers/api/base_controller.rb | head",
+   "human": {
+    "verdict": "ask",
+    "file": "app/controllers/api/v1/accounts/credentials_controller.rb",
+    "why": "writes the credentials controller, protected and outside the plan; base_controller.rb is only read"
+   }
+  },
+  {
+   "from": "kit #6",
+   "cwd": "",
+   "command": "cd /work/world; python3 - <<'EOF'\np='spec/requests/api/v1/statuses_spec.rb'; s=open(p).read()\nanchor=\"\"\"a\"\"\"\nassert s.count(anchor)==1\nnew=anchor[:-len(\"b\")]+'''c'''\ns=s.replace(anchor,new,1); open(p,'w').write(s)\nEOF\nbin/rspec spec/requests/api/v1/statuses_spec.rb 2>&1 | grep -E \"x\" | head -30",
+   "human": {
+    "verdict": "allow",
+    "why": "writes a spec file, which nothing protects"
+   }
+  },
+  {
+   "from": "kit #7",
+   "cwd": "",
+   "command": "cd /work/world; python3 - <<'EOF'\np='spec/requests/api/v1/statuses/interaction_policies_spec.rb'; s=open(p).read()\nassert s.endswith(\"a\")\ns=s[:-len(\"b\")]+'''c'''\nopen(p,'w').write(s)\nEOF\ngrep -rn \"x\" spec/rails_helper.rb spec/support | head -2",
+   "human": {
+    "verdict": "allow",
+    "why": "writes a spec file; spec/rails_helper.rb is only read"
+   }
+  },
+  {
+   "from": "kit #15",
+   "cwd": "",
+   "command": "python3 - <<'EOF'\np='app/views/admin/shared/_status_batch_row.html.haml'; s=open(p).read()\ns=s.replace(\"a\",\"b\",1)\nopen(p,'w').write(s)\nEOF\ngrep -n 'x' app/helpers/*.rb | head -2; ls app/javascript/images/icons 2>/dev/null | grep -i x | head; ls node_modules/@material-symbols/svg-600/outlined 2>/dev/null | grep x",
+   "human": {
+    "verdict": "ask",
+    "file": "app/views/admin/shared/_status_batch_row.html.haml",
+    "why": "writes the batch row view, outside the plan; app/helpers/*.rb is a glob that is only read"
+   }
+  },
+  {
+   "from": "#62",
+   "cwd": "",
+   "command": "cd /work/world; cat config/initializers/single_user_mode.rb; cat > config/initializers/default_reply_policy.rb <<'EOF'\nx\nEOF",
+   "human": {
+    "verdict": "ask",
+    "file": "config/initializers/default_reply_policy.rb",
+    "why": "a heredoc into a new protected initializer; the first cat only reads its neighbour"
+   }
+  },
+  {
+   "from": "#63",
+   "cwd": "",
+   "command": "cd /work/world; sed -i '' 's/a/b/' config/initializers/default_reply_policy.rb && cat >> .env.production.sample <<'EOF'\nx\nEOF",
+   "human": {
+    "verdict": "ask",
+    "file": "config/initializers/default_reply_policy.rb",
+    "why": "sed -i edits the protected initializer; the env sample is not protected"
+   }
+  },
+  {
+   "from": "#64",
+   "cwd": "",
+   "command": "cd /work/world; python3 - <<'EOF'\np='app/controllers/api/v1/statuses_controller.rb'; s=open(p).read()\ns=s.replace('''a''','''b''',1)\nopen(p,'w').write(s)\nEOF",
+   "human": {
+    "verdict": "ask",
+    "file": "app/controllers/api/v1/statuses_controller.rb",
+    "why": "python writes the statuses controller, outside the plan"
+   }
+  },
+  {
+   "from": "#87",
+   "cwd": "",
+   "command": "cd /work/world; cat > app/serializers/activitypub/reject_reply_serializer.rb <<'EOF'\nx\nEOF\ngrep -n \"def serialize_payload\" -A8 app/models/concerns/payloadable.rb app/lib/*.rb 2>/dev/null | head -20",
+   "human": {
+    "verdict": "ask",
+    "file": "app/serializers/activitypub/reject_reply_serializer.rb",
+    "why": "creates a protected serializer; the grep reads payloadable.rb and a glob"
+   }
+  },
+  {
+   "from": "#598",
+   "cwd": "",
+   "command": "cat > app/serializers/activitypub/reject_reply_serializer.rb <<'EOF'\nx\nEOF",
+   "human": {
+    "verdict": "ask",
+    "file": "app/serializers/activitypub/reject_reply_serializer.rb",
+    "why": "the same new serializer, from the root"
+   }
+  },
+  {
+   "from": "#210",
+   "cwd": "",
+   "command": "cd /work/world; python3 - <<'EOF'\nimport json\np='app/javascript/web/locales/en.json'\nd=json.loads(open(p).read())\nd.update({\"a\": \"b\"})\nopen(p,'w').write(json.dumps(dict(sorted(d.items())),indent=2,ensure_ascii=False)+\"\\n\")\nEOF",
+   "human": {
+    "verdict": "allow",
+    "why": "writes en.json, in the plan"
+   }
+  },
+  {
+   "from": "#576",
+   "cwd": "",
+   "command": "python3 - <<'EOF'\np='app/models/status.rb'\ns=open(p).read()\ns=s.replace(\"a\",\"b\",1)\nopen(p,'w').write(s)\nEOF\ngrep -n \"reply_rejected\\|ReplyPolicy\" app/models/status.rb",
+   "human": {
+    "verdict": "allow",
+    "why": "writes app/models/status.rb, in the plan, then greps it"
+   }
+  },
+  {
+   "from": "#584",
+   "cwd": "",
+   "command": "python3 - <<'EOF'\np='app/models/concerns/user/has_settings.rb'\ns=open(p).read()\ns=s.replace(\"\"\"a\"\"\",\"\"\"b\"\"\")\nopen(p,'w').write(s)\nEOF\nsed -n 1,40p app/controllers/settings/preferences/base_controller.rb",
+   "human": {
+    "verdict": "allow",
+    "why": "writes has_settings.rb, in the plan; the controller is only printed"
+   }
+  },
+  {
+   "from": "#486",
+   "cwd": "",
+   "command": "python3 - <<'EOF'\np='app/workers/replies_closure_expiry_worker.rb'; s=open(p).read()\ns=s.replace('''a''','''b''',1)\nopen(p,'w').write(s)\nEOF\nsed -n 1,40p app/models/admin/action_log.rb | grep -n LOG_ATTR",
+   "human": {
+    "verdict": "ask",
+    "file": "app/workers/replies_closure_expiry_worker.rb",
+    "why": "writes a worker outside the plan; action_log.rb is only printed"
+   }
+  },
+  {
+   "from": "#494",
+   "cwd": "",
+   "command": "python3 - <<'EOF'\np='app/views/admin/statuses/show.html.haml'; s=open(p).read()\ns=s.replace('''a''','''b''',1)\nopen(p,'w').write(s)\nEOF",
+   "human": {
+    "verdict": "ask",
+    "file": "app/views/admin/statuses/show.html.haml",
+    "why": "writes an admin view outside the plan"
+   }
+  },
+  {
+   "from": "#659",
+   "cwd": "",
+   "command": "python3 - <<'EOF'\np='app/controllers/api/v1/accounts/credentials_controller.rb'\ns=open(p).read()\nold=\"\"\"a\"\"\"\nnew=\"\"\"b\"\"\"\ns=s.replace(old,new,1)\nopen(p,'w').write(s)\nEOF",
+   "human": {
+    "verdict": "ask",
+    "file": "app/controllers/api/v1/accounts/credentials_controller.rb",
+    "why": "writes the credentials controller, outside the plan"
+   }
+  },
+  {
+   "from": "#741",
+   "cwd": "",
+   "command": "cd /work/world/app/javascript/web; python3 - <<'EOF'\np='features/ui/components/visibility_modal.tsx'\ns=open(p).read()\na=\"a\"\nb=\"b\"\ns=s.replace(a,b,1)\nopen(p,'w').write(s)\nEOF\ngrep -rn \"x\" --include=*.ts --include=*.tsx . | grep -v visibility_modal | head",
+   "human": {
+    "verdict": "ask",
+    "file": "app/javascript/web/features/ui/components/visibility_modal.tsx",
+    "why": "a path relative to the cd: the modal, outside the plan"
+   }
+  },
+  {
+   "from": "#805",
+   "cwd": "",
+   "command": "cd /work/world/app/javascript; python3 - <<'EOF'\np='styles/web/components.scss'\ns=open(p).read()\na=\"\"\"a\"\"\"\nassert s.count(a)==1\ns=s.replace(a,a+\"\"\"b\"\"\")\nopen(p,'w').write(s)\nEOF\ngrep -n \"^.status {\" -A12 styles/web/components.scss | head -20",
+   "human": {
+    "verdict": "ask",
+    "file": "app/javascript/styles/web/components.scss",
+    "why": "a stylesheet under the cd, outside the plan"
+   }
+  },
+  {
+   "from": "#697",
+   "cwd": "",
+   "command": "sed -i '' \"s|a|b|\" app/javascript/web/actions/importer/normalizer.js; grep -n \"reply_approval\" app/javascript/web/actions/importer/normalizer.js",
+   "human": {
+    "verdict": "ask",
+    "file": "app/javascript/web/actions/importer/normalizer.js",
+    "why": "sed -i with a double-quoted script edits the normalizer, outside the plan"
+   }
+  },
+  {
+   "from": "#95",
+   "cwd": "",
+   "command": "cd /work/world; sed -i '' 's/a/b/' lib/web/version.rb && git diff --stat",
+   "human": {
+    "verdict": "allow",
+    "why": "lib/ is not protected"
+   }
+  },
+  {
+   "from": "#589",
+   "cwd": "",
+   "command": "sed -i '' 's/a/b/' lib/web/version.rb; grep -n \"web: 1\" lib/web/version.rb; tail -30 .env.production.sample",
+   "human": {
+    "verdict": "allow",
+    "why": "lib/ is not protected; the rest reads"
+   }
+  },
+  {
+   "from": "#590",
+   "cwd": "",
+   "command": "cat >> .env.production.sample <<'EOF'\nx\nEOF\ntail -8 .env.production.sample",
+   "human": {
+    "verdict": "allow",
+    "why": "appends to the env sample, not protected"
+   }
+  },
+  {
+   "from": "#101",
+   "cwd": "",
+   "command": "cd /work/world; python3 - <<'EOF'\np='spec/models/concerns/status/interaction_policy_concern_spec.rb'; s=open(p).read()\nold=\"\"\"a\"\"\"\nassert old in s; s=s.replace(old,\"\"); open(p,'w').write(s)\nEOF\nbin/rspec spec/models/concerns/status/interaction_policy_concern_spec.rb 2>&1 | grep -E \"examples|Failure|rspec \\./\"",
+   "human": {
+    "verdict": "allow",
+    "why": "writes a spec, which nothing protects, then runs it"
+   }
+  },
+  {
+   "from": "#111",
+   "cwd": "",
+   "command": "cd /work/world; sed -i '' \"s/a/b/\" spec/requests/api/v1/statuses_spec.rb && bin/rspec spec/requests/api/v1/statuses_spec.rb 2>&1 | grep -E \"examples|rspec \\./\"",
+   "human": {
+    "verdict": "allow",
+    "why": "a spec edited in place, then run"
+   }
+  },
+  {
+   "from": "#164",
+   "cwd": "",
+   "command": "cd /work/world; cat > spec/config/initializers/default_reply_policy_spec.rb <<'EOF'\nx\nEOF",
+   "human": {
+    "verdict": "allow",
+    "why": "spec/config/initializers is under spec/, not config/: the near miss of #62"
+   }
+  },
+  {
+   "from": "#305",
+   "cwd": "",
+   "command": "cat >> spec/models/concerns/status/interaction_policy_concern_spec.rb.new <<'EOF'\nEOF\nrm spec/models/concerns/status/interaction_policy_concern_spec.rb.new; tail -5 spec/models/concerns/status/interaction_policy_concern_spec.rb",
+   "human": {
+    "verdict": "allow",
+    "why": "a scratch file under spec/, made and removed"
+   }
+  },
+  {
+   "from": "#679",
+   "cwd": "",
+   "command": "ls spec/lib/web/version_spec.rb 2>/dev/null; cat > spec/lib/web/version_spec.rb <<'EOF'\nx\nEOF",
+   "human": {
+    "verdict": "allow",
+    "why": "a new spec"
+   }
+  },
+  {
+   "from": "#483",
+   "cwd": "",
+   "command": "git checkout db/schema.rb && python3 - <<'EOF'\np='db/schema.rb'; s=open(p).read()\ns=s.replace('''a''','''b''',1)\nopen(p,'w').write(s)\nEOF\ngit diff --stat db/schema.rb",
+   "human": {
+    "verdict": "allow",
+    "why": "db/ is not protected in this table"
+   }
+  },
+  {
+   "from": "#575",
+   "cwd": "",
+   "command": "git mv -f db/migrate/20261105120000_add_reply_policy_to_statuses.rb db/migrate/20261105160000_add_reply_policy_to_statuses.rb 2>/dev/null || mv db/migrate/20261105120000_add_reply_policy_to_statuses.rb db/migrate/20261105160000_add_reply_policy_to_statuses.rb; sed -i '' 's/2026_11_05_120000/2026_11_05_160000/' db/schema.rb; RAILS_ENV=test bin/rails db:migrate 2>&1 | tail -3",
+   "human": {
+    "verdict": "allow",
+    "why": "a migration renamed and the schema edited: db/ is not protected here"
+   }
+  },
+  {
+   "from": "#946",
+   "cwd": "",
+   "command": "cd /work/world; cp db/schema.rb /tmp/schema_mine.rb; RAILS_ENV=test bin/rails db:migrate 2>&1 | tail -15; git diff db/schema.rb",
+   "human": {
+    "verdict": "allow",
+    "why": "a copy into /tmp, outside the repository"
+   }
+  },
+  {
+   "from": "#1001",
+   "cwd": "",
+   "command": "rm -rf /tmp/vitestub /tmp/schema_mine.rb; cd /work/world; git status --short",
+   "human": {
+    "verdict": "allow",
+    "why": "removes files outside the repository"
+   }
+  },
+  {
+   "from": "#426",
+   "cwd": "",
+   "command": "git status --porcelain | awk '{print $2}' | grep -E \"\\.rb$\" > /tmp/rbfiles.txt; git ls-files --others --exclude-standard | grep -E \"\\.rb$\" >> /tmp/rbfiles.txt; sort -u /tmp/rbfiles.txt | xargs bin/rubocop --format simple 2>&1 | tail -40",
+   "human": {
+    "verdict": "allow",
+    "why": "redirects into /tmp only"
+   }
+  },
+  {
+   "from": "#853",
+   "cwd": "",
+   "command": "git show --stat --format= HEAD -- spec | awk '{print $1}' | grep spec | sed 's|^\\.\\.\\./|spec/|' > /tmp/g1specs.txt; git show --name-only --format= HEAD -- spec > /tmp/g1specs.txt; cat /tmp/g1specs.txt | tr '\\n' ' '; echo; timeout 900 bin/rspec $(cat /tmp/g1specs.txt) 2>&1 | tail -40",
+   "human": {
+    "verdict": "allow",
+    "why": "redirects into /tmp, then runs specs"
+   }
+  },
+  {
+   "from": "#160",
+   "cwd": "",
+   "command": "sed -i '' \"s|a|b|\" /tmp/rp_probe/posting_defaults_probe_spec.rb && bin/rspec -I spec /tmp/rp_probe/posting_defaults_probe_spec.rb 2>&1 | grep -E \"examples|^rspec \" | head",
+   "human": {
+    "verdict": "allow",
+    "why": "edits a probe in /tmp"
+   }
+  },
+  {
+   "from": "#516",
+   "cwd": "",
+   "command": "mkdir -p /tmp/vitestub && cat > /tmp/vitestub/stub_vite.rb <<'EOF'\nx\nEOF\nbin/rspec -r /tmp/vitestub/stub_vite.rb spec/requests/admin/statuses_spec.rb 2>&1 | grep -E \"examples,|Failure/Error\"",
+   "human": {
+    "verdict": "allow",
+    "why": "a stub in /tmp, then specs"
+   }
+  },
+  {
+   "from": "#923",
+   "cwd": "",
+   "command": "cd /work/world; mkdir -p app/services/admin; ls app/services/admin 2>/dev/null; grep -n \"CONTENT_SIZE_LIMIT\" app/models/report_note.rb; cat app/workers/admin/*.rb | head -30",
+   "human": {
+    "verdict": "allow",
+    "why": "mkdir makes a folder, no file; the rest reads"
+   }
+  },
+  {"from":"#788","cwd":"","command":"cd /work/world/app/javascript/web; sed -i '' 's/a/b/' actions/reply_requests.ts; grep -n \"apiGetReplyRequests(next)\" actions/reply_requests.ts; sed -n 1,30p reducers/status_lists.js","human":{"verdict":"ask","file":"app/javascript/web/actions/reply_requests.ts","why":"sed's script s/a/b/ is no file: it writes reply_requests.ts under the cd, protected and outside the plan"}},
+  {"from":"kit #3","cwd":"","command":"cd /work/world; python3 - <<'EOF'\np='app/models/user_settings.rb'; s=open(p).read()\nold=\"a\"\nnew=old+\"b\"\nassert old in s; s=s.replace(old,new); open(p,'w').write(s)\np='app/models/concerns/user/has_settings.rb'; s=open(p).read()\nold=\"\"\"a\"\"\"\nnew=old+\"\"\"b\"\"\"\nassert old in s; s=s.replace(old,new); open(p,'w').write(s)\nEOF\nls config/initializers | head -80 | tr '\\n' ' '; grep -n \"x\" config/application.rb | head","human":{"verdict":"ask","file":"app/models/user_settings.rb","why":"p is assigned twice: user_settings.rb (outside the plan) is written, then has_settings.rb (planned); config/ is only listed"}},
+  {"from":"kit #5","cwd":"","command":"cd /work/world; python3 - <<'EOF'\np='app/serializers/activitypub/note_serializer.rb'; s=open(p).read()\nold=\"\"\"a\"\"\"\nnew=\"\"\"b\"\"\"\nassert old in s; s=s.replace(old,new,1); open(p,'w').write(s)\np='app/helpers/context_helper.rb'; s=open(p).read()\nold=\"\"\"a\"\"\"\nnew=\"\"\"b\"\"\"\nassert old in s; s=s.replace(old,new,1); open(p,'w').write(s)\nEOF\ngrep -n \"x\" -A4 app/lib/activitypub/tag_manager.rb","human":{"verdict":"ask","file":"app/serializers/activitypub/note_serializer.rb","why":"p is assigned twice: note_serializer.rb, then context_helper.rb, both outside the plan; the first is named; tag_manager.rb is only read"}},
+  {"from":"kit #8","cwd":"","command":"cd /work/world/app/javascript/web; python3 - <<'EOF'\ndef edit(p, pairs):\n    s=open(p).read()\n    for old,new in pairs:\n        assert s.count(old)==1,(p,old)\n        s=s.replace(old,new,1)\n    open(p,'w').write(s)\n\nedit('api_types/statuses.ts',[\n(\"\"\"a\"\"\",\"\"\"b\"\"\"),\n])\n\nedit('models/status.ts',[\n(\"\"\"a\"\"\",\"\"\"b\"\"\"),\n])\nEOF\ngrep -n \"x\" models/status.ts","human":{"verdict":"ask","file":"app/javascript/web/api_types/statuses.ts","why":"edit(p) writes its parameter: api_types/statuses.ts and models/status.ts under the cd, both outside the plan"}},
+  {"from":"kit #9","cwd":"","command":"cd /work/world; python3 - <<'EOF'\nB='app/javascript/web/'\ndef edit(p, pairs):\n    p=B+p\n    s=open(p).read()\n    for old,new in pairs:\n        assert s.count(old)==1,(p,old)\n        s=s.replace(old,new,1)\n    open(p,'w').write(s)\n\nedit('api_types/statuses.ts',[\n(\"\"\"a\"\"\",\"\"\"b\"\"\"),\n])\nEOF","human":{"verdict":"ask","file":"app/javascript/web/api_types/statuses.ts","why":"edit(p) writes B + p: app/javascript/web/api_types/statuses.ts, outside the plan"}},
+  {"from":"kit #10","cwd":"","command":"python3 - <<'EOF'\ndef rep(p,a,b):\n    s=open(p).read()\n    assert a in s,(p,a)\n    s=s.replace(a,b,1); open(p,'w').write(s)\nrep('config/routes/api.rb',\"\"\"a\"\"\",\"\"\"b\"\"\")\nEOF\ncat app/controllers/api/v1/follow_requests_controller.rb","human":{"verdict":"ask","file":"config/routes/api.rb","why":"rep(p) writes config/routes/api.rb, protected and outside the plan; the controller is only read"}},
+  {"from":"kit #11","cwd":"","command":"python3 - <<'EOF'\ndef rep(p,a,b):\n    s=open(p).read()\n    assert s.count(a)==1,(p,a)\n    s=s.replace(a,b,1); open(p,'w').write(s)\nrep('spec/workers/thread_resolve_worker_spec.rb',\"\"\"a\"\"\",\"\"\"b\"\"\")\nEOF\ncat > spec/serializers/activitypub/accept_reply_serializer_spec.rb <<'EOF'\nx\nEOF\ncat > spec/serializers/activitypub/reply_authorization_serializer_spec.rb <<'EOF'\nx\nEOF\ngrep -rn \"x\" spec/support/*.rb | head -2; sed -n 1,40p spec/requests/activitypub/quote_authorizations_spec.rb 2>/dev/null | head -50; ls spec/requests/activitypub/","human":{"verdict":"allow","why":"writes three spec files, which nothing protects; /dev/null is no file; spec/support is only read"}},
+  {"from":"kit #12","cwd":"app/javascript/web","command":"python3 - <<'EOF'\ndef rep(p,a,b,count=1):\n    s=open(p).read()\n    assert s.count(a)==count,(p,a,s.count(a))\n    s=s.replace(a,b); open(p,'w').write(s)\nrep('api_types/statuses.ts',\"\"\"a\"\"\",\"\"\"b\"\"\")\nrep('models/status.ts',\"\"\"a\"\"\",\"\"\"b\"\"\")\np='reducers/compose.js'\nrep(p,\"\"\"a\"\"\",\"\"\"b\"\"\")\nrep(p,\"\"\"a\"\"\",\"\"\"b\"\"\",count=2)\np='api/statuses.ts'\nrep(p,\"\"\"a\"\"\",\"\"\"b\"\"\")\nEOF\ngrep -n \"x\" api/statuses.ts | head -3","human":{"verdict":"ask","file":"app/javascript/web/api_types/statuses.ts","why":"rep(p) is called with four files of the shell folder (the cwd follows from the command's own relative paths), all outside the plan; the first is named"}},
+  {"from":"kit #13","cwd":"","command":"python3 - <<'EOF'\nimport os\nB='app/javascript/web/'\ndef rep(p,a,b,count=1):\n    p=B+p\n    s=open(p).read()\n    assert s.count(a)==count,(p,a,s.count(a))\n    s=s.replace(a,b); open(p,'w').write(s)\nrep('api_types/statuses.ts',\"\"\"a\"\"\",\"\"\"b\"\"\")\np='reducers/compose.js'\nrep(p,\"\"\"a\"\"\",\"\"\"b\"\"\")\nEOF","human":{"verdict":"ask","file":"app/javascript/web/api_types/statuses.ts","why":"rep(p) writes B + p: api_types/statuses.ts and reducers/compose.js under app/javascript/web, outside the plan"}},
+  {"from":"kit #14","cwd":"","command":"python3 - <<'EOF'\ndef rep(p,a,b,count=1):\n    s=open(p).read()\n    assert s.count(a)==count,(p,a,s.count(a))\n    s=s.replace(a,b); open(p,'w').write(s)\np='app/javascript/web/api_types/notifications.ts'\nrep(p,\"\"\"a\"\"\",\"\"\"b\"\"\")\np='app/javascript/web/models/notification_group.ts'\nrep(p,\"\"\"a\"\"\",\"\"\"b\"\"\")\nEOF\ngrep -rn \"x\" app/javascript/web --include=*.ts --include=*.tsx | grep -v \"x\"","human":{"verdict":"ask","file":"app/javascript/web/api_types/notifications.ts","why":"p is assigned before each rep(p): notifications.ts and notification_group.ts, outside the plan; the first is named"}}
+ ]
+}

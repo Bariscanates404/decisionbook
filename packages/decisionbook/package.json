@@ -1,0 +1,113 @@
+{
+  "name": "@atlasbound/decisionbook",
+  "version": "0.0.0",
+  "private": true,
+  "description": "DecisionBook: the history of why beside git's history of what, as plain append-only files a team commits; a readiness rubric, a gate, resume.",
+  "license": "AGPL-3.0-only",
+  "files": [
+    "index.cjs",
+    "base/",
+    "commands/",
+    "contracts/",
+    "core/",
+    "debug/",
+    "run/",
+    "steps/"
+  ],
+  "main": "./index.cjs",
+  "exports": {
+    ".": "./index.cjs"
+  },
+  "dependencies": {
+    "@atlasbound/kit": "0.0.0"
+  },
+  "atlasbound": {
+    "hooks": [
+      {
+        "event": "SessionStart",
+        "matcher": null,
+        "handler": "session",
+        "timeout": 10
+      },
+      {
+        "event": "UserPromptSubmit",
+        "matcher": null,
+        "handler": "prompt",
+        "timeout": 10
+      },
+      {
+        "event": "PreToolUse",
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "handler": "preEdit",
+        "timeout": 10
+      },
+      {
+        "event": "PostToolUse",
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "handler": "postEdit",
+        "timeout": 10
+      },
+      {
+        "event": "PostToolUse",
+        "matcher": "Read|Edit|Write|MultiEdit|NotebookEdit",
+        "handler": "recall",
+        "timeout": 10
+      },
+      { "event": "PreToolUse", "matcher": "Bash", "handler": "preShell", "timeout": 10 },
+      { "event": "SessionStart", "matcher": null, "handler": "start", "timeout": 10 },
+      { "event": "Stop", "matcher": null, "handler": "stop", "timeout": 10 }
+    ],
+    "commands": [
+      {
+        "src": "commands/decisionbook.md",
+        "dest": ".claude/commands/decisionbook.md"
+      },
+      {
+        "src": "commands/decide.md",
+        "dest": ".claude/commands/decide.md"
+      },
+      {
+        "src": "commands/resume-handoff.md",
+        "dest": ".claude/commands/resume-handoff.md",
+        "with": "handoff"
+      },
+      {
+        "src": "commands/resume-handoff-alone.md",
+        "dest": ".claude/commands/resume-handoff.md",
+        "without": "handoff"
+      }
+    ],
+    "verbs": [
+      { "words": ["protect"], "call": "verbs.protect", "flags": ["--source", "--none"], "asks": true, "by": "person", "when": ["--none"],
+        "phrase": "protect",
+        "what": "choose what needs a plan before an AI session edits it: protect <path or glob>[,...]; --source the source folders; --none nothing; with no word, what you could choose" },
+      { "words": ["decisionbook"], "short": "db", "call": "verbs.plan", "noWords": true,
+        "what": "how to plan before code: one atlasbound decisionbook new in your AI session" },
+      { "words": ["decisionbook", "new"], "call": "verbs.create", "stdin": 0,
+        "what": "<record>, or the JSON on standard input: start a plan: {\"title\", \"why\", \"success\", \"kind\", \"level\": micro|normal|critical, \"records\": [<record>, ...]}; says the state it left" },
+      { "words": ["decisionbook", "add"], "call": "verbs.add", "stdin": 1,
+        "what": "<id> <record> | <id> [<record>, ...], or the JSON on standard input: append one record, or a JSON array of them in one call, all or none: research (a run probe too), a question, a decision, an assumption, the person's confirm, a check, an item (a step too), a link, a waiver, a note; READY when complete, says the state" },
+      { "words": ["decisionbook", "ready"], "call": "verbs.ready", "what": "<id>: READY at the level code decides, else each missing row" },
+      { "words": ["decisionbook", "show"], "call": "verbs.show", "looks": true, "flags": ["--full"],
+        "what": "<id> [node...] | <type:value>: one plan (in full once a session, then its node map; a node: field[.key|order|index]), or a file, decision, issue, test or commit with its links both ways" },
+      { "words": ["decisionbook", "find"], "call": "verbs.find", "looks": true, "what": "<words>: the plans that hold them" },
+      { "words": ["decisionbook", "related"], "call": "verbs.related", "looks": true,
+        "what": "<path|words>: the earlier plans of an area: the files, their folder and imports, the same concerns; none named: what the branch changed" },
+      { "words": ["decisionbook", "plan"], "call": "verbs.pack", "looks": true,
+        "what": "<path|words>: the plan pack of an area: its binding decisions, assumptions no person confirmed, check commands, files, the level and what READY needs there, the two calls" },
+      { "words": ["decisionbook", "resume"], "call": "verbs.resume", "noWords": true, "looks": true, "what": "what a new session on this branch receives" },
+      { "words": ["decisionbook", "close"], "call": "verbs.close", "what": "<id>: record what shipped: its own commits, files and tests" },
+      { "words": ["debug", "decisionbook"], "call": "debug.decisionbook", "looks": true,
+        "what": "READY or not, and why. The plan-before-code part answers it; an install without that part says package-not-installed" },
+      { "words": ["debug", "resume"], "call": "verbs.resume", "looks": true,
+        "what": "the plan part the next session on this branch would receive (settled decisions, open questions). An install without the plan-before-code part says package-not-installed" }
+    ],
+    "free": ["decisionbook"],
+    "next": [{ "step": 2, "verb": "protect", "what": "choose what needs a plan before an AI session edits it" }],
+    "provides": { "planGate": "gateRead", "plans": "answers.plans", "protect": "verbs.protect", "notice": "verbs.notice",
+      "prompts": "answers.prompts" },
+    "needs": { "guarded": null, "guardedWay": null, "research": null, "imports": null, "standards": null, "heard": null },
+    "teamStore": ".decisionbook",
+    "gate": { "name": "the DecisionBook gate" }
+  }
+}

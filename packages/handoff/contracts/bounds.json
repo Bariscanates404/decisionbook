@@ -1,0 +1,13 @@
+{
+  "//": "Every bound of the handoff, as data. note: the rendered note is one screen. message: the head of a person's message kept in the home store, how many per session, and how many characters of them one fill-in shows. now, next, kept: the lines an AI sends back (kept.perHandoff new lines in one reply, kept.cap lines in all, kept.cites message numbers on one line). facts: how many rows of each fact the note names before it says '+n more'. dropped: how many dropped lines the note remembers. sessionDays: a session's record older than this is removed at a session start. touchedBytes: how much of a session's list of edited files is read. heard: how many of the person's last messages here (of any session) the note carries whole to the next session, and how many characters of them in all, so that the next session does not ask again what they answered; message.chars is 1200 so that a person's answers to a plan's questions are kept whole. facts.decided: how many decisions and open questions of a plan the note names.",
+  "note": { "lines": 40, "chars": 4000 },
+  "message": { "chars": 1200, "perSession": 60, "shown": 6000 },
+  "heard": { "messages": 4, "chars": 2400 },
+  "now": 300,
+  "next": { "steps": 3, "chars": 120 },
+  "kept": { "perHandoff": 7, "cap": 12, "chars": 160, "cites": 3 },
+  "facts": { "commits": 5, "dirty": 8, "touched": 8, "plans": 2, "decided": 6, "path": 80, "subject": 72, "branch": 60 },
+  "dropped": 5,
+  "sessionDays": 14,
+  "touchedBytes": 262144
+}

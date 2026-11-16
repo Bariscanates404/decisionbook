@@ -1,0 +1,40 @@
+{
+  "//": "The context window of a model, from Claude Code's model-config documentation (code.claude.com/docs/en/model-config.md). env.max a positive number wins; else the first row whose id (a regular expression; a dated suffix still matches) matches: tokens, or null for unknown; a 1,000,000 answer is reduced under env.no1m. Data, so no model name is written in code.",
+  "env": {
+    "max": "CLAUDE_CODE_MAX_CONTEXT_TOKENS",
+    "no1m": "CLAUDE_CODE_DISABLE_1M_CONTEXT"
+  },
+  "reduced": 200000,
+  "windows": [
+    {
+      "row": "fable or mythos",
+      "id": "^claude-(?:fable|mythos)-",
+      "tokens": 1000000
+    },
+    {
+      "row": "opus 4-7 and later",
+      "id": "^claude-opus-(?:4-(?:[7-9]|[1-9]\\d)(?!\\d)|(?:[5-9]|[1-9]\\d)(?!\\d)(?:-(?:\\d{1,2})(?!\\d))?)",
+      "tokens": 1000000
+    },
+    {
+      "row": "sonnet 5 and later",
+      "id": "^claude-sonnet-(?:[5-9]|[1-9]\\d)(?!\\d)(?:-(?:\\d{1,2})(?!\\d))?",
+      "tokens": 1000000
+    },
+    {
+      "row": "haiku 5-5 and later",
+      "id": "^claude-haiku-(?:5-(?:[5-9]|[1-9]\\d)(?!\\d)|(?:[6-9]|[1-9]\\d)(?!\\d)(?:-(?:\\d{1,2})(?!\\d))?)",
+      "tokens": 1000000
+    },
+    {
+      "row": "opus or sonnet 4-6: either window",
+      "id": "^claude-(?:opus|sonnet)-4-6(?!\\d)",
+      "tokens": null
+    },
+    {
+      "row": "another claude model",
+      "id": "^claude-",
+      "tokens": 200000
+    }
+  ]
+}

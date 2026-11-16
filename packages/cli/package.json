@@ -1,0 +1,15 @@
+{
+  "name": "@atlasbound/cli",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The composition root and the only reader of argv: one verb table, one hook port, one host writer.",
+  "license": "AGPL-3.0-only",
+  "files": ["index.cjs", "adapters/", "bin/", "contracts/", "core/", "debug/", "steps/"],
+  "main": "./index.cjs",
+  "exports": {
+    ".": "./index.cjs"
+  },
+  "dependencies": {
+    "@atlasbound/kit": "0.0.0"
+  }
+}

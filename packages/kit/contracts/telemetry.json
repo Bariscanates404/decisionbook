@@ -1,0 +1,10 @@
+{
+  "$comment": "The telemetry words of kit: what its trace rows may leave as. Telemetry reads them where kit is installed; any other word leaves as other.",
+  "codes": [
+    "STORE_SEALED", "config-invalid", "git-failed", "io-read-failed", "io-read-not-utf8", "io-read-too-large", "io-write-failed",
+    "json-duplicate-key", "json-invalid", "json-lone-surrogate", "json-not-finite", "json-not-json", "json-too-deep", "json-too-large",
+    "key-invalid", "lock-held", "not-found", "path-absolute", "path-empty", "path-link", "path-outside-repo", "proc-kill-failed",
+    "shape-invalid", "shell-cd-lost", "shell-code-path", "shell-cut-short", "shell-handed", "shell-too-deep", "shell-word-expands",
+    "shell-writes-unnamed", "signature-invalid", "signed-type-invalid", "store-empty", "trace-invalid", "unexpected-error"
+  ]
+}

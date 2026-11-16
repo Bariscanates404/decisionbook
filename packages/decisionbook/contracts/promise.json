@@ -1,0 +1,12 @@
+{
+  "$comment": "The import-line shapes a promise is read by, as data, so a language is added here and not in code. `names`: the line binds named exports (group 1 the list, group 2 the module word); `whole`: it binds the module itself (group 1 the name, group 2 the module word). `entries`: the file stems that make a folder a module (its other files are its own). A shape is read wherever it stands in a line (a sentence, backticks), never glued to a name before it; the whole statement is the shape, a bare module word is none. A language whose import line has none of these shapes gives no promise: nothing is said, never a false contract. core/promise.cjs is the one reader. `store`: DecisionBook's own ear, the statements a prompt held, one row each ({ statement, module, names, session, at }, never another word of the prompt), in the person's home folder for this repository (base/here: never inside the repository, so no `git add` can take a person's words); `cap.kept` rows, the oldest goes.",
+  "imports": [
+    { "form": "names", "re": "(?<![\\w$.])(?:const|let|var)\\s*\\{([^}]*)\\}\\s*=\\s*require\\(\\s*['\"]([^'\"]+)['\"]\\s*\\)" },
+    { "form": "whole", "re": "(?<![\\w$.])(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*require\\(\\s*['\"]([^'\"]+)['\"]\\s*\\)" },
+    { "form": "names", "re": "(?<![\\w$.])import\\s*\\{([^}]*)\\}\\s*from\\s*['\"]([^'\"]+)['\"]" },
+    { "form": "whole", "re": "(?<![\\w$.])import\\s+([A-Za-z_$][\\w$]*)\\s*(?:,\\s*\\{[^}]*\\}\\s*)?from\\s*['\"]([^'\"]+)['\"]" }
+  ],
+  "entries": ["index"],
+  "store": "promises.jsonl",
+  "cap": { "promises": 3, "lineChars": 160, "kept": 20 }
+}

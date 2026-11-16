@@ -1,0 +1,31 @@
+{
+  "$comment": [
+    "The modules as data: the open package carries the base, handoff and decisionbook; per repository a person chooses which modules are on.",
+    "`base` is always wired; each module's `packages` in the order their hooks answer, and the rows in that order too (on /resume-handoff the handoff comes before",
+    "the decision book's shared part). `alias`: a short word a person may type for the module. `loses`: what a person reads when it is off.",
+    "`words`: the verbs those packages answer, so a verb typed while a package of the module is not installed says so instead of verb-unknown.",
+    "`optIn`: a module wired only when a person names it (setup --with <module>, setup --only, modules on); a plain setup leaves it off.",
+    "An add-on brings its own row: one of its packages holds it as `module` in its manifest (package.json `atlasbound`), in this shape. Such a",
+    "row is read only where that package is installed, is always `optIn`, and its packages answer before the rows here."
+  ],
+  "base": ["kit", "telemetry"],
+  "modules": [
+    {
+      "name": "handoff",
+      "title": "hand a session's work to the next one",
+      "packages": ["handoff"],
+      "what": "/handoff, atlasbound handoff, and the branch's note (your kept decisions and jobs first) at a session start and on /resume-handoff",
+      "loses": "you lose /handoff, atlasbound handoff and the branch's note at a session start and on /resume-handoff",
+      "words": ["handoff", "debug handoff"]
+    },
+    {
+      "name": "decisionbook",
+      "title": "why the code is so: decisions, plans, the plan gate",
+      "packages": ["decisionbook"],
+      "alias": ["db"],
+      "what": "/decisionbook, /decide, /resume-handoff's decisions, protect and the plan-before-code gate",
+      "loses": "you lose /decisionbook, /decide, the decisions on /resume-handoff and the plan gate before an edit",
+      "words": ["protect", "decisionbook", "db", "debug decisionbook", "debug resume"]
+    }
+  ]
+}

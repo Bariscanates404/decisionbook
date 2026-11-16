@@ -1,0 +1,501 @@
+{
+ "$comment": "write and read forms the table of real commands has no row for, written by hand (one protected file, app/models/user.rb, outside the plan of shell-commands.json): shell redirects, heredocs, tee, a shell's -c, code run by -c / -e in three languages, the copy, move and remove commands. human: as in shell-commands.json. The classes, each with its near miss that only reads or writes elsewhere: an option's argument or a script operand read as the file written, after a cd and from a subfolder; the write forms of git checkout -- file, git restore, git apply, find -exec sed -i, xargs sed -i, dd of=, curl -o, rubocop -a, prettier --write, gofmt -w, black; an argument glued to its option (sed -e..., --expression=, perl -e'...', code after -e) and a runner given a duration (timeout); a name rebound inside an if, a try or a function, and a tuple loop; a whole folder written (`.`, app, app/, a folder from a subfolder): human.file names the folder of the shell-unplaced ask; git -C, env -C, cp -t; git rm, git mv, git restore --staged --worktree; ordinary writes of tmp/ or spec/ only, which must not ask; a glob is the folder before its wildcard, a folder holding the root is the root, a copy lands on its folder; `rm -rf .decisionbook`, git checkout without `--`; a path built by a call asks unplaced.",
+ "rows": [
+  {
+   "from": "unterminated heredoc",
+   "cwd": "",
+   "command": "cat > app/models/user.rb <<'EOF'\nx",
+   "human": {
+    "verdict": "ask",
+    "file": "app/models/user.rb"
+   }
+  },
+  {
+   "from": "heredoc before redirect",
+   "cwd": "",
+   "command": "cat <<'EOF' > app/models/user.rb\nx\nEOF",
+   "human": {
+    "verdict": "ask",
+    "file": "app/models/user.rb"
+   }
+  },
+  {
+   "from": "tee from heredoc",
+   "cwd": "",
+   "command": "tee app/models/user.rb <<'EOF'\nx\nEOF",
+   "human": {
+    "verdict": "ask",
+    "file": "app/models/user.rb"
+   }
+  },
+  {
+   "from": "tee -a in pipe",
+   "cwd": "",
+   "command": "printf x | tee -a app/models/user.rb >/dev/null",
+   "human": {
+    "verdict": "ask",
+    "file": "app/models/user.rb"
+   }
+  },
+  {
+   "from": "append with 2>&1",
+   "cwd": "",
+   "command": "echo x >> app/models/user.rb 2>&1",
+   "human": {
+    "verdict": "ask",
+    "file": "app/models/user.rb"
+   }
+  },
+  {
+   "from": "fd redirect 1>",
+   "cwd": "",
+   "command": "echo x 1>app/models/user.rb",
+   "human": {
+    "verdict": "ask",
+    "file": "app/models/user.rb"
+   }
+  },
+  {
+   "from": "colon truncation",
+   "cwd": "",
+   "command": ": > app/models/user.rb",
+   "human": {
+    "verdict": "ask",
+    "file": "app/models/user.rb"
+   }
+  },
+  {
+   "from": "exec fd",
+   "cwd": "",
+   "command": "exec 3>app/models/user.rb",
+   "human": {
+    "verdict": "ask",
+    "file": "app/models/user.rb"
+   }
+  },
+  {
+   "from": "sh -c",
+   "cwd": "",
+   "command": "sh -c 'echo x > app/models/user.rb'",
+   "human": {
+    "verdict": "ask",
+    "file": "app/models/user.rb"
+   }
+  },
+  {
+   "from": "bash -lc heredoc",
+   "cwd": "",
+   "command": "bash -lc \"cat > app/models/user.rb <<EOF\nx\nEOF\"",
+   "human": {
+    "verdict": "ask",
+    "file": "app/models/user.rb"
+   }
+  },
+  {
+   "from": "python -c",
+   "cwd": "",
+   "command": "python3 -c \"open('app/models/user.rb','w').write('x')\"",
+   "human": {
+    "verdict": "ask",
+    "file": "app/models/user.rb"
+   }
+  },
+  {
+   "from": "node -e",
+   "cwd": "",
+   "command": "node -e \"require('fs').writeFileSync('app/models/user.rb','x')\"",
+   "human": {
+    "verdict": "ask",
+    "file": "app/models/user.rb"
+   }
+  },
+  {
+   "from": "ruby -e",
+   "cwd": "",
+   "command": "ruby -e \"File.write('app/models/user.rb','x')\"",
+   "human": {
+    "verdict": "ask",
+    "file": "app/models/user.rb"
+   }
+  },
+  {
+   "from": "cp into folder",
+   "cwd": "",
+   "command": "cp /tmp/user.rb app/models/",
+   "human": {
+    "verdict": "ask",
+    "file": "app/models/user.rb"
+   }
+  },
+  {
+   "from": "mv rename",
+   "cwd": "",
+   "command": "mv app/models/user.rb app/models/person.rb",
+   "human": {
+    "verdict": "ask",
+    "file": "app/models/user.rb"
+   }
+  },
+  {
+   "from": "install",
+   "cwd": "",
+   "command": "install -m 644 /tmp/x app/models/user.rb",
+   "human": {
+    "verdict": "ask",
+    "file": "app/models/user.rb"
+   }
+  },
+  {
+   "from": "truncate",
+   "cwd": "",
+   "command": "truncate -s 0 app/models/user.rb",
+   "human": {
+    "verdict": "ask",
+    "file": "app/models/user.rb"
+   }
+  },
+  {
+   "from": "rm",
+   "cwd": "",
+   "command": "rm app/models/user.rb",
+   "human": {
+    "verdict": "ask",
+    "file": "app/models/user.rb"
+   }
+  },
+  {
+   "from": "ln -sf",
+   "cwd": "",
+   "command": "ln -sf /tmp/x app/models/user.rb",
+   "human": {
+    "verdict": "ask",
+    "file": "app/models/user.rb"
+   }
+  },
+  {
+   "from": "touch",
+   "cwd": "",
+   "command": "touch app/models/user.rb",
+   "human": {
+    "verdict": "ask",
+    "file": "app/models/user.rb"
+   }
+  },
+  {
+   "from": "read: grep -l with redirect to /dev/null",
+   "cwd": "",
+   "command": "grep -l x app/models/user.rb >/dev/null 2>&1",
+   "human": {
+    "verdict": "allow"
+   }
+  },
+  {
+   "from": "read: diff",
+   "cwd": "",
+   "command": "diff app/models/user.rb /tmp/x",
+   "human": {
+    "verdict": "allow"
+   }
+  },
+  {
+   "from": "read: git diff -- file",
+   "cwd": "",
+   "command": "git diff -- app/models/user.rb",
+   "human": {
+    "verdict": "allow"
+   }
+  },
+  {
+   "from": "read: node --test of a test",
+   "cwd": "",
+   "command": "node --test test/a.test.js",
+   "human": {
+    "verdict": "allow"
+   }
+  },
+  {
+   "from": "read: go test",
+   "cwd": "",
+   "command": "go test ./app/...",
+   "human": {
+    "verdict": "allow"
+   }
+  },
+  {
+   "from": "read: cat with < input",
+   "cwd": "",
+   "command": "cat < app/models/user.rb",
+   "human": {
+    "verdict": "allow"
+   }
+  },
+  {
+   "from": "read: sed -n with -e",
+   "cwd": "",
+   "command": "sed -n -e '1,5p' app/models/user.rb",
+   "human": {
+    "verdict": "allow"
+   }
+  },
+  {
+   "from": "read: awk redirect inside quotes",
+   "cwd": "",
+   "command": "awk '{ print $1 > \"/dev/stderr\" }' app/models/user.rb",
+   "human": {
+    "verdict": "allow"
+   }
+  },
+  {
+   "from": "read: echo of a > in quotes",
+   "cwd": "",
+   "command": "echo \"a > app/models/user.rb\"",
+   "human": {
+    "verdict": "allow"
+   }
+  },
+  {
+   "from": "read: grep pattern with >",
+   "cwd": "",
+   "command": "grep -n \"=> \" app/models/user.rb",
+   "human": {
+    "verdict": "allow"
+   }
+  },
+  {
+   "from": "read: test -f",
+   "cwd": "",
+   "command": "test -f app/models/user.rb && echo yes",
+   "human": {
+    "verdict": "allow"
+   }
+  },
+  {
+   "from": "read: [ -e ]",
+   "cwd": "",
+   "command": "[ -e app/models/user.rb ] && cat app/models/user.rb",
+   "human": {
+    "verdict": "allow"
+   }
+  },
+  {"from":"sed -i '' after a cd, planned","cwd":"","command":"cd /work/world/app/models; sed -i '' 's/a/b/' status.rb","human":{"verdict":"allow","why":"writes app/models/status.rb, in the plan: the script and the empty suffix are no files"}},
+  {"from":"sed -i -e after a cd, planned","cwd":"","command":"cd /work/world/app/models && sed -i -e 's/a/b/' status.rb","human":{"verdict":"allow","why":"writes app/models/status.rb, in the plan"}},
+  {"from":"perl -pi -e after a cd, planned","cwd":"","command":"cd /work/world/app/models && perl -pi -e 's/a/b/' status.rb","human":{"verdict":"allow","why":"writes app/models/status.rb, in the plan"}},
+  {"from":"sed -i '' of a spec from a subfolder","cwd":"app/javascript/web","command":"sed -i '' 's/a/b/' ../../../spec/models/user_spec.rb","human":{"verdict":"allow","why":"writes spec/models/user_spec.rb, which nothing protects"}},
+  {"from":"sed -i '' after a cd, outside the plan","cwd":"","command":"cd /work/world/app/models; sed -i '' 's/a/b/' user.rb","human":{"verdict":"ask","file":"app/models/user.rb","why":"writes app/models/user.rb, not app/models/s/a/b"}},
+  {"from":"truncate -s 0 after a cd, planned","cwd":"","command":"cd /work/world/app/models && truncate -s 0 status.rb","human":{"verdict":"allow","why":"writes app/models/status.rb; 0 is the size"}},
+  {"from":"touch -r reads its reference","cwd":"","command":"cd /work/world/app/models && touch -r user.rb status.rb","human":{"verdict":"allow","why":"writes status.rb (planned); user.rb is only the reference"}},
+  {"from":"git checkout --","cwd":"","command":"git checkout -- app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb","why":"restores the file from the index"}},
+  {"from":"git restore","cwd":"","command":"git restore app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb","why":"restores the file in the working tree"}},
+  {"from":"git apply","cwd":"","command":"git apply /tmp/change.diff","human":{"verdict":"ask","unplaced":true,"why":"writes the files the patch names, which the text does not show"}},
+  {"from":"find -exec sed -i","cwd":"","command":"find app -name '*.rb' -exec sed -i '' 's/a/b/' {} +","human":{"verdict":"ask","unplaced":true,"why":"rewrites every file find hands it, which the text does not show"}},
+  {"from":"xargs sed -i","cwd":"","command":"grep -l a app/models/*.rb | xargs sed -i '' 's/a/b/'","human":{"verdict":"ask","unplaced":true,"why":"rewrites every file grep hands it"}},
+  {"from":"dd of=","cwd":"","command":"dd if=/tmp/x of=app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb","why":"of= is the file written"}},
+  {"from":"curl -o","cwd":"","command":"curl -s -o app/models/user.rb https://example.com/user.rb","human":{"verdict":"ask","file":"app/models/user.rb","why":"-o is the file written"}},
+  {"from":"rubocop -a","cwd":"","command":"bundle exec rubocop -a app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb","why":"autocorrect rewrites its path operands"}},
+  {"from":"prettier --write","cwd":"","command":"npx prettier --write app/javascript/web/models/status.ts","human":{"verdict":"ask","file":"app/javascript/web/models/status.ts","why":"--write rewrites its path operands"}},
+  {"from":"gofmt -w","cwd":"","command":"gofmt -w app/server/main.go","human":{"verdict":"ask","file":"app/server/main.go","why":"-w rewrites its path operands"}},
+  {"from":"black","cwd":"","command":"black app/scripts/tool.py","human":{"verdict":"ask","file":"app/scripts/tool.py","why":"black rewrites its path operands"}},
+  {"from":"read: git checkout -b","cwd":"","command":"git checkout -b reply-options","human":{"verdict":"allow","why":"makes a branch; no path operand"}},
+  {"from":"read: git restore --staged","cwd":"","command":"git restore --staged app/models/user.rb","human":{"verdict":"allow","why":"changes the index only, not the file"}},
+  {"from":"read: git apply --check","cwd":"","command":"git apply --check /tmp/change.diff","human":{"verdict":"allow","why":"only checks the patch"}},
+  {"from":"read: find -exec grep","cwd":"","command":"find app -name '*.rb' -exec grep -l x {} +","human":{"verdict":"allow","why":"grep reads what find hands it"}},
+  {"from":"read: xargs grep","cwd":"","command":"grep -l a app/models/*.rb | xargs grep -n b","human":{"verdict":"allow","why":"grep reads what it is handed"}},
+  {"from":"read: dd of=/tmp","cwd":"","command":"dd if=app/models/user.rb of=/tmp/x","human":{"verdict":"allow","why":"if= is only read"}},
+  {"from":"read: curl -o /tmp","cwd":"","command":"curl -s -o /tmp/x https://example.com/user.rb","human":{"verdict":"allow","why":"writes /tmp only"}},
+  {"from":"read: rubocop without -a","cwd":"","command":"bundle exec rubocop app/models/user.rb","human":{"verdict":"allow","why":"reports only"}},
+  {"from":"rubocop -a -c reads its config","cwd":"","command":"bundle exec rubocop -a -c config/rubocop.yml app/models/status.rb","human":{"verdict":"allow","why":"writes app/models/status.rb, in the plan; the config of -c is only read"}},
+  {"from":"read: prettier --check","cwd":"","command":"npx prettier --check app/javascript/web/models/status.ts","human":{"verdict":"allow","why":"checks only"}},
+  {"from":"read: gofmt -l","cwd":"","command":"gofmt -l app/server/main.go","human":{"verdict":"allow","why":"lists only"}},
+  {"from":"read: black --check","cwd":"","command":"black --check app/scripts/tool.py","human":{"verdict":"allow","why":"checks only"}},
+  {"from":"sed --expression=","cwd":"","command":"sed -i --expression='s/a/b/' app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb","why":"the script is the option's own argument"}},
+  {"from":"sed -e glued","cwd":"","command":"sed -i -es/a/b/ app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb"}},
+  {"from":"perl -e glued","cwd":"","command":"perl -pi -e's/a/b/' app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb"}},
+  {"from":"sed --file=","cwd":"","command":"sed -i --file=/tmp/s.sed app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb"}},
+  {"from":"sed -E -e glued","cwd":"","command":"sed -i -E -e's/a/b/' app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb"}},
+  {"from":"code glued to -e","cwd":"","command":"ruby -e'File.write(\"app/models/user.rb\", \"x\")'","human":{"verdict":"ask","file":"app/models/user.rb"}},
+  {"from":"timeout runs sed","cwd":"","command":"timeout 10 sed -i '' 's/a/b/' app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb"}},
+  {"from":"read: sed --expression= without -i","cwd":"","command":"sed --expression='s/a/b/' app/models/user.rb","human":{"verdict":"allow","why":"prints only"}},
+  {"from":"read: code glued to -e reads","cwd":"","command":"ruby -e'puts File.read(\"app/models/user.rb\")'","human":{"verdict":"allow","why":"reads only"}},
+  {"from":"rebound inside if","cwd":"","command":"python3 - <<'EOF'\np = 'app/models/user.rb'\nif len(sys.argv) > 5:\n    p = 'spec/a_spec.rb'\nopen(p, 'w').write('x')\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"the if may not run: user.rb is written"}},
+  {"from":"rebound inside try","cwd":"","command":"python3 - <<'EOF'\np = 'app/models/user.rb'\ntry:\n    import nothing_here\n    p = 'spec/a_spec.rb'\nexcept ImportError:\n    pass\nopen(p, 'w').write('x')\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"the import fails first: user.rb is written"}},
+  {"from":"a shadow in a function","cwd":"","command":"node -e \"const p='app/models/user.rb'; function f(){ const p='spec/a.js'; return p } require('fs').writeFileSync(p,'x')\"","human":{"verdict":"ask","file":"app/models/user.rb","why":"the inner p is the function's own"}},
+  {"from":"a tuple loop","cwd":"","command":"python3 - <<'EOF'\np = 'spec/a_spec.rb'\nfor i, p in enumerate(['app/models/user.rb']):\n    open(p, 'w').write('x')\nEOF","human":{"verdict":"ask","unplaced":true,"why":"the loop binds p to what the text does not place"}},
+  {"from":"read: rebound between two specs","cwd":"","command":"python3 - <<'EOF'\np = 'spec/a_spec.rb'\nif x:\n    p = 'spec/b_spec.rb'\nopen(p, 'w').write('x')\nEOF","human":{"verdict":"allow","why":"either value is a spec, nothing protects spec/"}},
+  {"from":"prettier --write .","cwd":"","command":"npx prettier --write .","human":{"verdict":"ask","unplaced":true,"file":"./","why":"every file under the root, app/** among them"}},
+  {"from":"git checkout -- .","cwd":"","command":"git checkout -- .","human":{"verdict":"ask","unplaced":true,"file":"./"}},
+  {"from":"rm -rf app","cwd":"","command":"rm -rf app","human":{"verdict":"ask","unplaced":true,"file":"app/"}},
+  {"from":"rubocop -a app/","cwd":"","command":"bundle exec rubocop -a app/","human":{"verdict":"ask","unplaced":true,"file":"app/"}},
+  {"from":"prettier --write a folder from a subfolder","cwd":"app","command":"npx prettier --write models","human":{"verdict":"ask","unplaced":true,"file":"app/models/","why":"the plan holds two files of app/models, not all of it"}},
+  {"from":"read: a folder no glob reaches","cwd":"","command":"rm -rf spec && npx prettier --write lib/","human":{"verdict":"allow","why":"nothing protects spec/ or lib/"}},
+  {"from":"env -C","cwd":"","command":"env -C app/models sed -i '' 's/a/b/' user.rb","human":{"verdict":"ask","file":"app/models/user.rb"}},
+  {"from":"git -C","cwd":"","command":"git -C app checkout -- models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb"}},
+  {"from":"cp -t","cwd":"","command":"cp -t app/models /tmp/user.rb","human":{"verdict":"ask","file":"app/models/user.rb"}},
+  {"from":"read: git -C diff","cwd":"","command":"git -C app diff -- models/user.rb","human":{"verdict":"allow","why":"reads only"}},
+  {"from":"read: cp -t out of the repository","cwd":"","command":"cp -t /tmp app/models/user.rb","human":{"verdict":"allow","why":"writes /tmp/user.rb only"}},
+  {"from":"git rm","cwd":"","command":"git rm app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb"}},
+  {"from":"git mv","cwd":"","command":"git mv app/models/user.rb app/models/person.rb","human":{"verdict":"ask","file":"app/models/user.rb","why":"both names are written; the source first"}},
+  {"from":"git restore --staged --worktree","cwd":"","command":"git restore --staged --worktree app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb"}},
+  {"from":"read: git rm --cached","cwd":"","command":"git rm --cached app/models/user.rb","human":{"verdict":"allow","why":"the index only"}},
+  {"from":"read: git mv -n","cwd":"","command":"git mv -n app/models/user.rb app/models/person.rb","human":{"verdict":"allow","why":"a dry run"}},
+  {"from":"two helpers with one parameter name","cwd":"","command":"python3 - <<'EOF'\ndef read(path):\n    return open(path).read()\ndef write(path, s):\n    open(path, 'w').write(s)\ns = read('config/locales/en.yml')\nwrite('tmp/out.yml', s)\nEOF","human":{"verdict":"allow","why":"only tmp/out.yml is written; the protected file is read"}},
+  {"from":"a parameter shadows the outer name","cwd":"","command":"node -e \"const fs=require('fs'); const file='config/locales/en.yml'; const s=fs.readFileSync(file,'utf8'); function save(file, t){ fs.writeFileSync(file, t) } save('tmp/en.yml', s)\"","human":{"verdict":"allow","why":"save writes its own parameter: tmp/en.yml"}},
+  {"from":"a straight overwrite","cwd":"","command":"python3 - <<'EOF'\np = 'config/locales/en.yml'\ns = open(p).read()\np = 'tmp/en.yml'\nopen(p, 'w').write(s)\nEOF","human":{"verdict":"allow","why":"p is tmp/en.yml where it is written"}},
+  {"from":"load and dump","cwd":"","command":"python3 - <<'EOF'\nimport json\ndef load(path):\n    return json.load(open(path))\ndef dump(obj, path):\n    json.dump(obj, open(path, 'w'))\nd = load('config/settings.json')\ndump(d, 'tmp/settings.json')\nEOF","human":{"verdict":"allow","why":"dump writes tmp/settings.json"}},
+  {"from":"JS read and write helpers","cwd":"","command":"node -e \"const fs=require('fs'); function read(p){ return fs.readFileSync(p,'utf8') } function write(p, s){ fs.writeFileSync(p, s) } const s = read('config/locales/en.yml'); write('tmp/o.txt', s)\"","human":{"verdict":"allow","why":"write is called with tmp/o.txt"}},
+  {"from":"a straight overwrite to a spec","cwd":"","command":"python3 - <<'EOF'\npath = 'app/models/user.rb'\ntext = open(path).read()\npath = 'spec/models/user_spec.rb'\nopen(path, 'w').write(text)\nEOF","human":{"verdict":"allow","why":"the spec is written; the model only read"}},
+  {"from":"check and fix","cwd":"","command":"python3 - <<'EOF'\ndef check(f):\n    return 'x' in open(f).read()\ndef fix(f):\n    open(f, 'w').write('y')\ncheck('config/locales/en.yml')\nfix('spec/models/user_spec.rb')\nEOF","human":{"verdict":"allow","why":"fix is called with the spec"}},
+  {"from":"near miss, the helper called with the model","cwd":"","command":"python3 - <<'EOF'\ndef read(path):\n    return open(path).read()\ndef write(path, s):\n    open(path, 'w').write(s)\nwrite('app/models/user.rb', read('tmp/x'))\nEOF","human":{"verdict":"ask","file":"app/models/user.rb"}},
+  {"from":"near miss, the shadowing parameter given the model","cwd":"","command":"node -e \"const fs=require('fs'); const file='tmp/x'; function save(file){ fs.writeFileSync(file, '') } save('app/models/user.rb')\"","human":{"verdict":"ask","file":"app/models/user.rb"}},
+  {"from":"near miss, a one-line if","cwd":"","command":"python3 - <<'EOF'\np = 'tmp/x'\nif len(sys.argv) > 1: p = 'app/models/user.rb'\nopen(p, 'w')\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"the if may run"}},
+  {"from":"rm ap*","cwd":"","command":"rm -rf ap*","human":{"verdict":"ask","unplaced":true,"file":"./","why":"the folder before the wildcard"}},
+  {"from":"prettier **/*.rb","cwd":"","command":"npx prettier --write \"**/*.rb\"","human":{"verdict":"ask","unplaced":true,"file":"./"}},
+  {"from":"eslint **/*.js","cwd":"","command":"npx eslint --fix '**/*.js'","human":{"verdict":"ask","unplaced":true,"file":"./"}},
+  {"from":"sed */models/user.rb","cwd":"","command":"sed -i '' 's/a/b/' */models/user.rb","human":{"verdict":"ask","unplaced":true,"file":"./"}},
+  {"from":"rm {app,tmp}","cwd":"","command":"rm -rf {app,tmp}","human":{"verdict":"ask","unplaced":true,"file":"./"}},
+  {"from":"prettier app/**/*.rb","cwd":"","command":"npx prettier --write 'app/**/*.rb'","human":{"verdict":"ask","unplaced":true,"file":"app/"}},
+  {"from":"a folder that holds the root","cwd":"","command":"rm -rf /work/world/..","human":{"verdict":"ask","unplaced":true,"file":"./"}},
+  {"from":"a copy landing on a protected folder","cwd":"","command":"cp -r /tmp/app .","human":{"verdict":"ask","unplaced":true,"file":"app/"}},
+  {"from":"read: rm tmpout/*","cwd":"","command":"rm -rf tmpout/*","human":{"verdict":"allow","why":"nothing guarded under tmpout/"}},
+  {"from":"read: prettier spec/**","cwd":"","command":"npx prettier --write 'spec/**/*.rb'","human":{"verdict":"allow","why":"nothing guarded under spec/"}},
+  {"from":"rm -rf .decisionbook","cwd":"","command":"rm -rf .decisionbook","human":{"verdict":"ask","unplaced":true,"file":".decisionbook/","why":"the policy is a file under it"}},
+  {"from":"git checkout without --","cwd":"","command":"git checkout app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb"}},
+  {"from":"git checkout .","cwd":"","command":"git checkout .","human":{"verdict":"ask","unplaced":true,"file":"./"}},
+  {"from":"read: git checkout a branch","cwd":"","command":"git checkout main; git checkout -b fix origin/main","human":{"verdict":"allow","why":"branches"}},
+  {"from":"read: a file under .decisionbook","cwd":"","command":"rm .decisionbook/notes.md","human":{"verdict":"allow","why":"not the policy"}},
+  {"from":"a path built by a call","cwd":"","command":"python3 -c \"open(os.path.join('app','models','user.rb'), 'w').write('x')\"","human":{"verdict":"ask","unplaced":true,"why":"a write no one can place: before, unseen"}},
+  {"from":"read: a path built by a call, read","cwd":"","command":"python3 -c \"print(open(os.path.join('app','models','user.rb')).read())\"","human":{"verdict":"allow"}},
+  {"from":"a Python ; suite after if 0:","cwd":"","command":"python3 - <<'EOF'\np = 'app/models/user.rb'\nif 0: pass; p = 'tmp/x'\nopen(p, 'w').write('x')\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: the reassignment never runs"}},
+  {"from":"Ruby if false; ...; end","cwd":"","command":"ruby -e \"p='app/models/user.rb'; if false; p='tmp/x'; end; File.write(p,'x')\"","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: the reassignment never runs"}},
+  {"from":"Ruby if false, its body unindented","cwd":"","command":"ruby - <<'EOF'\np = 'app/models/user.rb'\nif false\np = 'tmp/x'\nend\nFile.write(p, 'x')\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: the reassignment never runs"}},
+  {"from":"JS if (c), its body unbraced and unindented","cwd":"","command":"node - <<'EOF'\nconst fs = require('fs')\nlet p = 'app/models/user.rb'\nif (process.argv.length > 9)\np = 'tmp/x'\nfs.writeFileSync(p, 'x')\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: the reassignment never runs"}},
+  {"from":"Ruby unless true; ...; end","cwd":"","command":"ruby -e \"p='app/models/user.rb'; unless true; p='tmp/x'; end; File.write(p,'x')\"","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: the reassignment never runs"}},
+  {"from":"Ruby while false, unindented","cwd":"","command":"ruby - <<'EOF'\np = 'app/models/user.rb'\nwhile false\np = 'tmp/x'\nend\nFile.write(p, 'x')\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: the reassignment never runs"}},
+  {"from":"Ruby begin, raise, then the assignment, rescue","cwd":"","command":"ruby - <<'EOF'\np = 'app/models/user.rb'\nbegin\nraise 'stop'\np = 'tmp/x'\nrescue\nend\nFile.write(p, 'x')\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: the reassignment never runs"}},
+  {"from":"a Ruby straight overwrite","cwd":"","command":"ruby -e \"p='app/models/user.rb'; s=File.read(p); p='tmp/x'; File.write(p,s)\"","human":{"verdict":"allow","why":"the reassignment always runs: only tmp/x is written"}},
+  {"from":"Ruby [].each do, its body unindented","cwd":"","command":"ruby - <<'EOF'\np = 'app/models/user.rb'\n[].each do |f|\np = 'tmp/x'\nend\nFile.write(p, 'x')\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: the reassignment never runs"}},
+  {"from":"Python while 0: pass; suite under -c","cwd":"","command":"python3 -c \"p = 'app/models/user.rb'\nwhile 0: pass; p = 'tmp/x'\nopen(p, 'w').write('x')\"","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: the reassignment never runs"}},
+  {"from":"Ruby case 1, when 2","cwd":"","command":"ruby - <<'EOF'\np = 'app/models/user.rb'\ncase 1\nwhen 2\np = 'tmp/x'\nend\nFile.write(p, 'x')\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: the reassignment never runs"}},
+  {"from":"Python try: raise; suite","cwd":"","command":"python3 - <<'EOF'\np = 'app/models/user.rb'\ntry: raise SystemError('x'); p = 'tmp/x'\nexcept Exception: pass\nopen(p, 'w').write('x')\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: the reassignment never runs"}},
+  {"from":"JS switch, case 99:","cwd":"","command":"node - <<'EOF'\nconst fs = require('fs')\nlet p = 'app/models/user.rb'\nswitch (process.argv.length) {\ncase 99:\np = 'tmp/x'\n}\nfs.writeFileSync(p, 'x')\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: the reassignment never runs"}},
+  {"from":"JS else if (c), unbraced","cwd":"","command":"node - <<'EOF'\nconst fs = require('fs')\nlet p = 'app/models/user.rb'\nif (process.argv.length > 99) { console.log(1) } else if (process.argv.length > 9)\np = 'tmp/x'\nfs.writeFileSync(p, 'x')\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: the reassignment never runs"}},
+  {"from":"near miss, a seen Python if body, then the overwrite","cwd":"","command":"python3 - <<'EOF'\nimport sys\np = 'app/models/user.rb'\nif len(sys.argv) > 5:\n    print(p)\np = 'tmp/x'\nopen(p, 'w').write('x')\nEOF","human":{"verdict":"allow","why":"the reassignment always runs: only tmp/x is written"}},
+  {"from":"near miss, a braced JS if, then the overwrite","cwd":"","command":"node -e \"const fs=require('fs'); let p='app/models/user.rb'; if (process.argv.length > 9) { console.log(p) } p='tmp/x'; fs.writeFileSync(p,'x')\"","human":{"verdict":"allow","why":"the reassignment always runs: only tmp/x is written"}},
+  {"from":"near miss, block words in a comment","cwd":"","command":"python3 - <<'EOF'\np = 'app/models/user.rb'\n# if the file is there, copy it, else try again\ns = open(p).read()\np = 'tmp/x'\nopen(p, 'w').write(s)\nEOF","human":{"verdict":"allow","why":"the reassignment always runs: only tmp/x is written"}},
+  {"from":"near miss, block words in a string","cwd":"","command":"ruby -e \"p='app/models/user.rb'; puts 'if you do this while that'; p='tmp/x'; File.write(p,'x')\"","human":{"verdict":"allow","why":"the reassignment always runs: only tmp/x is written"}},
+  {"from":"near miss, then and catch as methods","cwd":"","command":"node -e \"const fs=require('fs'); let p='app/models/user.rb'; Promise.resolve().then(() => 1).catch(() => 2); p='tmp/x'; fs.writeFileSync(p,'x')\"","human":{"verdict":"allow","why":"the reassignment always runs: only tmp/x is written"}},
+  {"from":"near miss, a seen Ruby each do body, then the overwrite","cwd":"","command":"ruby - <<'EOF'\np = 'app/models/user.rb'\n[1].each do |f|\n  puts f\nend\np = 'tmp/x'\nFile.write(p, 'x')\nEOF","human":{"verdict":"allow","why":"the reassignment always runs: only tmp/x is written"}},
+  {"from":"near miss, a Python for body after a blank line and a comment","cwd":"","command":"python3 - <<'EOF'\np = 'app/models/user.rb'\nfor f in [1]:\n\n    # the body after a blank line and a comment\n    print(f)\np = 'tmp/x'\nopen(p, 'w').write('x')\nEOF","human":{"verdict":"allow","why":"the reassignment always runs: only tmp/x is written"}},
+  {"from":"rm of a 300-char name and the model","cwd":"","command":"rm app/models/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.rb app/models/user.rb","human":{"verdict":"ask","failed":"decisionbook.preShell (hook-handler-threw)","why":"run for real it removes app/models/user.rb; the disk refuses the long name, the gate throws ENAMETOOLONG and the port asks in its place"}},
+  {"from":"cd into a 300-char name, then rm the model","cwd":"","command":"cd aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; rm app/models/user.rb","human":{"verdict":"ask","failed":"decisionbook.preShell (hook-handler-threw)","why":"run for real it removes app/models/user.rb; the disk refuses the long name, the gate throws ENAMETOOLONG and the port asks in its place"}},
+  {"from":"a Python class suite after its ;","cwd":"","command":"python3 - <<'EOF'\np = 'app/models/user.rb'\nclass C: pass; p = 'tmp/x'\nopen(p, 'w').write('x')\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: the reassignment is the class's own name"}},
+  {"from":"a Python def suite after its ;","cwd":"","command":"python3 - <<'EOF'\np = 'app/models/user.rb'\ndef f(): pass; p = 'tmp/x'\nopen(p, 'w').write('x')\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: the reassignment is in a body never called"}},
+  {"from":"a Ruby class body on one line","cwd":"","command":"ruby -e \"p='app/models/user.rb'; class C; p='tmp/x'; end; File.write(p,'x')\"","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: a class is a scope of its own"}},
+  {"from":"a Ruby module body, unindented","cwd":"","command":"ruby - <<'EOF'\np = 'app/models/user.rb'\nmodule M\np = 'tmp/x'\nend\nFile.write(p, 'x')\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: a module is a scope of its own"}},
+  {"from":"a Ruby def with no parentheses, unindented","cwd":"","command":"ruby - <<'EOF'\np = 'app/models/user.rb'\ndef f\np = 'tmp/x'\nend\nFile.write(p, 'x')\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: the reassignment is in a body never called"}},
+  {"from":"a Ruby squiggly heredoc","cwd":"","command":"ruby - <<'EOF'\np = 'app/models/user.rb'\ns = <<~T\np = 'tmp/x'\nT\nFile.write(p, 'x')\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: the reassignment is text in a string"}},
+  {"from":"a Ruby double-quoted string over lines","cwd":"","command":"ruby - <<'EOF'\np = 'app/models/user.rb'\ns = \"\np = 'tmp/x'\n\"\nFile.write(p, 'x')\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: the reassignment is text in a string"}},
+  {"from":"a Ruby %q string with | delimiters","cwd":"","command":"ruby - <<'EOF'\np = 'app/models/user.rb'\ns = %q|\np = 'tmp/x'\n|\nFile.write(p, 'x')\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: the reassignment is text in a string"}},
+  {"from":"a PHP heredoc","cwd":"","command":"php -r '$p = \"app/models/user.rb\";\n$s = <<<T\n$p = \"tmp/x\";\nT;\nfile_put_contents($p, \"x\");'","human":{"verdict":"ask","file":"app/models/user.rb","why":"by the language: the reassignment is text in a heredoc"}},
+  {"from":"a Ruby x = begin, raise, then the assignment, rescue","cwd":"","command":"ruby - <<'EOF'\np = 'app/models/user.rb'\nx = begin\nraise 'stop'\np = 'tmp/x'\nrescue\nend\nFile.write(p, 'x')\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: the raise skips the reassignment"}},
+  {"from":"a JS if(c) with no space, its body unbraced and unindented","cwd":"","command":"node - <<'EOF'\nconst fs = require('fs')\nlet p = 'app/models/user.rb'\nif(process.argv.length > 9)\np = 'tmp/x'\nfs.writeFileSync(p, 'x')\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: the reassignment never runs"}},
+  {"from":"a Ruby unless given a string, unindented","cwd":"","command":"ruby - <<'EOF'\np = 'app/models/user.rb'\nunless 'x'\np = 'tmp/x'\nend\nFile.write(p, 'x')\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real it writes app/models/user.rb: a string is true, so the body never runs"}},
+  {"from":"near miss, a Python straight overwrite","cwd":"","command":"python3 - <<'EOF'\np = 'app/models/user.rb'\np = 'tmp/x'\nopen(p, 'w').write('x')\nEOF","human":{"verdict":"allow","why":"the reassignment always runs: only tmp/x is written"}},
+  {"from":"near miss, a JS straight overwrite with no semicolons","cwd":"","command":"node - <<'EOF'\nconst fs = require('fs')\nlet p = 'app/models/user.rb'\np = 'tmp/x'\nfs.writeFileSync(p, 'x')\nEOF","human":{"verdict":"allow","why":"the reassignment always runs: only tmp/x is written"}},
+  {"from":"near miss, a call given block words in a string","cwd":"","command":"python3 - <<'EOF'\np = 'app/models/user.rb'\nprint('if while try')\np = 'tmp/x'\nopen(p, 'w').write('x')\nEOF","human":{"verdict":"allow","why":"the reassignment always runs: only tmp/x is written"}},
+  {"from":"near miss, a function first, then a straight overwrite","cwd":"","command":"python3 - <<'EOF'\ndef f(a):\n    return a\np = 'app/models/user.rb'\np = 'tmp/x'\nopen(p, 'w').write('x')\nEOF","human":{"verdict":"allow","why":"the reassignment always runs: only tmp/x is written"}},
+  {"from":"near miss, a JS callback over lines, then the overwrite","cwd":"","command":"node - <<'EOF'\nconst fs = require('fs');\nlet p = 'app/models/user.rb';\n['a'].forEach((f) => {\n  console.log(f);\n});\np = 'tmp/x';\nfs.writeFileSync(p, 'x');\nEOF","human":{"verdict":"allow","why":"the reassignment always runs: only tmp/x is written"}},
+  {"from":"near miss, a JS call given an object, then the overwrite","cwd":"","command":"node - <<'EOF'\nconst fs = require('fs')\nlet p = 'app/models/user.rb'\nfs.mkdirSync('tmp', { recursive: true })\np = 'tmp/x'\nfs.writeFileSync(p, 'x')\nEOF","human":{"verdict":"allow","why":"the reassignment always runs: only tmp/x is written"}},
+  {"from":"near miss, a Ruby require given a string, then the overwrite","cwd":"","command":"ruby -e \"p='app/models/user.rb'; require 'json'; p='tmp/x'; File.write(p,'x')\"","human":{"verdict":"allow","why":"the reassignment always runs: only tmp/x is written"}},
+  {"from":"trap: a trap's command removes the model","cwd":"","command":"trap 'rm app/models/user.rb' EXIT","human":{"verdict":"ask","file":"app/models/user.rb","why":"the shell runs the trap's command when it exits"}},
+  {"from":"trap: a double-quoted trap, then more","cwd":"","command":"trap \"rm app/models/user.rb\" EXIT; echo done","human":{"verdict":"ask","file":"app/models/user.rb","why":"the shell runs the trap's command when it exits"}},
+  {"from":"trap: near miss, a trap removing a scratch file","cwd":"","command":"trap 'rm -f tmp/lock' EXIT INT","human":{"verdict":"allow","why":"only tmp/lock; the signal names are no files"}},
+  {"from":"the product's store made unreadable","cwd":"","command":"chmod 000 .atlasbound","human":{"verdict":"deny","sealed":".atlasbound","why":"the product's own store, sealed as for a write tool; every later gate read would fail"}},
+  {"from":"the store made unreadable, recursively","cwd":"","command":"chmod -R a-r .atlasbound","human":{"verdict":"deny","sealed":".atlasbound","why":"the product's own store, sealed as for a write tool"}},
+  {"from":"the plan store made unreadable","cwd":"","command":"chmod 000 .decisionbook","human":{"verdict":"ask","unplaced":true,"file":".decisionbook/","why":"the policy is a file under it"}},
+  {"from":"a mode that looks like an option","cwd":"","command":"chmod -w app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb","why":"git keeps the mode: the model changes"}},
+  {"from":"an owner changed","cwd":"","command":"chown nobody app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb","why":"the owner is the first word, the model the file"}},
+  {"from":"a flag that locks the file","cwd":"","command":"chflags uchg app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb","why":"the flags are the first word, the model the file"}},
+  {"from":"an access list changed","cwd":"","command":"setfacl -m u:nobody:r app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb","why":"-m takes the list, the model is the file"}},
+  {"from":"an extended attribute written","cwd":"","command":"xattr -w com.example.k v app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb","why":"-w writes the attribute on the model"}},
+  {"from":"near miss, a scratch script made runnable","cwd":"","command":"chmod +x tmp/run.sh","human":{"verdict":"allow","why":"tmp is not protected"}},
+  {"from":"near miss, attributes only listed","cwd":"","command":"xattr -l app/models/user.rb","human":{"verdict":"allow","why":"-l only reads"}},
+  {"from":"near miss, the store only listed","cwd":"","command":"ls -l .atlasbound","human":{"verdict":"allow","why":"a read"}},
+  {"from":"git clean","cwd":"","command":"git clean -fd","human":{"verdict":"ask","unplaced":true,"why":"removes every untracked file and folder under the cwd, app/ among them, which the text does not name"}},
+  {"from":"git clean of a folder","cwd":"","command":"git clean -fd app/","human":{"verdict":"ask","unplaced":true,"why":"removes the untracked files under app/"}},
+  {"from":"git reset --hard","cwd":"","command":"git reset --hard","human":{"verdict":"ask","unplaced":true,"why":"rewrites every tracked file that differs from HEAD, the model's uncommitted change lost"}},
+  {"from":"git reset --hard to a commit","cwd":"","command":"git reset --hard HEAD~1","human":{"verdict":"ask","unplaced":true,"why":"rewrites the work tree to the commit before"}},
+  {"from":"git stash","cwd":"","command":"git stash","human":{"verdict":"ask","unplaced":true,"why":"takes every uncommitted change out of the work tree"}},
+  {"from":"git stash pop","cwd":"","command":"git stash pop","human":{"verdict":"ask","unplaced":true,"why":"writes the stashed changes back into the files they touch"}},
+  {"from":"git stash apply","cwd":"","command":"git stash apply","human":{"verdict":"ask","unplaced":true,"why":"writes the stashed changes into the files they touch"}},
+  {"from":"patch from a file","cwd":"","command":"patch -p1 < fix.patch","human":{"verdict":"ask","unplaced":true,"why":"writes the files the patch names, which the text does not show"}},
+  {"from":"a pushd chain back by popd","cwd":"","command":"pushd spec && bundle exec rspec && popd && sed -i '' 's/a/b/' app/models/user.rb","human":{"verdict":"ask","unplaced":true,"why":"popd returns to the root, so sed edits the model; the folder popd returns to is not followed"}},
+  {"from":"pushd then popd then rm","cwd":"","command":"pushd spec; popd; rm app/models/user.rb","human":{"verdict":"ask","unplaced":true,"why":"popd returns to the root, so rm removes the model"}},
+  {"from":"near miss, stashes listed","cwd":"","command":"git stash list","human":{"verdict":"allow","why":"only lists"}},
+  {"from":"near miss, a stash shown","cwd":"","command":"git stash show -p","human":{"verdict":"allow","why":"only prints the diff"}},
+  {"from":"near miss, git clean -n","cwd":"","command":"git clean -n","human":{"verdict":"allow","why":"-n only names what it would remove"}},
+  {"from":"near miss, git clean --dry-run","cwd":"","command":"git clean -fd --dry-run","human":{"verdict":"allow","why":"--dry-run removes nothing"}},
+  {"from":"near miss, git reset --soft","cwd":"","command":"git reset --soft HEAD~1","human":{"verdict":"allow","why":"moves the branch only; the work tree is untouched"}},
+  {"from":"near miss, a file unstaged","cwd":"","command":"git reset HEAD app/models/user.rb","human":{"verdict":"allow","why":"changes the index only"}},
+  {"from":"near miss, git reset","cwd":"","command":"git reset","human":{"verdict":"allow","why":"a mixed reset changes the index only"}},
+  {"from":"near miss, patch --dry-run","cwd":"","command":"patch -p1 --dry-run < fix.patch","human":{"verdict":"allow","why":"--dry-run writes nothing"}},
+  {"from":"near miss, pushd and popd around a test run","cwd":"","command":"pushd spec && bundle exec rspec && popd","human":{"verdict":"allow","why":"nothing written"}},
+  {"from":"a forced checkout","cwd":"","command":"git checkout --detach -f -q main","human":{"verdict":"ask","unplaced":true,"why":"-f throws away every uncommitted change in the tracked files"}},
+  {"from":"a merging checkout","cwd":"","command":"git checkout --merge main","human":{"verdict":"ask","unplaced":true,"why":"--merge merges the uncommitted changes into the branch's files"}},
+  {"from":"the index written under a prefix","cwd":"","command":"git checkout-index -a --prefix=app/","human":{"verdict":"ask","unplaced":true,"file":"app/","why":"writes every indexed file under app/"}},
+  {"from":"an archive extracted into a folder","cwd":"","command":"tar -x -C app -f /tmp/a.tar","human":{"verdict":"ask","unplaced":true,"file":"app/","why":"extracts the archive's files under app/"}},
+  {"from":"an archive extracted here","cwd":"","command":"tar -xzf /tmp/a.tgz","human":{"verdict":"ask","unplaced":true,"file":"./","why":"extracts the archive's files into the root, app/ among them"}},
+  {"from":"an old-style tar bundle","cwd":"","command":"tar xzf /tmp/a.tgz -C app","human":{"verdict":"ask","unplaced":true,"file":"app/","why":"x is extract in an old-style first word"}},
+  {"from":"a zip extracted into a folder","cwd":"","command":"unzip -o -q /tmp/a.zip -d app","human":{"verdict":"ask","unplaced":true,"file":"app/","why":"-d is the folder the files land in"}},
+  {"from":"a zip extracted here","cwd":"","command":"unzip -o /tmp/a.zip","human":{"verdict":"ask","unplaced":true,"file":"./","why":"extracts into the root"}},
+  {"from":"sort -o","cwd":"","command":"sort -u -o app/models/user.rb tmp/x","human":{"verdict":"ask","file":"app/models/user.rb","why":"-o names the file sort writes"}},
+  {"from":"a mode changed in code","cwd":"","command":"python3 - <<'EOF'\nimport os\nos.chmod('app/models/user.rb', 0o644)\nEOF","human":{"verdict":"ask","file":"app/models/user.rb","why":"os.chmod changes the model's mode, as chmod does"}},
+  {"from":"openssl -out","cwd":"","command":"openssl enc -aes-256-cbc -d -in /tmp/a.enc -out app/models/user.rb -pass pass:x -pbkdf2","human":{"verdict":"ask","file":"app/models/user.rb","why":"-out names the file written"}},
+  {"from":"ffmpeg's output","cwd":"","command":"ffmpeg -i /tmp/in.mp4 -frames:v 1 -y app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb","why":"the last word is the output"}},
+  {"from":"pdftoppm's root","cwd":"","command":"pdftoppm -png -r 50 /tmp/a.pdf app/models/page","human":{"verdict":"ask","file":"app/models/page","why":"the pages are written as app/models/page-N.png"}},
+  {"from":"sips --out","cwd":"","command":"sips -s format png /tmp/a.heic --out app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb","why":"--out names the file written"}},
+  {"from":"sips in place","cwd":"","command":"sips -c 100 200 app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb","why":"without --out sips rewrites the image it is given"}},
+  {"from":"docker cp out of a container","cwd":"","command":"docker cp web:/srv/user.rb app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb","why":"the last word is the destination"}},
+  {"from":"xxd -r to a file","cwd":"","command":"xxd -r -p /tmp/hex app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb","why":"the second operand is the output"}},
+  {"from":"split into a prefix","cwd":"","command":"split -l 100 /tmp/big app/models/part_","human":{"verdict":"ask","file":"app/models/part_","why":"the pieces are written as app/models/part_aa, part_ab ..."}},
+  {"from":"near miss, a checkout to a commit","cwd":"","command":"git checkout --detach -q main","human":{"verdict":"allow","why":"git refuses to overwrite uncommitted changes; the result is a committed state"}},
+  {"from":"near miss, the index exported outside","cwd":"","command":"git checkout-index -a --prefix=/tmp/export/","human":{"verdict":"allow","why":"writes outside the repository"}},
+  {"from":"near miss, an export extracted outside","cwd":"","command":"git archive HEAD | tar -x -C /tmp/copy","human":{"verdict":"allow","why":"extracts outside the repository"}},
+  {"from":"near miss, an archive listed","cwd":"","command":"tar -tzf /tmp/a.tgz","human":{"verdict":"allow","why":"-t only lists"}},
+  {"from":"near miss, an archive made of app","cwd":"","command":"tar -czf /tmp/app.tgz app","human":{"verdict":"allow","why":"reads app, writes /tmp"}},
+  {"from":"near miss, a zip listed","cwd":"","command":"unzip -l /tmp/a.zip","human":{"verdict":"allow","why":"-l only lists"}},
+  {"from":"near miss, a zip member printed","cwd":"","command":"unzip -p /tmp/a.zip x.txt","human":{"verdict":"allow","why":"-p writes to the standard output"}},
+  {"from":"near miss, a zip extracted outside","cwd":"","command":"unzip -o -q /tmp/a.zip -d /tmp/x","human":{"verdict":"allow","why":"extracts outside the repository"}},
+  {"from":"near miss, sort to the output","cwd":"","command":"sort -u app/models/user.rb","human":{"verdict":"allow","why":"no -o: it prints"}},
+  {"from":"near miss, a scratch script made runnable in code","cwd":"","command":"python3 - <<'EOF'\nimport os\nos.chmod('tmp/run.sh', 0o755)\nEOF","human":{"verdict":"allow","why":"tmp is not protected"}},
+  {"from":"near miss, openssl to the output","cwd":"","command":"openssl enc -d -aes-256-cbc -in app/models/user.rb -pass pass:x -pbkdf2","human":{"verdict":"allow","why":"no -out: it prints"}},
+  {"from":"near miss, ffmpeg reads the model","cwd":"","command":"ffmpeg -i app/models/user.rb -y /tmp/out.png","human":{"verdict":"allow","why":"writes /tmp"}},
+  {"from":"near miss, sips reads a property","cwd":"","command":"sips -g pixelWidth app/models/user.rb","human":{"verdict":"allow","why":"-g only reads"}},
+  {"from":"near miss, docker cp into a container","cwd":"","command":"docker cp app/models/user.rb web:/srv/","human":{"verdict":"allow","why":"writes inside the container"}},
+  {"from":"near miss, xxd dumps the model","cwd":"","command":"xxd -l 64 app/models/user.rb","human":{"verdict":"allow","why":"one operand: it prints"}},
+  {"from":"near miss, split of the model outside","cwd":"","command":"split -l 100 app/models/user.rb /tmp/part_","human":{"verdict":"allow","why":"writes /tmp"}},
+  {"from":"a heredoc opened inside a call's brackets","cwd":"","command":"ruby - <<'RUBY'\np = 'app/models/user.rb'\nputs(<<~EOS)\np = 'tmp/x'\nEOS\nFile.write(p, 'x')\nRUBY","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real p stays the model: the second line is heredoc text"}},
+  {"from":"near miss, a call given a string","cwd":"","command":"ruby - <<'RUBY'\np = 'app/models/user.rb'\nputs('x')\np = 'tmp/x'\nFile.write(p, 'x')\nRUBY","human":{"verdict":"allow","why":"p is tmp/x when File.write runs"}},
+  {"from":"a script written then run (python)","cwd":"","command":"cat > /tmp/s/fix.py <<'EOF'\nopen('app/models/user.rb', 'w').write('x')\nEOF\npython3 /tmp/s/fix.py","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real the script rewrites the model"}},
+  {"from":"a script written then run (node)","cwd":"","command":"cat > /tmp/s/fix.js <<'EOF'\nrequire('fs').writeFileSync('app/models/user.rb', 'x')\nEOF\nnode /tmp/s/fix.js","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real the script rewrites the model"}},
+  {"from":"a script written then run (bash)","cwd":"","command":"cat > /tmp/s/fix.sh <<'EOF'\nsed -i '' 's/a/b/' app/models/user.rb\nEOF\nbash /tmp/s/fix.sh","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real the shell script edits the model"}},
+  {"from":"a script made runnable and run","cwd":"","command":"cat > /tmp/s/run.sh <<'EOF'\n#!/bin/sh\necho x > app/models/user.rb\nEOF\nchmod +x /tmp/s/run.sh && /tmp/s/run.sh","human":{"verdict":"ask","file":"app/models/user.rb","why":"its first line names sh, which writes the model"}},
+  {"from":"a script written then run (ruby, heredoc first)","cwd":"","command":"cat <<'EOF' > /tmp/s/fix.rb\nFile.write('app/models/user.rb', 'x')\nEOF\nruby /tmp/s/fix.rb","human":{"verdict":"ask","file":"app/models/user.rb","why":"run for real the script rewrites the model"}},
+  {"from":"near miss, a script that only reads","cwd":"","command":"cat > /tmp/s/r.py <<'EOF'\nprint(len(open('app/models/user.rb').read()))\nEOF\npython3 /tmp/s/r.py","human":{"verdict":"allow","why":"the script reads the model"}},
+  {"from":"near miss, a script written, never run","cwd":"","command":"cat > /tmp/s/w.py <<'EOF'\nopen('app/models/user.rb', 'w').write('x')\nEOF","human":{"verdict":"allow","why":"only /tmp/s/w.py is written"}},
+  {"from":"near miss, a script that writes tmp","cwd":"","command":"cat > /tmp/s/t.py <<'EOF'\nopen('tmp/out.txt', 'w').write('x')\nEOF\npython3 /tmp/s/t.py","human":{"verdict":"allow","why":"the script writes tmp/out.txt"}},
+  {"from":"gzip in place","cwd":"","command":"gzip -9 app/models/user.rb","human":{"verdict":"ask","file":"app/models/user.rb","why":"replaces the model with app/models/user.rb.gz"}},
+  {"from":"gunzip in place","cwd":"","command":"gunzip app/models/user.rb.gz","human":{"verdict":"ask","file":"app/models/user.rb.gz","why":"replaces the archive with app/models/user.rb"}},
+  {"from":"near miss, gzip to the output","cwd":"","command":"gzip -c app/models/user.rb > /tmp/u.gz; gunzip -t /tmp/u.gz","human":{"verdict":"allow","why":"-c writes the output, -t only tests"}},
+  {"from":"a script written here, made runnable and run as ./f","cwd":"","command":"cat > fix.sh <<'EOF'\n#!/bin/bash\nsed -i '' 's/a/b/' app/models/user.rb\nEOF\nchmod +x fix.sh && ./fix.sh","human":{"verdict":"ask","file":"app/models/user.rb","why":"./fix.sh is the fix.sh just written; bash runs its sed on the model"}},
+  {"from":"written as f, run as ./f","cwd":"","command":"cat > fix.py <<'EOF'\nopen('app/models/user.rb', 'w').write('x')\nEOF\npython3 ./fix.py","human":{"verdict":"ask","file":"app/models/user.rb","why":"./fix.py is fix.py; it rewrites the model"}},
+  {"from":"written as ./f, run as f","cwd":"","command":"cat > ./fix.py <<'EOF'\nopen('app/models/user.rb', 'w').write('x')\nEOF\npython3 fix.py","human":{"verdict":"ask","file":"app/models/user.rb","why":"fix.py is ./fix.py; it rewrites the model"}},
+  {"from":"written in /tmp, run after cd /tmp","cwd":"","command":"cat > /tmp/s/fix.py <<'EOF'\nopen('/work/world/app/models/user.rb', 'w').write('x')\nEOF\ncd /tmp/s && python3 fix.py","human":{"verdict":"ask","file":"app/models/user.rb","why":"fix.py in /tmp/s is the script written; it opens the model by its absolute path"}},
+  {"from":"run from a subfolder by ../","cwd":"","command":"cat > scripts/fix.py <<'EOF'\nopen('models/user.rb', 'w').write('x')\nEOF\ncd app && python3 ../scripts/fix.py","human":{"verdict":"ask","file":"app/models/user.rb","why":"../scripts/fix.py from app is the script written; run in app, models/user.rb is the model"}},
+  {"from":"near miss, another script run","cwd":"","command":"cat > notes.sh <<'EOF'\n#!/bin/bash\nsed -i '' 's/a/b/' app/models/user.rb\nEOF\n./other.sh","human":{"verdict":"allow","why":"notes.sh is only written; other.sh runs"}},
+  {"from":"near miss, the same name in another folder","cwd":"","command":"cat > fix.py <<'EOF'\nopen('../app/models/user.rb', 'w').write('x')\nEOF\ncd spec && python3 fix.py","human":{"verdict":"allow","why":"spec/fix.py runs, not the fix.py written at the root"}},
+  {"from":"near miss, a /tmp script writing a relative path","cwd":"","command":"cat > /tmp/s/fix.py <<'EOF'\nopen('app/models/user.rb', 'w').write('x')\nEOF\ncd /tmp/s && python3 fix.py","human":{"verdict":"allow","why":"run in /tmp/s, it writes /tmp/s/app/models/user.rb"}},
+  {"from":"a forced switch","cwd":"","command":"git switch -f main","human":{"verdict":"ask","unplaced":true,"why":"-f throws away the uncommitted changes of every file"}},
+  {"from":"a switch discarding changes","cwd":"","command":"git switch --discard-changes main","human":{"verdict":"ask","unplaced":true,"why":"--discard-changes throws away the uncommitted changes of every file"}},
+  {"from":"near miss, a plain switch and a new branch","cwd":"","command":"git switch main && git switch -c feature","human":{"verdict":"allow","why":"git refuses to overwrite uncommitted changes; -c makes a branch"}}
+ ]
+}

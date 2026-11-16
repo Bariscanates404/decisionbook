@@ -1,0 +1,31 @@
+{
+  "$comment": "The telemetry words of decisionbook: what its trace rows may leave as. Telemetry reads them where decisionbook is installed; any other word leaves as other.",
+  "steps": {
+    "decisionbook.plan": "step_summary", "decisionbook.create": "step_summary", "decisionbook.add": "step_summary",
+    "decisionbook.ready": "step_summary", "decisionbook.close": "step_summary", "decisionbook.show": "step_summary",
+    "decisionbook.find": "step_summary", "decisionbook.related": "step_summary", "decisionbook.pack": "step_summary",
+    "decisionbook.resume": "step_summary", "decisionbook.protect": "step_summary", "decisionbook.notice": "step_summary",
+    "decisionbook.gate": "step_summary", "decisionbook.trust": "step_summary", "decisionbook.session": "step_summary",
+    "decisionbook.prompt": "step_summary", "decisionbook.recall": "step_summary", "decisionbook.shell": "step_summary",
+    "decisionbook.start": "step_summary", "decisionbook.stop": "step_summary", "decisionbook.debug": "step_summary",
+    "plan.phase": "step_summary", "research.read": "step_summary", "research.pointer": "step_summary", "ready.research": "step_summary"
+  },
+  "codes": [
+    "answer-bound", "answer-unbound", "answers-bound", "answers-none", "aside-asked", "aside-not-asked", "ask-no-one", "confirm-by-person", "confirm-not-asked", "contract-unpromised", "decision-no-effect",
+    "draft-shown", "gap-uncited",
+    "gate-in-scope", "gate-not-protected", "gate-not-write-tool", "gate-off", "gate-question", "guarded-person", "level-micro-rejected", "level-raised", "level-waived",
+    "link-unsourced", "no-fork-stated", "no-fork-unplanned", "no-fork-unsaid", "node-invalid", "phase-created", "phase-first-write", "phase-ready", "plan-args", "plan-close-empty", "plan-close-merged", "plan-close-off-branch", "plan-closed",
+    "plan-continued", "plan-created", "plan-draft-here", "plan-grown", "plan-none", "plan-not-critical", "plan-not-here", "plan-not-ready",
+    "plan-open", "plan-out-of-scope", "plan-ready", "plan-recorded", "plan-set-aside", "plan-shown", "plan-unknown", "policy-narrowed", "policy-unreadable",
+    "policy-word-unknown", "prompt-earlier", "prompt-nudge", "prompt-passed", "prompt-recall", "prompt-resume", "proposal-shown", "proposals-taken", "protect-answered",
+    "protect-person", "protect-refused", "protect-shown", "question-asked", "question-permission", "question-restates", "question-settled", "read-by-shell", "read-by-tool", "ready-answers", "ready-checks",
+    "ready-danger-undecided", "ready-edges", "ready-impact", "ready-no-actor", "ready-no-command", "ready-no-confirm",
+    "ready-no-feature", "ready-no-plan", "ready-no-precedent", "ready-no-repro", "ready-no-risk", "ready-no-rollback",
+    "ready-no-success", "ready-open-question", "ready-research", "ready-standard-undecided", "ready-tasks",
+    "recall-contract", "recall-given", "recall-none", "recall-unkept", "record-invalid", "record-secret", "record-verb-only",
+    "research-first", "research-met", "research-pointer", "research-short", "research-uncited", "schema-major", "session-draft", "session-none", "session-ready",
+    "session-unprotected", "shell-allowed", "shell-no-write", "shell-unplaced", "start-kept", "start-unkept",
+    "stop-clean", "stop-repeat", "stop-unrecorded", "supersede-not-asked", "supersede-self", "trust-kept", "trust-none",
+    "unlink-by-person"
+  ]
+}

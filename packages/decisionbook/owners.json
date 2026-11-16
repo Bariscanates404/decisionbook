@@ -1,0 +1,38 @@
+{
+  "package": {
+    "name": "decisionbook"
+  },
+  "caps": {
+    "pipeline": 4171,
+    "debug": 60,
+    "tests": 5682
+  },
+  "traceAs": {
+    "steps/trust.cjs": "inside the traced steps that keep or read a yes here: decisionbook.add, decisionbook.ready, decisionbook.gate, decisionbook.trust, decisionbook.session (run/verbs)",
+    "steps/gate.cjs": "inside the traced handlers decisionbook.gate (PreToolUse) and decisionbook.trust (PostToolUse) (run/verbs)",
+    "run/verbs.cjs": "the verb and handler table: every verb and hook handler is one traced step decisionbook.<verb>; the table has no step of its own",
+    "steps/write.cjs": "inside the traced steps decisionbook.create and decisionbook.add (run/verbs)",
+    "steps/open.cjs": "inside decisionbook.create and decisionbook.add (run/verbs, through steps/write and steps/batch); a refusal is the row's error code, going on and an aside are codes of the add's row",
+    "steps/batch.cjs": "inside decisionbook.create and decisionbook.add (run/verbs, through steps/write); n counts the records, the links and the unmet rows, a refusal is the row's error code",
+    "steps/ready.cjs": "inside decisionbook.ready, and decisionbook.create and decisionbook.add through steps/batch (run/verbs); n counts the unmet rows and the standards",
+    "steps/close.cjs": "inside the traced step decisionbook.close (run/verbs); n counts the commits read and the plan's own",
+    "steps/read.cjs": "inside the traced steps decisionbook.show, decisionbook.find, decisionbook.resume and the handlers decisionbook.gate, decisionbook.session, decisionbook.prompt (run/verbs)",
+    "steps/protect.cjs": "inside the traced step decisionbook.protect (run/verbs; setup's question is also the cli's own protect step)",
+    "steps/store.cjs": "the one reader and writer of .decisionbook/, inside every decisionbook.* step that reads or appends (run/verbs)",
+    "steps/touch.cjs": "git's count of commits since a decision, inside the steps that read decisions (decisionbook.show, decisionbook.resume, decisionbook.prompt)",
+    "steps/recall.cjs": "inside decisionbook.related, decisionbook.prompt and decisionbook.recall (run/verbs); n counts the seeds, the import step, the cards found and given",
+    "steps/pack.cjs": "inside decisionbook.prompt and decisionbook.pack (run/verbs); n counts the walk, packed and packChars",
+    "steps/area.cjs": "inside decisionbook.related, decisionbook.pack, decisionbook.prompt and decisionbook.recall (run/verbs), whose n it fills (n.built: cards with a built line)",
+    "steps/changed.cjs": "inside decisionbook.start, decisionbook.stop and decisionbook.shell (run/verbs), whose n says what git named",
+    "steps/shell.cjs": "inside decisionbook.shell (run/verbs); n counts the writes read, the files judged, unplaced writes, folders and a cut",
+    "steps/sealed.cjs": "inside decisionbook.shell (run/verbs, through steps/shell); its refusal is the shell row's code STORE_SEALED and n.sealed",
+    "steps/stop.cjs": "inside decisionbook.start and decisionbook.stop (run/verbs); n says whether a start was kept and the files changed",
+    "steps/host.cjs": "inside the traced handlers that read a host event (decisionbook.gate, decisionbook.trust, decisionbook.recall, decisionbook.shell)",
+    "steps/here.cjs": "the person's home rows, inside the traced steps that keep or read them (decisionbook.add, decisionbook.gate, decisionbook.trust, decisionbook.start, decisionbook.stop, decisionbook.recall)",
+    "steps/standards.cjs": "inside decisionbook.ready (run/verbs), whose n says standards, standardsDecided or standardsUnread",
+    "steps/promise.cjs": "inside the traced handlers decisionbook.gate and decisionbook.recall (run/verbs), whose n counts the promises, the broken imports and an ask already given",
+    "steps/surface.cjs": "inside the traced handlers decisionbook.gate and decisionbook.recall (run/verbs), through steps/promise",
+    "steps/bind.cjs": "inside the traced handler decisionbook.prompt (run/verbs, through steps/read); n counts the answers bound and the questions left open, the codes are the write's",
+    "steps/phase.cjs": "writes the plan.phase rows itself (created, READY, the first allowed write), beside the traced step that reached the phase: decisionbook.create, decisionbook.add, decisionbook.ready, decisionbook.gate, decisionbook.prompt"
+  }
+}

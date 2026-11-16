@@ -1,0 +1,21 @@
+{
+  "$comment": "The telemetry words of cli: what its trace rows may leave as. Telemetry reads them where cli is installed; any other word leaves as other.",
+  "steps": {
+    "hook.in": "step_summary", "hook.handler": "step_summary", "hook.out": "step_summary", "setup": "step_summary",
+    "update": "step_summary", "uninstall": "step_summary", "doctor": "step_summary", "status": "step_summary",
+    "debug.trace": "step_summary", "debug.doctor": "step_summary", "debug.shell": "step_summary", "debug.inject": "step_summary",
+    "modules": "step_summary", "cli.verb": "local-only", "hook.said": "local-only", "actor": "local-only", "debug.who": "local-only", "packages": "local-only",
+    "probes": "local-only", "protect": "local-only"
+  },
+  "codes": [
+    "actor-ai", "actor-prompt", "actor-terminal", "args-invalid", "capability-missing", "child-hard-stop", "committed-unread",
+    "doctor-problem", "file-foreign", "file-linked", "flag-needs-value", "flag-unknown", "hint-unread", "hook-allow", "hook-ask",
+    "hook-deny", "hook-handler-threw", "hook-host-call", "hook-host-unjudged", "hook-input-invalid", "hook-lost", "hook-none",
+    "hook-not-host", "hook-noted", "hook-only-host", "hook-timeout", "host-invalid", "ignore-defeated", "ignore-unasked",
+    "inject-handshake-unread", "install-path-unsafe", "manifest-invalid", "mcp-tracked", "module-kept-data", "module-kept-home",
+    "module-off", "module-refused", "not-a-repo", "notice-unread", "package-broken", "package-not-installed", "package-unread",
+    "person-only", "person-only-shell", "person-wrapped", "phrase-not-typed", "protect-refused", "root-unsafe", "run-interrupted",
+    "schema-major", "server-empty-fine", "settings-committed", "setup-run-failed", "store-absent", "store-foreign", "target-is-product",
+    "verb-module-off", "verb-unknown"
+  ]
+}

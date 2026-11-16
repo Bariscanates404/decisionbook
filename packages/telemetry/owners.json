@@ -1,0 +1,13 @@
+{
+  "package": {
+    "name": "telemetry"
+  },
+  "caps": {
+    "pipeline": 764,
+    "debug": 62,
+    "tests": 1726
+  },
+  "traceAs": {
+    "run/telemetry.cjs": "the verb table: each verb is one record of its own step (collect, redact, send, consent-on, consent-off, consent-status, hint)"
+  }
+}

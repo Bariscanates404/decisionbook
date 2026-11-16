@@ -1,0 +1,16 @@
+{
+  "$comment": [
+    "What tells a person from an AI, as data, read only by run/person.cjs. JSON because no AI host's name may be a literal in code.",
+    "`aiSessionEnv`: the variables an AI host sets in every process of its session. `aiHosts`: the AI hosts, as a path part of the first two words of a process's command line; `levels`: how deep a person's terminal may sit under the root.",
+    "`askingModes`: the host's permission modes in which a hook's ask is put to a person. Whether an ask is shown under bypassPermissions is not certain (it may pass unasked), so the safe reading holds: only these.",
+    "`wrappers`: programs that can type for a person when they stand above a terminal: terminal multiplexers, tools that open a pseudo-terminal, a script runner. Lower case, by the program's name with a trailing version left off. A grave act is refused under one. A program that opens a pseudo-terminal for one command needs no name here: such a terminal holds no shell a person types into, which the walk sees by itself, and it is no person's for any verb.",
+    "`commandOption`: the option by which a shell is handed a command string instead of a person's typing.",
+    "`hostCall.judged`: the platforms on which a hook call is told from a forged one by who holds the other end of its standard output (measured there: the host keeps it, its shell tool hands a file); on any other the call is heard as before, which is said in the trace."
+  ],
+  "hostCall": { "judged": ["darwin"] },
+  "aiSessionEnv": ["CLAUDECODE", "AI_AGENT"],
+  "aiHosts": { "names": ["claude", "claude-code"], "levels": 12 },
+  "wrappers": ["tmux", "screen", "zellij", "dtach", "abduco", "script", "expect", "unbuffer", "socat", "osascript"],
+  "commandOption": "-c",
+  "askingModes": ["default", "acceptEdits", "plan"]
+}

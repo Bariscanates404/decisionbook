@@ -1,0 +1,6 @@
+{
+  "$comment": "The one Node floor: the cli reads it here (adapters/node-floor.cjs).",
+  "engines": {
+    "node": ">=22"
+  }
+}

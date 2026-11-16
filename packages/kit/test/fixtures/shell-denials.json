@@ -1,0 +1,110 @@
+{
+  "$comment": "15 shell commands, each with the files it writes; `from` is the row's own number. Command text only: code bodies, search patterns and heredoc contents are replaced by a, b, x; paths and shell forms are kept; the world's folder is /work/world. `named`: a path the command names (in 14 rows one it only reads, lists, globs or changes into, or a folder; in #6 the written file). `writes` (by hand): the files a person reads the command writes, in its order, each after the cds before it (' > '), a device such as /dev/null none; `unplaced`: a write no one can place from the text. Each is placed: a name as its last assignment left it, a function's parameter as each call gives it.",
+  "commands": [
+    {
+      "from": "#1",
+      "named": "app/models/concerns/status/visibility.rb",
+      "command": "cd /work/world; python3 - <<'EOF'\np='app/models/status.rb'; s=open(p).read()\ns=s.replace('''a''','''b''',1)\ns=s.replace(\"a\",\"b\")\nopen(p,'w').write(s)\nEOF\ngit diff --stat app/models/status.rb; grep -n \"x\" app/models/concerns/status/visibility.rb",
+      "writes": ["/work/world > app/models/status.rb"],
+      "unplaced": false
+    },
+    {
+      "from": "#2",
+      "named": "app/controllers/activitypub/replies_controller.rb",
+      "command": "cd /work/world; python3 - <<'EOF'\np='app/models/concerns/status/threading_concern.rb'; s=open(p).read()\nold=\"\"\"a\"\"\"\nnew=\"\"\"b\"\"\"\nassert old in s; s=s.replace(old,new); open(p,'w').write(s)\nEOF\ngrep -rn \"x\" app/controllers/activitypub/replies_controller.rb app/controllers/api/v1/statuses/contexts_controller.rb | head; grep -rn \"x\" app --include=*.rb | grep -v \"x\" | head",
+      "writes": ["/work/world > app/models/concerns/status/threading_concern.rb"],
+      "unplaced": false
+    },
+    {
+      "from": "#3",
+      "named": "config/initializers",
+      "command": "cd /work/world; python3 - <<'EOF'\np='app/models/user_settings.rb'; s=open(p).read()\nold=\"a\"\nnew=old+\"b\"\nassert old in s; s=s.replace(old,new); open(p,'w').write(s)\np='app/models/concerns/user/has_settings.rb'; s=open(p).read()\nold=\"\"\"a\"\"\"\nnew=old+\"\"\"b\"\"\"\nassert old in s; s=s.replace(old,new); open(p,'w').write(s)\nEOF\nls config/initializers | head -80 | tr '\\n' ' '; grep -n \"x\" config/application.rb | head",
+      "writes": ["/work/world > app/models/user_settings.rb", "/work/world > app/models/concerns/user/has_settings.rb"],
+      "unplaced": false
+    },
+    {
+      "from": "#4",
+      "named": "app/controllers/api/base_controller.rb",
+      "command": "cd /work/world; python3 - <<'EOF'\np='app/controllers/api/v1/accounts/credentials_controller.rb'; s=open(p).read()\nold=\"\"\"a\"\"\"\nassert old in s; s=s.replace(old,\"\")\ns=s.replace(\"a\",\"b\",1)\nopen(p,'w').write(s)\nEOF\ngrep -n \"x\" app/controllers/api/base_controller.rb | head",
+      "writes": ["/work/world > app/controllers/api/v1/accounts/credentials_controller.rb"],
+      "unplaced": false
+    },
+    {
+      "from": "#5",
+      "named": "app/lib/activitypub/tag_manager.rb",
+      "command": "cd /work/world; python3 - <<'EOF'\np='app/serializers/activitypub/note_serializer.rb'; s=open(p).read()\nold=\"\"\"a\"\"\"\nnew=\"\"\"b\"\"\"\nassert old in s; s=s.replace(old,new,1); open(p,'w').write(s)\np='app/helpers/context_helper.rb'; s=open(p).read()\nold=\"\"\"a\"\"\"\nnew=\"\"\"b\"\"\"\nassert old in s; s=s.replace(old,new,1); open(p,'w').write(s)\nEOF\ngrep -n \"x\" -A4 app/lib/activitypub/tag_manager.rb",
+      "writes": ["/work/world > app/serializers/activitypub/note_serializer.rb", "/work/world > app/helpers/context_helper.rb"],
+      "unplaced": false
+    },
+    {
+      "from": "#6",
+      "named": "spec/requests/api/v1/statuses_spec.rb",
+      "command": "cd /work/world; python3 - <<'EOF'\np='spec/requests/api/v1/statuses_spec.rb'; s=open(p).read()\nanchor=\"\"\"a\"\"\"\nassert s.count(anchor)==1\nnew=anchor[:-len(\"b\")]+'''c'''\ns=s.replace(anchor,new,1); open(p,'w').write(s)\nEOF\nbin/rspec spec/requests/api/v1/statuses_spec.rb 2>&1 | grep -E \"x\" | head -30",
+      "writes": ["/work/world > spec/requests/api/v1/statuses_spec.rb"],
+      "unplaced": false
+    },
+    {
+      "from": "#7",
+      "named": "spec/rails_helper.rb",
+      "command": "cd /work/world; python3 - <<'EOF'\np='spec/requests/api/v1/statuses/interaction_policies_spec.rb'; s=open(p).read()\nassert s.endswith(\"a\")\ns=s[:-len(\"b\")]+'''c'''\nopen(p,'w').write(s)\nEOF\ngrep -rn \"x\" spec/rails_helper.rb spec/support | head -2",
+      "writes": ["/work/world > spec/requests/api/v1/statuses/interaction_policies_spec.rb"],
+      "unplaced": false
+    },
+    {
+      "from": "#8",
+      "named": "app/javascript/web",
+      "command": "cd /work/world/app/javascript/web; python3 - <<'EOF'\ndef edit(p, pairs):\n    s=open(p).read()\n    for old,new in pairs:\n        assert s.count(old)==1,(p,old)\n        s=s.replace(old,new,1)\n    open(p,'w').write(s)\n\nedit('api_types/statuses.ts',[\n(\"\"\"a\"\"\",\"\"\"b\"\"\"),\n])\n\nedit('models/status.ts',[\n(\"\"\"a\"\"\",\"\"\"b\"\"\"),\n])\nEOF\ngrep -n \"x\" models/status.ts",
+      "writes": ["/work/world/app/javascript/web > api_types/statuses.ts", "/work/world/app/javascript/web > models/status.ts"],
+      "unplaced": false
+    },
+    {
+      "from": "#9",
+      "named": "app/javascript/web",
+      "command": "cd /work/world; python3 - <<'EOF'\nB='app/javascript/web/'\ndef edit(p, pairs):\n    p=B+p\n    s=open(p).read()\n    for old,new in pairs:\n        assert s.count(old)==1,(p,old)\n        s=s.replace(old,new,1)\n    open(p,'w').write(s)\n\nedit('api_types/statuses.ts',[\n(\"\"\"a\"\"\",\"\"\"b\"\"\"),\n])\nEOF",
+      "writes": ["/work/world > app/javascript/web/api_types/statuses.ts"],
+      "unplaced": false
+    },
+    {
+      "from": "#10",
+      "named": "app/controllers/api/v1/follow_requests_controller.rb",
+      "command": "python3 - <<'EOF'\ndef rep(p,a,b):\n    s=open(p).read()\n    assert a in s,(p,a)\n    s=s.replace(a,b,1); open(p,'w').write(s)\nrep('config/routes/api.rb',\"\"\"a\"\"\",\"\"\"b\"\"\")\nEOF\ncat app/controllers/api/v1/follow_requests_controller.rb",
+      "writes": ["config/routes/api.rb"],
+      "unplaced": false
+    },
+    {
+      "from": "#11",
+      "named": "spec/support/*.rb",
+      "command": "python3 - <<'EOF'\ndef rep(p,a,b):\n    s=open(p).read()\n    assert s.count(a)==1,(p,a)\n    s=s.replace(a,b,1); open(p,'w').write(s)\nrep('spec/workers/thread_resolve_worker_spec.rb',\"\"\"a\"\"\",\"\"\"b\"\"\")\nEOF\ncat > spec/serializers/activitypub/accept_reply_serializer_spec.rb <<'EOF'\nx\nEOF\ncat > spec/serializers/activitypub/reply_authorization_serializer_spec.rb <<'EOF'\nx\nEOF\ngrep -rn \"x\" spec/support/*.rb | head -2; sed -n 1,40p spec/requests/activitypub/quote_authorizations_spec.rb 2>/dev/null | head -50; ls spec/requests/activitypub/",
+      "writes": ["spec/workers/thread_resolve_worker_spec.rb", "spec/serializers/activitypub/accept_reply_serializer_spec.rb", "spec/serializers/activitypub/reply_authorization_serializer_spec.rb"],
+      "unplaced": false
+    },
+    {
+      "from": "#12",
+      "named": "app/javascript/web",
+      "command": "python3 - <<'EOF'\ndef rep(p,a,b,count=1):\n    s=open(p).read()\n    assert s.count(a)==count,(p,a,s.count(a))\n    s=s.replace(a,b); open(p,'w').write(s)\nrep('api_types/statuses.ts',\"\"\"a\"\"\",\"\"\"b\"\"\")\nrep('models/status.ts',\"\"\"a\"\"\",\"\"\"b\"\"\")\np='reducers/compose.js'\nrep(p,\"\"\"a\"\"\",\"\"\"b\"\"\")\nrep(p,\"\"\"a\"\"\",\"\"\"b\"\"\",count=2)\np='api/statuses.ts'\nrep(p,\"\"\"a\"\"\",\"\"\"b\"\"\")\nEOF\ngrep -n \"x\" api/statuses.ts | head -3",
+      "writes": ["api_types/statuses.ts", "models/status.ts", "reducers/compose.js", "api/statuses.ts"],
+      "unplaced": false
+    },
+    {
+      "from": "#13",
+      "named": "app/javascript/web",
+      "command": "python3 - <<'EOF'\nimport os\nB='app/javascript/web/'\ndef rep(p,a,b,count=1):\n    p=B+p\n    s=open(p).read()\n    assert s.count(a)==count,(p,a,s.count(a))\n    s=s.replace(a,b); open(p,'w').write(s)\nrep('api_types/statuses.ts',\"\"\"a\"\"\",\"\"\"b\"\"\")\np='reducers/compose.js'\nrep(p,\"\"\"a\"\"\",\"\"\"b\"\"\")\nEOF",
+      "writes": ["app/javascript/web/api_types/statuses.ts", "app/javascript/web/reducers/compose.js"],
+      "unplaced": false
+    },
+    {
+      "from": "#14",
+      "named": "app/javascript/web",
+      "command": "python3 - <<'EOF'\ndef rep(p,a,b,count=1):\n    s=open(p).read()\n    assert s.count(a)==count,(p,a,s.count(a))\n    s=s.replace(a,b); open(p,'w').write(s)\np='app/javascript/web/api_types/notifications.ts'\nrep(p,\"\"\"a\"\"\",\"\"\"b\"\"\")\np='app/javascript/web/models/notification_group.ts'\nrep(p,\"\"\"a\"\"\",\"\"\"b\"\"\")\nEOF\ngrep -rn \"x\" app/javascript/web --include=*.ts --include=*.tsx | grep -v \"x\"",
+      "writes": ["app/javascript/web/api_types/notifications.ts", "app/javascript/web/models/notification_group.ts"],
+      "unplaced": false
+    },
+    {
+      "from": "#15",
+      "named": "app/helpers/*.rb",
+      "command": "python3 - <<'EOF'\np='app/views/admin/shared/_status_batch_row.html.haml'; s=open(p).read()\ns=s.replace(\"a\",\"b\",1)\nopen(p,'w').write(s)\nEOF\ngrep -n 'x' app/helpers/*.rb | head -2; ls app/javascript/images/icons 2>/dev/null | grep -i x | head; ls node_modules/@material-symbols/svg-600/outlined 2>/dev/null | grep x",
+      "writes": ["app/views/admin/shared/_status_batch_row.html.haml"],
+      "unplaced": false
+    }
+  ]
+}

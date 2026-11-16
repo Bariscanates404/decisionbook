@@ -1,0 +1,13 @@
+{
+  "name": "@atlasbound/kit",
+  "version": "0.0.0",
+  "private": true,
+  "description": "One copy of the shared machinery: atomic no-follow writes, one path key, one validator, one trace.",
+  "license": "AGPL-3.0-only",
+  "files": ["index.cjs", "base/", "contracts/", "debug/", "io/", "repo/", "run/", "text/"],
+  "main": "./index.cjs",
+  "exports": {
+    ".": "./index.cjs"
+  },
+  "atlasbound": { "plain": "shared code" }
+}

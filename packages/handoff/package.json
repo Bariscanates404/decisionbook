@@ -1,0 +1,42 @@
+{
+  "name": "@atlasbound/handoff",
+  "version": "0.0.0",
+  "private": true,
+  "description": "One note per branch that lets a fresh session continue: built from measured facts, with the person's own decisions and jobs kept.",
+  "license": "AGPL-3.0-only",
+  "files": ["index.cjs", "commands/", "contracts/", "core/", "debug/", "run/", "steps/"],
+  "main": "./index.cjs",
+  "exports": {
+    ".": "./index.cjs"
+  },
+  "dependencies": {
+    "@atlasbound/kit": "0.0.0"
+  },
+  "atlasbound": {
+    "hooks": [
+      { "event": "SessionStart", "matcher": null, "handler": "start", "timeout": 10 },
+      { "event": "UserPromptSubmit", "matcher": null, "handler": "prompt", "timeout": 5 },
+      { "event": "PostToolUse", "matcher": "Edit|Write|MultiEdit", "handler": "touched", "timeout": 5 },
+      { "event": "PreCompact", "matcher": null, "handler": "compact", "timeout": 10 },
+      { "event": "Stop", "matcher": null, "handler": "stop", "timeout": 10 }
+    ],
+    "commands": [
+      { "src": "commands/handoff.md", "dest": ".claude/commands/handoff.md" },
+      { "src": "commands/resume-handoff.md", "dest": ".claude/commands/resume-handoff.md", "without": "decisionbook" }
+    ],
+    "verbs": [
+      { "words": ["handoff"], "call": "handoff", "flags": ["--session"], "values": ["--session"], "noWords": true,
+        "what": "rebuild this branch's note from measured facts, then show it with this session's messages and the fill-in" },
+      { "words": ["handoff", "keep"], "call": "keep", "flags": ["--session"], "values": ["--session"], "stdin": 0,
+        "what": "the JSON on standard input: write now, next and the kept lines into the note; a kept line names the message it comes from" },
+      { "words": ["handoff", "show"], "call": "show", "noWords": true, "looks": true,
+        "what": "the note of this branch as stored, with its age and whether HEAD moved since" },
+      { "words": ["handoff", "drop"], "call": "drop", "by": "person", "phrase": "drop kept line",
+        "what": "<n> [new words]: you drop kept line n, or reword it when new words follow; you type its phrase at a plain terminal, never an AI session" },
+      { "words": ["debug", "handoff"], "call": "debug.handoff", "flags": ["--session"], "values": ["--session"], "looks": true,
+        "what": "why each kept line is there, what was dropped, the note's HEAD against the live one, what was not measured, the context notice" }
+    ],
+    "provides": { "heard": "heard" },
+    "needs": { "plans": null }
+  }
+}

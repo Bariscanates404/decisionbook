@@ -1,0 +1,30 @@
+{
+  "name": "@atlasbound/telemetry",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Opt-in, counts-only measurement: what would be sent can be inspected first. The only package that may use the network.",
+  "license": "AGPL-3.0-only",
+  "files": ["index.cjs", "adapters/", "contracts/", "core/", "debug/", "run/", "steps/"],
+  "main": "./index.cjs",
+  "exports": {
+    ".": "./index.cjs"
+  },
+  "dependencies": {
+    "@atlasbound/kit": "0.0.0"
+  },
+  "atlasbound": {
+    "verbs": [
+      { "words": ["debug", "telemetry"], "call": "debug.telemetry", "render": "debug.render", "reads": true, "what": "what would leave; nothing is sent" },
+      { "words": ["telemetry"], "what": "opt-in, counts-only measurement" },
+      { "words": ["telemetry", "on"], "call": "optIn", "render": "debug.render", "noWords": true, "by": "person", "phrase": "turn on telemetry",
+        "what": "opt in, for your user on this machine: you type the phrase at a plain terminal; no environment variable and no AI session can" },
+      { "words": ["telemetry", "off"], "call": "optOut", "render": "debug.render", "noWords": true, "what": "opt out" },
+      { "words": ["telemetry", "status"], "call": "status", "render": "debug.render", "noWords": true, "looks": true,
+        "what": "on or off, why, and where counts would go" },
+      { "words": ["telemetry", "send"], "call": "send", "render": "debug.render", "noWords": true,
+        "what": "send what debug telemetry shows, only if you opted in" }
+    ],
+    "free": ["telemetry status"],
+    "provides": { "hint": "hint" }
+  }
+}

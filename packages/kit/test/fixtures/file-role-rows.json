@@ -1,0 +1,44 @@
+{
+  "$comment": "Answers of fileRole, recorded by CALLING it, grouped as {answer: space-separated names}; an answer is \"role rule [basis]\". extensions: the name is zz.<ext>. dirs: the path is <dir>/a.js. accepted: a doc-name word not in capitals on a code or config file is not docs; a capitalised test folder is a test folder; Ruby's own endings rake, ru, erb, haml, slim, jbuilder, gemspec, enc.",
+  "extensions": {
+    "source code residue": "c cc cjs cpp cs css cts ex exs go gql h hpp js jsx kt kts lua m mjs mts php py pyi r rb rs sh sql ts tsx vue dart java less sass scss prisma graphql swift scala svelte pb.cc d.ts min.mjs bundle.js rake ru erb haml slim jbuilder",
+    "config config-file": "arb cfg env ini po pot xlf xliff yml conf json json5 jsonc toml yaml properties gemspec enc",
+    "docs docs-dir-or-prose": "md mdx rst txt adoc markdown",
+    "unclassified no-rule": "cxx hh hxx ino fs vb bash zsh fish ps1 bat xml xsd html htm styl astro asciidoc tex png svg jpg lock proto tf hcl erl pl pm rmd mm gradle nim zig jl hs ml elm sol wasm coffee hbs ejs map snap ipynb csv log mod nix cmake tmpl"
+  },
+  "upperExtensions": {
+    "source code residue": "CC HPP PYI KTS GQL LESS SASS EXS JS PY",
+    "config config-file": "JSON5 JSONC POT XLIFF JSON",
+    "docs docs-dir-or-prose": "MD"
+  },
+  "dirs": {
+    "fixture fixture-dir": "__fixtures__ fixture fixtures Fixtures fixtures-a fixtures_b FIXTURE __fixture__ fixtures__ testdata test-data __mocks__ __snapshots__",
+    "source code residue": "fixturesx test_data TESTDATA TestData mocks TESTS testing E2E integration Examples Docs documentation vendors VENDOR Pods DIST Build target gen .next site public config settings .GITHUB .git scripts tools LIB SRC modules components",
+    "test test-dir-or-name": "test tests __tests__ spec specs e2e cypress playwright",
+    "example example-dir-or-story": "example examples demo demos sample samples",
+    "docs docs-dir-or-prose": "docs doc",
+    "vendored vendored-dir": "vendor third_party third-party thirdparty bower_components node_modules",
+    "generated generated-output": "dist build coverage generated __generated__",
+    "config config-file": ".github .circleci .gitlab .husky .vscode .devcontainer .idea",
+    "source code convention": "lib src app apps pkg cmd internal typings types migrations db prisma supabase packages bin server client api"
+  },
+  "names": {
+    "unclassified no-rule": "README CONTRIBUTORS NEWS CODE_OF_CONDUCT SECURITY makefile MAKEFILE GNUmakefile DOCKERFILE Dockerfile.dev GEMFILE Jenkinsfile Brewfile Pipfile Justfile BUILD WORKSPACE YARN.LOCK Yarn.lock CARGO.LOCK GO.SUM go.mod bun.lockb flake.lock a.config. a.config.js.map x.config a.min.js.map a.generated generated bun.lock a.lock",
+    "config config-file": "Makefile Dockerfile Procfile Vagrantfile Gemfile Rakefile setup.py setup.cfg noxfile.py tox.ini TOX.INI pyproject.toml package.json PACKAGE.JSON tsconfig.json jest.config.js JEST.CONFIG.JS jest.config.ts vite.config.mts a.config.py .env .ENV .npmrc .eslintrc.js .gitignore .config.js .config. .a .a.js ..a a.JSON",
+    "docs docs-dir-or-prose": "CMakeLists.txt a.Md A.MD",
+    "source code residue": "SETUP.PY Setup.py manage.py jest.config.bundle.js jest.config.d.ts jest.config.foo.js webpack.config.prod.js config.js settings.py test.go test.rb test.sh test_a.js a_test.js a_spec.js a.e2e.js a.story.js a.Stories.tsx A.STORIES.TSX A.MIN.JS a.MIN.js a.min.JS a.MIN.CSS a.min.mjs min.js a.pb.cc a.pb.h a.pb.tsx a.pb.py a.PB.go a.pb.GO pb.go a_pb.go a_PB2.py A_PB2.PY A_PB2_GRPC.PY a_pb2.pyi a.Generated.ts a.GENERATED.js X.GENERATED.ts Generated.js a_generated.js generated_a.js agenerated.js a.gen.go a.g.dart a.R a.r a.C A.PY A.JS",
+    "test test-dir-or-name": "conftest.py CONFTEST.PY Conftest.py test.js test.ts test.py test.jsx test.tsx test.mjs test.cjs TEST.JS Test.js test.JS test_a.py TEST_A.PY a_test.go a_test.py a_test.rb A_TEST.GO a_Test.go a_spec.rb A_SPEC.RB a.test.js A.TEST.JS a.Test.js a.spec.ts A.SPEC.TS a.test-d.ts",
+    "generated generated-output": "package-lock.json npm-shrinkwrap.json yarn.lock pnpm-lock.yaml poetry.lock uv.lock Pipfile.lock Cargo.lock go.sum Gemfile.lock composer.lock a.min.js a.min.css .min.js a.pb.go a.pb.js a.pb.ts .pb.go a_pb2.py a_pb2_grpc.py _pb2.py a.generated.ts a.generated. a.generated.png x.generated.y.js .generated.js generated.js generated.d.ts generated.png generated.",
+    "example example-dir-or-story": "a.stories.js a.stories.tsx"
+  },
+  "docWords": {
+    "docs docs-dir-or-prose": "LICENSE LICENSE.js LICENSE.json LICENSE.cc LICENSE.png LICENSE.html LICENSE.MIT LICENSE.foo.js license license.png license.html license.MIT License License.png License.html License.MIT LICENCE LICENCE.js LICENCE.json LICENCE.cc LICENCE.png LICENCE.html LICENCE.MIT LICENCE.foo.js licence licence.png licence.html licence.MIT Licence Licence.png Licence.html Licence.MIT COPYING COPYING.js COPYING.json COPYING.cc COPYING.png COPYING.html COPYING.MIT COPYING.foo.js copying copying.png copying.html copying.MIT Copying Copying.png Copying.html Copying.MIT AUTHORS AUTHORS.js AUTHORS.json AUTHORS.cc AUTHORS.png AUTHORS.html AUTHORS.MIT AUTHORS.foo.js authors authors.png authors.html authors.MIT Authors Authors.png Authors.html Authors.MIT NOTICE NOTICE.js NOTICE.json NOTICE.cc NOTICE.png NOTICE.html NOTICE.MIT NOTICE.foo.js notice notice.png notice.html notice.MIT Notice Notice.png Notice.html Notice.MIT CHANGELOG CHANGELOG.js CHANGELOG.json CHANGELOG.cc CHANGELOG.png CHANGELOG.html CHANGELOG.MIT CHANGELOG.foo.js changelog changelog.png changelog.html changelog.MIT Changelog Changelog.png Changelog.html Changelog.MIT CHANGES CHANGES.js CHANGES.json CHANGES.cc CHANGES.png CHANGES.html CHANGES.MIT CHANGES.foo.js changes changes.png changes.html changes.MIT Changes Changes.png Changes.html Changes.MIT HISTORY HISTORY.js HISTORY.json HISTORY.cc HISTORY.png HISTORY.html HISTORY.MIT HISTORY.foo.js history history.png history.html history.MIT History History.png History.html History.MIT CONTRIBUTING CONTRIBUTING.js CONTRIBUTING.json CONTRIBUTING.cc CONTRIBUTING.png CONTRIBUTING.html CONTRIBUTING.MIT CONTRIBUTING.foo.js contributing contributing.png contributing.html contributing.MIT Contributing Contributing.png Contributing.html Contributing.MIT",
+    "unclassified no-rule": "LICENSE_x LICENSEx license_x licensex License_x Licensex LICENCE_x LICENCEx licence_x licencex Licence_x Licencex COPYING-MIT COPYING_x COPYINGx copying-MIT copying_x copyingx Copying-MIT Copying_x Copyingx AUTHORS-MIT AUTHORS_x AUTHORSx authors-MIT authors_x authorsx Authors-MIT Authors_x Authorsx NOTICE-MIT NOTICE_x NOTICEx notice-MIT notice_x noticex Notice-MIT Notice_x Noticex CHANGELOG-MIT CHANGELOG_x CHANGELOGx changelog-MIT changelog_x changelogx Changelog-MIT Changelog_x Changelogx CHANGES-MIT CHANGES_x CHANGESx changes-MIT changes_x changesx Changes-MIT Changes_x Changesx HISTORY-MIT HISTORY_x HISTORYx history-MIT history_x historyx History-MIT History_x Historyx CONTRIBUTING-MIT CONTRIBUTING_x CONTRIBUTINGx contributing-MIT contributing_x contributingx Contributing-MIT Contributing_x Contributingx"
+  },
+  "accepted": {
+    "test test-dir-or-name": "Test/a.js",
+    "docs docs-dir-or-prose": "LICENSE-MIT LICENSE-APACHE license-MIT License-MIT LICENCE-MIT licence-MIT Licence-MIT",
+    "source code residue": "license.js license.cc license.foo.js License.js License.cc License.foo.js licence.js licence.cc licence.foo.js Licence.js Licence.cc Licence.foo.js copying.js copying.cc copying.foo.js Copying.js Copying.cc Copying.foo.js authors.js authors.cc authors.foo.js Authors.js Authors.cc Authors.foo.js notice.js notice.cc notice.foo.js Notice.js Notice.cc Notice.foo.js changelog.js changelog.cc changelog.foo.js Changelog.js Changelog.cc Changelog.foo.js changes.js changes.cc changes.foo.js Changes.js Changes.cc Changes.foo.js history.js history.cc history.foo.js History.js History.cc History.foo.js contributing.js contributing.cc contributing.foo.js Contributing.js Contributing.cc Contributing.foo.js",
+    "config config-file": "license.json License.json licence.json Licence.json copying.json Copying.json authors.json Authors.json notice.json Notice.json changelog.json Changelog.json changes.json Changes.json history.json History.json contributing.json Contributing.json"
+  }
+}
