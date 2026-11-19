@@ -6,22 +6,19 @@
 // person's own words of the message it names (kit's one test of them: whole clauses, a sentence with a negation only whole), so it is
 // their words and not the model's memory or a piece of them. A line goes only with their words about it from a later message. A reply
 // is written whole or not at all, and every text of it passes the secret screen before it is stored.
-const { text: { safe: { clip }, secrets: { clipped, scrub }, lines: { filled } }, host: { RESUME_PROMPT },
-  said: { clausesOf, notTheirs, notSettling } } = require('@atlasbound/kit');
+const { text: { safe: { clip }, secrets: { clipped, scrub }, lines: { filled, shortId } }, host: { RESUME_PROMPT, draftCall },
+  said: { clausesOf, notTheirs, isAbout, intends, tokensOf, lowered } } = require('@atlasbound/kit');
 const { shortOf } = require('../contracts/codes.cjs');
 const { BOUNDS } = require('../contracts/shapes.cjs');
 const WORDS = require('../contracts/words.json');
 
-const BARE_SLASH = /^\s*\/[A-Za-z][\w:.-]*\s*$/; // `/name` alone; a path such as /tmp/notes.txt is words
+const NO_REQUEST = /^\s*(?:[A-Za-z]:)?[\\/~]\S*(?:[ \t]+[^\s\\/]*[\\/]\S*)*\s*$/; // a path alone asks nothing: `/name`, /tmp/notes.txt, and `/name` as a Windows shell turns it into one (C:/Program Files/Git/name)
 const CITES = /\s*\[\s*(m\d+(?:\s*,\s*m\d+)*)\s*\]\s*$/;
 const JOB = /^\s*job:\s*/i;
 const DONE = /\b(?:done|complete|completed|finished|works)\b/i;
 const SHA = /\b[0-9a-f]{7,40}\b/g;
 
-function promptKind(prompt) {
-  if (RESUME_PROMPT.test(prompt)) return 'resume';
-  return BARE_SLASH.test(prompt) || !prompt.trim() ? 'slash' : 'words';
-}
+const promptKind = (prompt) => (RESUME_PROMPT.test(prompt) ? 'resume' : NO_REQUEST.test(prompt) || !prompt.trim() ? 'slash' : 'words');
 
 /** The session with one more message: numbered, its head clipped after the secret screen. Over the bound the oldest go first, never one
  * a kept line names. */
@@ -39,15 +36,16 @@ function messageLines(messages) {
   return messages.map((m) => `  m${m.n} ${whole ? m.text : clip(m.text, share)}`);
 }
 
-/** What `atlasbound handoff` prints after the note: the messages, the rules of the reply, the call to send. */
-function fillIn({ session, kept, flag }) {
+/** What `atlasbound handoff` prints after the note: the messages, the rules of the reply, the call to send (in `drafts`' drafts folder). */
+function fillIn({ session, kept, flag, drafts }) {
   const cap = BOUNDS.kept.cap;
   const room = cap - kept.length;
   const slots = { ...BOUNDS.kept, steps: BOUNDS.next.steps, shown: session.messages.length, count: session.count, n: kept.length, room,
     oldest: kept.slice(0, 3).map((_, i) => `k${i + 1}`).join(', '), session: flag ? ` --session ${session.session}` : '' };
   const list = session.messages.length ? [filled(WORDS.messages, slots), ...messageLines(session.messages)] : [WORDS.messagesNone];
   const full = room < BOUNDS.kept.perHandoff && kept.length ? [filled(WORDS.full, slots)] : [];
-  return `${[...list, '', ...WORDS.fill.map((line) => filled(line, slots)), ...full, filled(WORDS.call, slots)].join('\n')}\n`;
+  const call = draftCall(filled(WORDS.call, slots), 'handoff', WORDS.reply, drafts);
+  return `${[...list, '', ...WORDS.fill.map((line) => filled(line, slots)), ...full, call].join('\n')}\n`;
 }
 
 /** One kept line as written: its words (unclipped, for the quote's test), its text, the message numbers it ends with, whether a job. */
@@ -58,7 +56,6 @@ function writtenLine(raw) {
   const words = scrub(body.replace(JOB, '')); // screened as the message heads are, so a quote of a secret compares as stored
   return { raw, words, text: clipped(words, BOUNDS.kept.chars), cites, job: JOB.test(body) };
 }
-
 
 /** Every commit-like word of a reply: the edge asks git which of them exist. */
 const shasIn = (reply) => [reply.now || '', ...(reply.next || []), ...(reply.kept || []), ...(reply.drop || []).map((d) => d.why)]
@@ -86,7 +83,14 @@ function dropUnsaid({ k, why }, line, { messages, dropped }) {
   const later = messages.filter((m) => numbers.has(m.n) && Date.parse(m.at) > Date.parse(line.at));
   if (!numbers.size || later.length !== numbers.size) return 'unsourced';
   const moved = later.some((m) => dropped.some((gone) => Date.parse(gone.at) >= Date.parse(m.at))); // the same instant: could not tell
-  return later.map((m) => notTheirs(words, clausesOf(m.text))).find(Boolean) ?? notSettling(words, line.text, moved ? null : k);
+  return later.map((m) => notTheirs(words, clausesOf(m.text))).find(Boolean) ?? whyNotSettled(words, line.text, moved ? null : k);
+}
+
+/** Why `words` do not settle kept line `k` (its `text`): null when they do, `unrelated` (not about it, nor naming k<k>) or `no-intent`
+ * (no word that says done, dropped, cancelled or changed). `k` null: the line's number names it no more. */
+function whyNotSettled(words, text, k) {
+  if (!(k !== null && tokensOf(lowered(words)).includes(`k${k}`)) && !isAbout(words, text)) return 'unrelated';
+  return intends(words) ? null : 'no-intent';
 }
 
 /** `after`: per dropped line number, the commits made since that line was kept (a job's other way out). */
@@ -113,8 +117,8 @@ function replyProblems(reply, lines, seen) {
     ...(reply.next || []).flatMap((step, i) => unproven(`next ${i + 1}`, step)),
     ...lines.flatMap((line, i) => [...lineProblems(line, `kept ${i + 1}`, seen), ...unproven(`kept ${i + 1}`, line.raw)]),
     ...drops.flatMap((drop) => dropProblems(drop, seen)),
-    ...(lines.length > max.perHandoff ? [{ code: 'kept-too-many', where: `kept: ${lines.length}, at most ${max.perHandoff}` }] : []),
-    ...(total > max.cap ? [{ code: 'kept-over-cap', where: `kept: ${total}, the cap is ${max.cap}; the oldest are k1, k2, k3` }] : []),
+    ...(lines.length > max.perHandoff ? [{ code: 'kept-too-many', where: filled(WORDS.keptTooMany, { n: lines.length, max: max.perHandoff }) }] : []),
+    ...(total > max.cap ? [{ code: 'kept-over-cap', where: filled(WORDS.keptOverCap, { n: total, cap: max.cap }) }] : []),
   ];
 }
 
@@ -126,7 +130,7 @@ function withReply(note, reply, seen, by) {
   if (problems.length) return { problems };
   const drops = reply.drop || [];
   const gone = (i) => drops.find((d) => d.k === i + 1);
-  const who = { session: by.session.slice(0, 8) };
+  const who = { session: shortId(by.session) };
   const dropped = note.kept.flatMap((line, i) => (gone(i)
     ? [{ text: line.text, at: by.at, why: filled(WORDS.byReply, { ...who, why: clipped(gone(i).why, BOUNDS.kept.chars) }) }] : []));
   const head = by.head ? { head: by.head } : {};

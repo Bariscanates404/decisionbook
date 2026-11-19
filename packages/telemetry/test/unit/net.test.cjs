@@ -7,6 +7,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const { createNet } = require('../../adapters/net.cjs');
+const { limits } = require('../../contracts/wire.json');
 
 async function withServer(handler, fn) {
   const server = http.createServer(handler);
@@ -26,22 +27,22 @@ test('post delivers the exact bytes with no header of ours that identifies anyth
     req.on('data', (chunk) => chunks.push(chunk));
     req.on('end', () => { seen.body = Buffer.concat(chunks).toString('utf8'); seen.method = req.method; seen.headers = req.headers; res.end('ok'); });
   }, async (url) => {
-    const body = JSON.stringify({ schema: 'ab-event/1', events: [] });
-    assert.deepEqual(await createNet().post(`${url}/ingest`, body), { status: 200 });
+    const body = JSON.stringify({ protocol: 'ab-report/1', reports: [] });
+    assert.deepEqual(await createNet(limits).post(`${url}/ingest`, body), { status: 200, retryAfterS: null, text: 'ok' });
     assert.equal(seen.body, body);
     assert.equal(seen.method, 'POST');
     assert.ok(!Object.keys(seen.headers).some((name) => /atlasbound|authorization|cookie|api-?key/i.test(name)));
   });
 });
 
-test('a non-2xx answer is a coded net-failed naming the status, never the far side\'s words', async () => {
-  await withServer((_req, res) => { res.statusCode = 500; res.end('/Users/someone/secret'); }, async (url) => {
-    await assert.rejects(createNet().post(url, '{}'), (err) => {
-      assert.equal(err.code, 'net-failed');
-      assert.match(err.message, /500/);
-      assert.ok(!err.message.includes('secret'));
-      return true;
-    });
+test('an answer is its status, a 429\'s Retry-After in seconds (at most a week), and at most answerBytes of its body', async () => {
+  await withServer((req, res) => {
+    res.statusCode = req.url === '/slow' ? 429 : 500;
+    if (req.url === '/slow') res.setHeader('retry-after', '99999999');
+    res.end(req.url === '/long' ? 'x'.repeat(40) : 'short');
+  }, async (url) => {
+    assert.deepEqual(await createNet(limits).post(`${url}/slow`, '{}'), { status: 429, retryAfterS: 7 * 24 * 3600, text: 'short' });
+    assert.deepEqual(await createNet({ answerBytes: 16 }).post(`${url}/long`, '{}'), { status: 500, retryAfterS: null, text: '' });
   });
 });
 
@@ -53,29 +54,39 @@ test('a redirect is refused: a body never follows an answer somewhere else', asy
     res.setHeader('location', '/elsewhere');
     res.end();
   }, async (url) => {
-    await assert.rejects(createNet().post(url, '{}'), { code: 'net-failed' });
+    await assert.rejects(createNet(limits).post(url, '{}'), { code: 'net-failed' });
   });
   assert.equal(followed, 0);
 });
 
 test('a dead or too slow far side is net-failed, not a hang', async () => {
   await withServer(() => { /* never answers */ }, async (url) => {
-    await assert.rejects(createNet({ timeoutMs: 50 }).post(url, '{}'), { code: 'net-failed' });
+    await assert.rejects(createNet({ ...limits, timeoutMs: 50 }).post(url, '{}'), { code: 'net-failed' });
   });
 });
 
 test('only https, or http on this machine, is dialled; nothing else reaches fetch', async () => {
   const real = globalThis.fetch;
   let dialled = 0;
-  globalThis.fetch = async () => { dialled += 1; return { ok: true, status: 200 }; };
+  globalThis.fetch = async () => { dialled += 1; return new Response('', { status: 200 }); };
   try {
     for (const url of ['http://example.test/ingest', 'ftp://example.test/x', 'file:///etc/passwd', 'not a url', '']) {
-      await assert.rejects(createNet().post(url, '{}'), { code: 'net-url-refused' }, url);
+      await assert.rejects(createNet(limits).post(url, '{}'), { code: 'net-url-refused' }, url);
     }
     assert.equal(dialled, 0);
-    await createNet().post('https://example.test/ingest', '{}');
+    await createNet(limits).post('https://example.test/ingest', '{}');
     assert.equal(dialled, 1);
   } finally {
     globalThis.fetch = real;
   }
 });
+
+test('the headers that go out are the content type and Node fetch\'s fixed defaults, nothing of the machine or person', async () => {
+  const seen = {};
+  await withServer((req, res) => { seen.headers = req.headers; res.end('ok'); }, (url) => createNet(limits).post(url, '{}'));
+  const { host, connection, 'content-length': length, 'accept-encoding': encoding, ...sent } = seen.headers;
+  assert.ok(host && connection && length && encoding);
+  assert.deepEqual(sent, { 'content-type': 'application/json', accept: '*/*', 'accept-language': '*', 'sec-fetch-mode': 'cors',
+    'user-agent': 'node' });
+});
+

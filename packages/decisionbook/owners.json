@@ -3,9 +3,9 @@
     "name": "decisionbook"
   },
   "caps": {
-    "pipeline": 4171,
-    "debug": 60,
-    "tests": 5682
+    "pipeline": 4604,
+    "debug": 61,
+    "tests": 6853
   },
   "traceAs": {
     "steps/trust.cjs": "inside the traced steps that keep or read a yes here: decisionbook.add, decisionbook.ready, decisionbook.gate, decisionbook.trust, decisionbook.session (run/verbs)",
@@ -32,7 +32,9 @@
     "steps/standards.cjs": "inside decisionbook.ready (run/verbs), whose n says standards, standardsDecided or standardsUnread",
     "steps/promise.cjs": "inside the traced handlers decisionbook.gate and decisionbook.recall (run/verbs), whose n counts the promises, the broken imports and an ask already given",
     "steps/surface.cjs": "inside the traced handlers decisionbook.gate and decisionbook.recall (run/verbs), through steps/promise",
-    "steps/bind.cjs": "inside the traced handler decisionbook.prompt (run/verbs, through steps/read); n counts the answers bound and the questions left open, the codes are the write's",
-    "steps/phase.cjs": "writes the plan.phase rows itself (created, READY, the first allowed write), beside the traced step that reached the phase: decisionbook.create, decisionbook.add, decisionbook.ready, decisionbook.gate, decisionbook.prompt"
+    "steps/phase.cjs": "writes the plan.phase rows itself (created, READY, the first allowed write), beside the traced step that reached the phase: decisionbook.create, decisionbook.add, decisionbook.ready, decisionbook.gate, decisionbook.prompt",
+    "steps/inbox.cjs": "inside the traced step decisionbook.inbox (run/verbs); n counts the rows of this branch and the pulled ones",
+    "steps/why.cjs": "inside the traced step decisionbook.why (run/verbs); n counts the commits blamed and the closed plans that list them",
+    "steps/pr.cjs": "inside the traced step decisionbook.pr (run/verbs); n counts the plans described"
   }
 }

@@ -3,9 +3,10 @@
 // See LICENSE and NOTICE in the package root.
 'use strict';
 // A later session and the plan an earlier one left open. A READY plan is frozen: the session's start gives it as the intake to build
-// from (the same text after /resume-handoff), a task prompt adds nothing to it and hands no new, and its edits pass with no call to send. A
-// draft is said as the work in progress and a denial under it names its ONE next call. Other work is planned only once the person set
-// the open plan aside (open.test.cjs holds those rows).
+// from (the same text after /resume-handoff) and a task prompt adds nothing to it. Its edits pass in a session that works on it: one
+// that resumed the handoff or began with no new task; a session that began with a new task is denied and plans its own (a teammate's
+// READY plan is no cover for another job's edits), or records that the person goes on with the plan. A draft is said as the work in
+// progress and a denial under it names its ONE next call.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const decisionbook = require('@atlasbound/decisionbook');
@@ -29,18 +30,34 @@ async function earlierWorld(session = 's2') {
   return { io, id, prompt, edit };
 }
 
-test('a later session gets the READY plan as the frozen intake: a text at the start and after /resume-handoff, none at a task', async () => {
+test('a later session gets the READY plan as the frozen intake; a new task is no cover for its edits until the person resumes', async () => {
   const { io, id, prompt, edit } = await earlierWorld();
   const start = textOf(await handlers.session(starting('s2'), io));
   assert.ok(start.startsWith(intake(id)), start);
-  assert.ok(!/earlier session|"t":"resume"|<<'JSON'/.test(start), 'no call to send before the work goes on');
+  assert.ok(!/earlier session|"t":"resume"|--file /.test(start), 'no call to send before the work goes on');
   const asked = await prompt(TASK);
   assert.deepEqual(asked, { code: 'prompt-passed' }, 'the task prompt: the start gave the plan; no second text, no nudge and no new handed');
-  assert.deepEqual(await edit(), { verdict: 'allow', code: 'gate-in-scope', file: 'app/x.rb', plan: id }, 'its edits pass, with nothing recorded first');
+  const other = await edit();
+  assert.deepEqual([other.verdict, other.code, other.plan], ['deny', 'plan-other-task', id], 'another task\'s edit inside the plan is not silent');
+  assert.ok(other.reason.includes(`plan ${id}: plan this task with one \`atlasbound decisionbook new\`; `) && other.reason.includes('{"t":"resume","why":'),
+    other.reason);
   const resumed = await prompt('/resume-handoff');
   assert.equal(resumed.code, 'prompt-resume');
   assert.equal(resumed.context, `## DecisionBook's shared part\n${start}`, 'after the person\'s /resume-handoff: the same intake');
   assert.deepEqual([(await edit()).verdict, (await edit()).code], ['allow', 'gate-in-scope']);
+});
+
+test('a session that began with a new task builds from the READY plan once it records that the person goes on with it', async () => {
+  const { io, id, prompt, edit } = await earlierWorld();
+  await prompt(TASK);
+  assert.equal((await edit()).code, 'plan-other-task');
+  io.session = 's2';
+  await decisionbook.verbs.add(io, { rest: [id, JSON.stringify({ t: 'resume', why: 'the person goes on with the export plan' })] });
+  assert.deepEqual([(await edit()).verdict, (await edit()).code], ['allow', 'gate-in-scope'], 'its write to the plan says it works on it');
+  await handlers.start(starting('s3'), io);
+  await handlers.prompt({ hook_event_name: 'UserPromptSubmit', session_id: 's3', prompt: 'devam' }, io);
+  const later = await handlers.preEdit({ hook_event_name: 'PreToolUse', session_id: 's3', tool_name: 'Edit', tool_input: { file_path: '/fake/app/x.rb' } }, io);
+  assert.equal(later.code, 'gate-in-scope', 'a session begun with a short reply goes on with the plan (after /clear)');
 });
 
 // the session's own plan lacks only the person's yes: the denial names this plan, whose each missing part is and the ONE call that shows it
@@ -61,14 +78,14 @@ test('an edit while the branch\'s plan is a draft is denied, naming that plan, w
   assert.ok(!/earlier session/.test(denied.reason) && !denied.reason.includes('\n'), 'one sentence, no fill-in pasted into the denial');
 });
 
-test('an earlier session\'s READY plan, none of this one: a file outside it joins it, a danger path outside it asks the person', async () => {
+test('an earlier session\'s READY plan, none of this one: a file outside it is asked, a danger path outside it asks the person', async () => {
   const { io, id, edit } = await earlierWorld();
   const write = (file) => handlers.preEdit({ hook_event_name: 'PreToolUse', session_id: 's2', tool_name: 'Write', tool_input: { file_path: `/fake/${file}` } }, io);
   assert.deepEqual([(await edit()).verdict, (await edit()).code], ['allow', 'gate-in-scope']);
-  const grown = await write('app/quota.rb'); // the different task's file: the frozen plan takes it in and says so in one line
-  assert.deepEqual([grown.verdict, grown.code, grown.context], ['allow', 'plan-grown',
-    `DecisionBook: app/quota.rb was outside plan ${id}; the plan is frozen and took it in (one line added to it). Nothing to do.`]);
-  assert.ok(textOf(await handlers.session(starting('s3'), io)).includes('\nfiles: app/x.rb, app/quota.rb\n'), 'the next session\'s intake names it');
+  const grown = await write('app/quota.rb'); // the different task's file: asked, told to plan it apart, nothing taken in
+  assert.deepEqual([grown.verdict, grown.code, grown.plan], ['ask', 'plan-outside', id]);
+  assert.match(grown.reason, /open a new plan for this file/);
+  assert.ok(textOf(await handlers.session(starting('s3'), io)).includes('\nfiles: app/x.rb\n'), 'the next session\'s intake names no file asked about');
   const asked = await write('app/db/schema.rb');
   assert.deepEqual([asked.verdict, asked.code, asked.plan, 'context' in asked], ['ask', 'plan-out-of-scope', id, false]);
 });

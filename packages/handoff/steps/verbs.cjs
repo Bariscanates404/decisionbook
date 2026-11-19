@@ -4,7 +4,7 @@
 'use strict';
 // The verb steps: `handoff` (the note from fresh facts, this session's messages and the fill-in), `handoff keep` (the reply, written
 // whole or refused whole), `handoff show` (the note as stored) and `handoff drop` (a person's own drop or rewording of a kept line).
-const { errors: { fail }, text: { lines: { filled } } } = require('@atlasbound/kit');
+const { errors: { fail }, text: { lines: { filled, shortId } } } = require('@atlasbound/kit');
 const { stepResult: said, bound } = require('../contracts/shapes.cjs');
 const { liveOf: live } = require('../contracts/helpers.cjs');
 const { shortOf } = require('../contracts/codes.cjs');
@@ -17,7 +17,7 @@ const WORDS = require('../contracts/words.json');
 /** The session a verb speaks for: the one its flag names, else the one the host's environment names, else none. */
 function sessionAsked(args, io) {
   const id = (args.flags && args.flags.session) || io.session || null;
-  if (id && !store.isSessionId(id)) throw fail('args-invalid', '--session: not a session id');
+  if (id && !store.isSessionId(id)) throw fail('args-invalid', WORDS.notSessionId);
   return { id, flag: Boolean(args.flags && args.flags.session) };
 }
 
@@ -29,7 +29,7 @@ async function handoffStep(args, io) {
   }
   const session = store.sessionOf(io, id);
   const note = await rebuilt(io, session);
-  const text = `${render(note, live(io, note, id))}\n${fillIn({ session, kept: note.kept, flag })}`;
+  const text = `${render(note, live(io, note, session))}\n${fillIn({ session, kept: note.kept, flag, drafts: io.session })}`;
   return said('note-built', { text }, { messages: session.messages.length, kept: note.kept.length, since: note.since });
 }
 
@@ -46,10 +46,19 @@ async function commitsAfter(io, kept, drops) {
   return Object.fromEntries(drops.map((d, i) => [d.k, (rows[i] || []).map((row) => row.sha)]));
 }
 
+/** The reply the AI sent, or reply-invalid naming the field and showing the whole shape a reply takes. */
+function sentReply(text) {
+  try {
+    return bound.shape('Reply', bound.json(text ?? '', 'reply-invalid'));
+  } catch (err) {
+    throw Object.assign(err, { routes: [`a reply: ${JSON.stringify(bound.example('Reply', { whole: true }).value)}`] });
+  }
+}
+
 async function keepStep(args, io) {
   const { id } = sessionAsked(args, io);
   if (!id) return said('handoff-no-session', { text: `${shortOf('handoff-no-session')}\n` });
-  const reply = bound.shape('Reply', bound.json(args.rest[0] ?? '', 'reply-invalid'));
+  const reply = sentReply(args.rest[0]);
   const session = store.sessionOf(io, id);
   const note = await rebuilt(io, session);
   const after = await commitsAfter(io, note.kept, reply.drop || []);
@@ -61,9 +70,9 @@ async function keepStep(args, io) {
     return { ...refused, codes: { ...refused.codes, ...codes } };
   }
   store.writeNote(io, note.facts.branch, res.note);
-  const cited = res.note.kept.filter((line) => line.session === id.slice(0, 8)).flatMap((line) => line.cites);
+  const cited = res.note.kept.filter((line) => line.session === shortId(id)).flatMap((line) => line.cites);
   store.writeSession(io, { ...session, handed: session.count, cited: [...new Set(cited)] });
-  const text = `${WORDS.written}\n${render(res.note, live(io, res.note, id))}`;
+  const text = `${WORDS.written}\n${render(res.note, live(io, res.note, session))}`;
   return said('note-kept', { text }, { kept: res.note.kept.length, added: (reply.kept || []).length, dropped: (reply.drop || []).length });
 }
 
@@ -71,7 +80,9 @@ async function keepStep(args, io) {
 async function showStep(args, io) {
   const note = store.readNote(io, await io.git.branch());
   if (!note) return said('note-none', { text: `${shortOf('note-none')}\n` });
-  const text = render(note, { now: io.clock.now(), head: await io.git.head(), session: sessionAsked(args, io).id });
+  const asked = sessionAsked(args, io).id; // a session this repository never saw: when it began is not known
+  const reader = asked && (store.readSession(io, asked) || { session: asked });
+  const text = render(note, { now: io.clock.now(), head: await io.git.head(), session: reader });
   return said('note-shown', { text: `${text}${note.facts.plans ? `${WORDS.decide}\n` : ''}` }, { kept: note.kept.length });
 }
 

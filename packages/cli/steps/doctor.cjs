@@ -3,9 +3,10 @@
 // See LICENSE and NOTICE in the package root.
 'use strict';
 // doctor: never green on silence. Each package answers `measured`, `not-measured` or `problem`; the cli measures the wiring.
-const { traced, debug: { render: { columns } }, errors: { isFail } } = require('@atlasbound/kit');
+const { traced, debug: { render: { columns } }, errors: { isFail }, text: { lines: { filled } } } = require('@atlasbound/kit');
 const { DEBUG_SCHEMA, CONFIG_FILE } = require('../contracts/shapes.cjs');
 const validate = require('../contracts/validate.cjs');
+const { WORDS: { doctor: W, states: SAID, manifestInvalid: MANIFEST_INVALID, toDo: TO_DO } } = require('../contracts/codes.cjs');
 const { capabilitiesOf } = require('../core/capabilities.cjs');
 const { serversOf } = require('../core/host.cjs');
 const { probed, adviceOf, hintOf } = require('./probes.cjs');
@@ -13,12 +14,12 @@ const { noticeOf } = require('./protect.cjs');
 const { moduleRows, moduleLine } = require('./modules.cjs');
 const GONE_SHOWN = 4;
 const row = (name, state, health, says = null) => ({ name, state, health, says });
-const absent = (io, name) => (io.catalog.modules.base.includes(name) ? row(name, 'not-installed', 'problem', 'required: reinstall atlasbound') : row(name, 'not-installed', 'not-measured'));
+const absent = (io, name) => (io.catalog.modules.base.includes(name) ? row(name, 'not-installed', 'problem', W.required) : row(name, 'not-installed', 'not-measured'));
 
 /** A package whose module is off here is not asked: off is a choice, not a problem. Each row says where the package was found. */
 const packageRow = (io, name) => Promise.resolve().then(async () => {
   const from = io.packages.where(name)?.from?.name ?? null;
-  if (io.packages.has(name) && !io.packages.wired(name)) return { ...row(name, io.host.chosen() ? 'off' : 'not-set-up', 'not-measured', 'its module is not on here'), from };
+  if (io.packages.has(name) && !io.packages.wired(name)) return { ...row(name, io.host.chosen() ? 'off' : 'not-set-up', 'not-measured', W.notOn), from };
   const entry = io.packages.load(name);
   if (typeof entry.doctor !== 'function') return { ...row(name, 'installed', 'not-measured'), from };
   const res = validate.shape('Doctor', await entry.doctor(io.packages.ioFor(name)));
@@ -72,35 +73,37 @@ async function viewOf(io, { probing = true } = {}) { // `status` judges nothing,
 /** The ONE list `ok` is judged from: whatever doctor saw go wrong, each with where and what it says. */
 const problemsOf = ({ packages, modules, manifests, missing, probes, configRefused }) => [
   ...(configRefused ? [{ from: 'config', name: CONFIG_FILE, says: configRefused.message }] : []),
-  ...(modules.some((m) => m.state === 'on') ? [] : [{ from: 'modules', name: 'modules', says: 'no module is wired here: atlasbound setup' }]),
+  ...(modules.some((m) => m.state === 'on') ? [] : [{ from: 'modules', name: 'modules', says: W.noModule }]),
   ...packages.filter((p) => p.health === 'problem').map((p) => ({ from: 'package', name: p.name, says: p.says || p.state })),
   ...manifests.map((m) => ({ from: 'manifest', name: m, says: 'manifest-invalid' })),
-  ...missing.map((d) => ({ from: 'wiring', name: d.name, says: `not wired: ${d.what}` })),
+  ...missing.map((d) => ({ from: 'wiring', name: d.name, says: filled(W.notWired, { what: d.what }) })),
   ...probes.filter((p) => p.state === 'failed').map((p) => ({ from: 'probe', name: p.name, says: p.says }))];
 
-const SAID = { 'not-measured': 'not measured', 'not-installed': 'not installed', off: 'off (by choice)', 'not-set-up': 'not set up here' };
-const wiredText = (w) => (w === null ? 'nothing to wire' : w ? 'wired' : 'NOT wired');
+const wiredText = (w) => (w === null ? W.nothingToWire : w ? 'wired' : W.notWiredColumn);
 
 /** One package's columns: its name, state, wiring, health, what it says, and the add-on it came from. */
 const packageColumns = (plainName) => (p) => [plainName(p.name), SAID[p.state] || p.state, p.state === 'installed' ? wiredText(p.wired) : '',
-  p.state === 'not-installed' ? '' : SAID[p.health] || p.health, [p.says, p.from && `from ${p.from}`].filter(Boolean).join('; ')];
+  p.state === 'not-installed' ? '' : SAID[p.health] || p.health, [p.says, p.from && filled(W.from, { from: p.from })].filter(Boolean).join('; ')];
 
 function textOf(view, plainName) {
-  const toDo = view.advice.length ? ['to do:', ...view.advice.map((line) => `  ${line}`)] : [];
+  const toDo = view.advice.length ? [TO_DO, ...view.advice.map((line) => `  ${line}`)] : [];
   const packageRows = view.packages.map(packageColumns(plainName));
-  const gone = [...new Set(view.host.missing.map((d) => `  not wired: ${d.what} ${d.what === 'hook' ? d.name.split(' ')[0] : d.name}`))];
-  const notWired = gone.length > GONE_SHOWN ? [...gone.slice(0, GONE_SHOWN), `  not wired: ${gone.length - GONE_SHOWN} more, atlasbound debug doctor lists them`] : gone;
+  const gone = [...new Set(view.host.missing.map((d) => filled(W.gone, { what: d.what, name: d.what === 'hook' ? d.name.split(' ')[0] : d.name })))];
+  const notWired = gone.length > GONE_SHOWN ? [...gone.slice(0, GONE_SHOWN), filled(W.goneMore, { n: gone.length - GONE_SHOWN })] : gone;
   const unmeasured = [...view.packages.filter((p) => p.state === 'installed' && p.health === 'not-measured'), ...view.probes.filter((p) => p.state === 'not-measured')];
-  const closing = `doctor: ${view.ok ? 'ok' : 'problem'}${unmeasured.length ? ` (not measured: ${unmeasured.map((p) => plainName(p.name)).join(', ')})` : ''}`;
-  const config = view.problems.filter((p) => p.from === 'config').map((p) => `  config refused: ${p.says}: this view read the shipped config; every other verb refuses until the file reads`);
-  const manifests = view.problems.filter((p) => p.from === 'manifest').map((p) => `  manifest-invalid ${p.name}`);
-  const gaps = view.capabilities.filter((c) => c.state === 'capability-missing').map((c) => `  ${c.what}: capability-missing: ${c.pkg} has no ${c.needs}`);
+  const closing = filled(W.closing, { verdict: view.ok ? 'ok' : 'problem',
+    unmeasured: unmeasured.length ? filled(W.unmeasured, { names: unmeasured.map((p) => plainName(p.name)).join(', ') }) : '' });
+  const config = view.problems.filter((p) => p.from === 'config').map((p) => filled(W.config, { says: p.says }));
+  const manifests = view.problems.filter((p) => p.from === 'manifest').map((p) => filled(MANIFEST_INVALID, { name: p.name }));
+  const gaps = view.capabilities.filter((c) => c.state === 'capability-missing').map((c) => filled(W.gap, c));
   const answering = view.capabilities.filter((c) => c.state === 'answers').length;
-  const promised = [`capabilities: the code of ${answering} of ${view.capabilities.length} verbs, hooks and tools the product promises answers (wiring: the rows above; debug doctor lists each)`, ...gaps];
-  const yours = view.host.yours.map((y) => `  ${y.file}: your own file, kept as it is; ours was not written. For ours under another name: cp ${y.ours} ${y.file.replace(/[^/]+$/, '<name>.md')}`);
-  const lines = [`atlasbound doctor: ${view.root}`, ...config, ...view.modules.map(moduleLine), ...columns(packageRows), ...notWired, ...yours, ...manifests,
-    ...(view.problems.some((p) => p.from === 'modules') ? ['  no module is wired here: atlasbound setup'] : []),
-    ...(view.missing.length ? ['fix: atlasbound setup'] : []), ...(view.protectedPaths ? [view.protectedPaths] : []), ...promised, 'machine:',
+  const promised = [filled(W.promised, { answering, n: view.capabilities.length }), ...gaps];
+  const yours = view.host.yours.map((y) => filled(W.yours, { file: y.file, ours: y.ours, renamed: y.file.replace(/[^/]+$/, '<name>.md') }));
+  // drift is mended by update: it keeps the modules and writes this version's rows (another version's rows differ)
+  const lines = [filled(W.head, { root: view.root }), ...config, ...view.modules.map(moduleLine), ...columns(packageRows), ...notWired,
+    ...yours, ...manifests,
+    ...(view.problems.some((p) => p.from === 'modules') ? [W.noModuleRow] : []),
+    ...(view.missing.length ? [W.wireAgain] : []), ...(view.protectedPaths ? [view.protectedPaths] : []), ...promised, W.machine,
     ...view.probes.map((p) => `  ${p.name.padEnd(16)}${SAID[p.state] || p.state}  ${p.says}`),
     ...toDo, closing];
   return `${lines.join('\n')}\n`;
@@ -122,8 +125,9 @@ async function installFacts(io) {
   const unwired = [...view.packages.filter((p) => p.wired === false).map((p) => [p.name, 'not-wired']), ...(view.host.wired ? [] : [['host', 'not-wired']])];
   const rows = [...view.packages.map((p) => [p.name, p.health]), ...view.probes.map((p) => [p.name, p.state])].filter(([, state]) => state !== 'measured');
   const said = [...unwired, ...rows].map(([name, state]) => `${name}=${state}`).join(', ');
-  return [`product version: ${io.version}`, `platform: ${io.machine.platform}`, `node: ${io.machine.node.split('.')[0]}`,
-    `doctor: ${view.ok ? 'ok' : Object.keys(codes).join(' ')}${said ? `; ${said}` : ''}`];
+  const slots = { version: io.version, platform: io.machine.platform, node: io.machine.node.split('.')[0],
+    verdict: view.ok ? 'ok' : Object.keys(codes).join(' '), said: said ? `; ${said}` : '' };
+  return W.facts.map((fact) => filled(fact, slots));
 }
 
 async function debugDoctor(_args, io) {
@@ -135,9 +139,9 @@ async function status(_args, io) {
   const view = await viewOf(io, { probing: false });
   const installed = view.packages.filter((p) => ['installed', 'off', 'not-set-up'].includes(p.state)).map((p) => p.name);
   const absent = io.packages.names.filter((name) => !io.packages.has(name)); // a module with no package here among them
-  const wired = view.missing.length ? 'no: atlasbound setup wires it' : 'yes';
-  const named = `installed: ${installed.map(io.catalog.plain).join(', ')}\nnot installed: ${absent.map(io.catalog.plain).join(', ') || 'none'}`;
-  const text = `root: ${io.root}\nwired: ${wired}\n${named}\n${view.modules.map((m) => `${moduleLine(m)}\n`).join('')}`;
+  const head = filled(W.status, { root: io.root, wired: view.missing.length ? W.statusWiredNo : 'yes', installed: installed.map(io.catalog.plain).join(', '),
+    absent: absent.map(io.catalog.plain).join(', ') || 'none' });
+  const text = `${head}${view.modules.map((m) => `${moduleLine(m)}\n`).join('')}`;
   return { out: { root: io.root, wired: !view.missing.length, modules: view.modules, installed, absent },
     n: { installed: installed.length }, codes: {}, text };
 }

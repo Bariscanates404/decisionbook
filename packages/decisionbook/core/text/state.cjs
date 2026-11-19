@@ -4,8 +4,9 @@
 'use strict';
 // PURE. What a writing verb answers: what it started and recorded and the state it left the plan in, so no show or
 // ready call follows a write; `ready` answers the state alone; `close`, what shipped.
-const { text: { safe: { clip }, lines: { filled } } } = require('@atlasbound/kit');
-const { WORDS, shortOf } = require('../../contracts/codes.cjs');
+const { text: { lines: { filled } } } = require('@atlasbound/kit');
+const { WORDS, shortOf, SHOWN: { state: shown } } = require('../../contracts/codes.cjs');
+const { DIR } = require('../../contracts/shapes.cjs');
 const { shippedCounts, planContractLine, levelLine } = require('./records.cjs');
 const { readyLines } = require('./ready.cjs');
 
@@ -35,30 +36,27 @@ function reusedLine(d) {
 /** The decisions that already stand on the files a written record names. */
 const reuseLines = (o) => (o.existing.length ? [WORDS.reuse, ...o.existing.map(reusedLine)] : []);
 
-/** The decisions a sender signed for a person and the product stored as the AI's, each with why and the one thing that makes it theirs. */
-const asAiLines = (o) => ((o.asAi || []).length ? [WORDS.asAi.head,
-  ...o.asAi.map(({ key, q, why, items = [] }) => `  ${filled(WORDS.asAi[why], { key: clip(key, 80), q: clip(q || WORDS.thePlan, 40), items: items.join(' and ') })}`)] : []);
+/** Each decision recorded as the person's, with the words stored and what it replaces or keeps: the AI sees in the same turn which
+ * words of theirs stand behind it. */
+const theirsLines = (o) => (o.theirs || []).map(({ key, said, replaces = [], keeps = [] }) => filled(WORDS.recordedTheirs, {
+  key: shown.key(key), said: shown.said(said), replaces: replaces.length ? `, replaces ${shown.replaces(replaces.join(', '))}` : '',
+  keeps: keeps.length ? `, keeps ${shown.keeps(keeps.join(', '))}` : '' }));
 
 /** The reply of `new`, `add` and `ready`; a contract the write took on comes before what it recorded. */
 function writtenText(o) {
   const risen = hasRisen(o) ? [levelLine(o.state.level)] : [];
   const contracts = (o.contracts || []).map(planContractLine);
   const started = o.file ? [`${o.id} started: ${o.file}`] : [];
-  const pointers = (o.pointers || []).length ? [filled(WORDS.pointerKept, { tools: clip([...new Set(o.pointers)].join(', '), 200) })] : [];
-  const recorded = o.records ? [recordedLine(o), ...pointers, ...asAiLines(o), ...linkedLines(o), ...reuseLines(o)] : [];
+  const pointers = (o.pointers || []).length ? [filled(WORDS.pointerKept, { tools: shown.pointers([...new Set(o.pointers)].join(', ')) })] : [];
+  const recorded = o.records ? [recordedLine(o), ...pointers, ...theirsLines(o), ...linkedLines(o), ...reuseLines(o)] : [];
   return [...risen, ...contracts, ...started, ...recorded, ...readyLines(o.state || o)].join('\n');
-}
-
-/** What the product bound of a person's message, for the AI to check against what it read: the questions their message answered,
- * the ones it left open, and the state the plan is in now. Their words are in the message itself, so none are said again. */
-function boundLines({ id, bound, open, state }) {
-  const waits = open.length ? [filled(WORDS.boundOpen, { qs: open.join(', ') })] : [];
-  return [filled(WORDS.bound, { id, qs: bound.join(', ') }), ...waits, ...readyLines(state)].join('\n');
 }
 
 function closedText(o) {
   if (o.code === 'plan-close-empty') return `${o.id}: ${shortOf(o.code)}`;
-  return `${o.id} closed: ${shippedCounts(o)}; ${o.other} other commits not attributed`;
+  const unplanned = o.unplanned ? `; ${filled(WORDS.closeUnplanned, { n: o.unplanned })}` : '';
+  const commit = filled(WORDS.closeCommit, { id: o.id, file: `${DIR}/${o.id}.jsonl` });
+  return filled(WORDS.closedLine, { id: o.id, counts: shippedCounts(o), other: o.other, unplanned, commit });
 }
 
-module.exports = { writtenText, boundLines, closedText };
+module.exports = { writtenText, closedText };

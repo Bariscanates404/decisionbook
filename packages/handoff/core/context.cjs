@@ -3,7 +3,8 @@
 // See LICENSE and NOTICE in the package root.
 'use strict';
 // PURE: how full the session's context is, and whether the one notice is due. The windows and the notice point are data (CONTEXT).
-const { text: { safe: { clip } } } = require('@atlasbound/kit');
+const { text: { safe: { clip }, lines: { filled } } } = require('@atlasbound/kit');
+const WORDS = require('../contracts/words.json');
 
 const TOKENS = ['input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens'];
 const isMain = (row) => row && row.type === 'assistant' && !row.isSidechain && row.message && row.message.model !== '<synthetic>';
@@ -12,7 +13,7 @@ const mainUsage = (row) => (isMain(row) && row.message.usage) || null;
 /** The window of `model` and what chose it; `env` as read at the edge: { max, no1m } -> { window, by } (window null: unknown). */
 function windowOf(model, env, { windows, reduced, env: names }) {
   if (Number(env.max) > 0) return { window: Math.floor(Number(env.max)), by: names.max };
-  const row = (model && windows.find((w) => w.id.test(model))) || { row: 'no row knows this id', tokens: null };
+  const row = (model && windows.find((w) => w.id.test(model))) || { row: WORDS.windowUnknown, tokens: null };
   const off = row.tokens > reduced && env.no1m && !['0', 'false'].includes(String(env.no1m).toLowerCase());
   return off ? { window: reduced, by: `${row.row}, ${names.no1m}` } : { window: row.tokens, by: row.row };
 }
@@ -26,7 +27,7 @@ function contextOf(text, { env, rules }, json) {
   const tokens = TOKENS.reduce((sum, k) => sum + (Number(message.usage[k]) || 0), 0);
   const model = typeof message.model === 'string' ? message.model : null;
   const { window, by } = windowOf(model, env, rules);
-  return window && tokens > window ? { tokens, model, window: null, by: `${by}: the count is over it` } : { tokens, model, window, by };
+  return window && tokens > window ? { tokens, model, window: null, by: filled(WORDS.countOver, { by }) } : { tokens, model, window, by };
 }
 
 const isDue = ({ tokens, window }, { percent, unknownTokens }) => (window ? tokens * 100 >= window * percent : tokens >= unknownTokens);
@@ -38,10 +39,10 @@ function noticeCode(seen, before, rules) {
   return isDue(seen, rules) ? 'context-notice' : 'context-below';
 }
 
-/** The tokens always; the percentage only beside a known window. */
-function contextLine(seen) {
-  const count = `handoff: this session's context holds ${seen.tokens.toLocaleString('en-US')} tokens`;
-  if (!seen.window) return `${count} (the window of ${clip(seen.model || 'this model', 60)} is not known here)`;
+/** The tokens always; the percentage only beside a known window. `modelChars`: how much of a model's name the line names. */
+function contextLine(seen, modelChars) {
+  const count = filled(WORDS.contextHolds, { tokens: seen.tokens.toLocaleString('en-US') });
+  if (!seen.window) return filled(WORDS.contextUnknown, { count, model: clip(seen.model || 'this model', modelChars) });
   return `${count} (${Math.round((seen.tokens * 100) / seen.window)} % of ${seen.window.toLocaleString('en-US')})`;
 }
 

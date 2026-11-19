@@ -13,7 +13,7 @@ const { bookWorld, begin, added, refusedWith, logFile, lastN, readOf, textOf } =
 const { verbs, handlers } = decisionbook;
 const STATUS = 'app/models/status.rb';
 const REPLY = 'app/models/reply.rb';
-const SCOPE = { t: 'decision', key: 'policy.scope', value: 'the top post decides at any depth', why: 'the team asked', by: 'Ayse', files: [STATUS] };
+const SCOPE = { t: 'decision', key: 'policy.scope', value: 'the top post decides at any depth', why: 'the team asked', by: 'ai', files: [STATUS] };
 const ASKED = 'Who decides at any depth';
 const linksIn = (io, id) => io.fs.readText(logFile(id)).trim().split('\n').map((line) => JSON.parse(line))
   .filter((r) => r.t === 'link' && r.rel === 'built-on');
@@ -80,7 +80,7 @@ test('[I-4] a recall card given and a decided key reused link too, and the link 
   const { io, older, newer } = await chain();
   assert.equal((await handlers.recall(readOf(STATUS, 's1'), io)).code, 'recall-given', 'the earlier plan\'s card');
   await added(io, newer, { t: 'decision', key: 'policy.scope', scope: 'reply requests', value: 'the top post author decides on requests',
-    why: 'it follows the reply policy', by: 'Ayse', files: [REPLY] });
+    why: 'it follows the reply policy', by: 'ai', files: [REPLY] });
   const why = 'decision policy.scope ← decision policy.scope';
   assert.deepEqual(linksIn(io, newer).map((l) => [l.to, l.why, l.source]), [[`plan:${older}`, why, 'read: card']]);
   assert.deepEqual(await showLinks(io, newer), [[`plan:${newer}`, 'built-on', `plan:${older}`, why]]);
@@ -90,8 +90,8 @@ test('[I-4] a recall card given and a decided key reused link too, and the link 
     'the links between plans come first, so a long plan never hides them');
   io.state.branch = 'h4';
   const cards = textOf(await handlers.recall(readOf(STATUS, 's2'), io));
-  assert.match(cards, new RegExp(`^- ${older} draft: Reply controls\\n(?: {2}.*\\n)* {2}linked: used-by ${newer}: ${why}\\n`, 'm'));
-  assert.match(cards, new RegExp(`^- ${newer} draft: Reply requests\\n(?: {2}.*\\n)* {2}linked: built-on ${older}: ${why}\\n`, 'm'));
+  assert.match(cards, new RegExp(`^- ${older} draft \\(2026-11-02\\): Reply controls\\n(?: {2}.*\\n)* {2}linked: used-by ${newer}: ${why}\\n`, 'm'));
+  assert.match(cards, new RegExp(`^- ${newer} draft \\(2026-11-02\\): Reply requests\\n(?: {2}.*\\n)* {2}linked: built-on ${older}: ${why}\\n`, 'm'));
   const byHand = await verbs.related(io, { rest: [STATUS] });
   assert.match(byHand.text, new RegExp(`^ {2}linked: built-on ${older}: ${why}$`, 'm'));
   assert.deepEqual(byHand.out.cards.map((c) => [c.id, c.linked.map((l) => l.rel)]), [[older, ['used-by']], [newer, ['built-on']]]);
@@ -116,4 +116,38 @@ test('[I-4] decisionbook related only reads; a link the person removes is gone f
   assert.deepEqual(await states(io), before);
   const debug = await decisionbook.debug.decisionbook(io, { rest: [] });
   assert.match(debug.text, new RegExp(`^read in session s1 by related: ${older}$`, 'm'));
+});
+
+// Two plans of other files each decided a bare key (a lesson's `layout`, another lesson's `layout`): the newer one showed a CONFLICT
+// with the older one and was linked to it as built on it.
+test('[I-3] one bare key in two plans of other files is no conflict and no link; a shared file or a key that names its area is', async () => {
+  const { io, older, newer } = await chain();
+  const layout = (value) => ({ t: 'decision', key: 'layout', value, why: 'the page', by: 'ai' });
+  await added(io, older, layout('right of the title'));
+  assert.equal((await handlers.recall(readOf(STATUS, 's1'), io)).code, 'recall-given', 'the earlier plan\'s card was read');
+  await added(io, newer, layout('a new fourth tab'));
+  const conflicts = async (key) => (await verbs.show(io, { rest: [`decision:${key}`] })).out.decisions.filter((d) => d.state === 'active').map((d) => d.conflicts);
+  assert.deepEqual([await conflicts('layout'), linksIn(io, newer)], [[[], []], []], 'other files: two decisions that never meet');
+  assert.ok(!(await verbs.show(io, { rest: [newer, 'decisions'] })).text.includes('CONFLICT'));
+  await added(io, newer, { ...SCOPE, value: 'the reply author decides', files: [REPLY] });
+  assert.deepEqual(await conflicts('policy.scope'), [[`${newer}/policy.scope`], [`${older}/policy.scope`]], 'a key that names its area is one concern in every plan');
+  assert.deepEqual(linksIn(io, newer).map((l) => l.why), ['decision policy.scope ← decision policy.scope']);
+  await added(io, newer, { t: 'link', rel: 'plans', to: `file:${STATUS}`, why: 'the policy too' });
+  assert.deepEqual(await conflicts('layout'), [[`${newer}/layout`], [`${older}/layout`]], 'the plans share a file now: one key, two live values');
+});
+
+// A link an earlier build stored for a reused bare key between plans of other files (`yerlesim ← yerlesim` in a team's history) is read
+// with the rule a write links by: it is no link until the two plans meet.
+test('[I-3] a stored link of one bare key between plans that do not meet is not shown; once they share a file it is', async () => {
+  const { io, older, newer } = await chain();
+  const layout = (value) => ({ t: 'decision', key: 'layout', value, why: 'the page', by: 'ai' });
+  await added(io, older, layout('right of the title'));
+  await added(io, newer, layout('a new fourth tab'));
+  const stored = { t: 'link', rel: 'built-on', to: `plan:${older}`, why: 'decision layout ← decision layout', source: 'read: card', at: '2026-11-02T06:00:00.900Z' };
+  io.fs.append(logFile(newer), `${JSON.stringify(stored)}\n`);
+  const card = async () => (await verbs.related(io, { rest: [STATUS] })).text;
+  assert.deepEqual([await showLinks(io, newer), await showLinks(io, older)], [[], []], 'other files: no link either way');
+  assert.ok(!(await card()).includes('layout ← decision layout'), await card());
+  await added(io, newer, { t: 'link', rel: 'plans', to: `file:${STATUS}`, why: 'the policy too' });
+  assert.deepEqual(await showLinks(io, older), [[`plan:${older}`, 'used-by', `plan:${newer}`, stored.why]], 'a shared file: the link stands');
 });

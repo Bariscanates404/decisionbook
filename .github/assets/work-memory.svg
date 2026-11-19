@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
   <title id="title">DecisionBook and Handoff: ground the task, keep what the work teaches you</title>
-  <desc id="desc">An illustrative undo-and-redo task. Repository research finds that no earlier state is kept. The open question asks how much history to retain. The person asks for a configurable limit. Research, questions, answers and checks become a work record that later sessions can read.</desc>
+  <desc id="desc">An illustrative undo-and-redo task. Repository research finds that no earlier state is kept. The agent asks how much history to keep and proposes the last 50. The person answers in their own words: keep 100, and make it an option. Their words are kept as typed beside what the agent understood. Research, questions, answers and checks become a work record that later sessions read, checking it against the current code.</desc>
   <defs>
     <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#24413f" stroke-width="1" opacity=".32"/></pattern>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1L8 5L0 9" fill="none" stroke="#85c8b7" stroke-width="1.5"/></marker>
@@ -21,18 +21,18 @@
     <text x="76" y="327" fill="#42575d" font-size="18">No earlier state is kept.</text>
     <path d="M76 352H350" stroke="#d2d0c4"/>
     <text x="76" y="384" fill="#29675d" font-size="13" font-weight="700" letter-spacing="2">THE OPEN QUESTION</text>
-    <text x="76" y="417" fill="#15252a" font-size="19">How much history</text>
-    <text x="76" y="444" fill="#15252a" font-size="19">should we keep?</text>
+    <text x="76" y="417" fill="#15252a" font-size="19">How much history should</text>
+    <text x="76" y="444" fill="#15252a" font-size="19">we keep? Proposed: 50.</text>
 
     <path d="M386 330H416" fill="none" stroke="#85c8b7" stroke-width="2" marker-end="url(#arrow)"/>
     <rect x="432" y="190" width="322" height="285" rx="12" fill="#1d514b" stroke="#69a995"/>
-    <text x="456" y="225" fill="#9cdbc9" font-size="13" font-weight="700" letter-spacing="2">THE PERSON ANSWERS</text>
+    <text x="456" y="225" fill="#9cdbc9" font-size="13" font-weight="700" letter-spacing="2">YOU ANSWER IN YOUR WORDS</text>
     <text x="456" y="271" fill="#f6f3e9" font-size="25" font-weight="700">“Keep 100, and make</text>
     <text x="456" y="307" fill="#f6f3e9" font-size="25" font-weight="700">it an option.”</text>
     <path d="M456 352H730" stroke="#488376"/>
-    <text x="456" y="388" fill="#c2ded6" font-size="18">The proposal and the answer</text>
-    <text x="456" y="415" fill="#c2ded6" font-size="18">stay separate, with the</text>
-    <text x="456" y="442" fill="#c2ded6" font-size="18">question that led to them.</text>
+    <text x="456" y="388" fill="#c2ded6" font-size="18">Your words, kept as typed,</text>
+    <text x="456" y="415" fill="#c2ded6" font-size="18">beside what your AI read,</text>
+    <text x="456" y="442" fill="#c2ded6" font-size="18">and the question asked.</text>
 
     <path d="M766 330H796" fill="none" stroke="#85c8b7" stroke-width="2" marker-end="url(#arrow)"/>
     <rect x="812" y="190" width="336" height="285" rx="12" fill="#142b30" stroke="#477166"/>
@@ -45,7 +45,7 @@
     <text x="836" y="446" fill="#8fd2c0" font-size="16">Read the current code, too.</text>
 
     <path d="M52 514H1148" stroke="#36524b"/>
-    <text x="52" y="552" fill="#a5bdb8" font-size="16">Local CLI · Node.js built-ins · No install scripts · Your existing coding session</text>
-    <text x="52" y="591" fill="#799b94" font-size="14">Illustrative README example. Not a live session, a customer record or a measured outcome.</text>
+    <text x="52" y="552" fill="#a5bdb8" font-size="16">Local CLI · Node.js built-ins · No install scripts · Your existing Claude Code session</text>
+    <text x="52" y="591" fill="#799b94" font-size="14">Illustrative README example. Not a screen of the product, a customer record or a measured outcome.</text>
   </g>
 </svg>

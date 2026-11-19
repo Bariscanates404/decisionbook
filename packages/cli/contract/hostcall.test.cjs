@@ -77,9 +77,9 @@ test('a shell command that names the prompt hook is denied at the port, bare or 
   assert.equal(traceRows(repo).filter((r) => r.step === 'cli.verb' && r.code === 'hook-only-host').length >= 1 || traceRows(repo).some((r) => JSON.stringify(r).includes('hook-only-host')), true);
 });
 
-// A Stop written from the AI's shell ("Set <plan> aside?", or the proposals "shown") is not kept as what the person was shown, so
-// their next yes cannot take it. Stop is heard by the prompt's rule.
-test('a turn\'s end from the AI\'s shell shows the person nothing; the host\'s own is heard; a command naming it is denied', { skip: !judged }, () => {
+// A Stop written from the AI's shell runs none of its handlers: a forged turn's end blocks nothing and records nothing. Stop is heard
+// by the prompt's rule.
+test('a turn\'s end from the AI\'s shell runs no handler; the host\'s own is heard; a command naming it is denied', { skip: !judged }, () => {
   const repo = makeRepo({ 'lib/errors.js': 'module.exports = {};\n' });
   const home = tmp('hostcall-home-');
   assert.equal(run(world.bin, ['setup', '--target', repo], { env: { HOME: home } }).code, 0);

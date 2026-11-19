@@ -2,15 +2,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-const { CONFIG } = require('../contracts/shapes.cjs');
+const { CONFIG, refOf } = require('../contracts/shapes.cjs');
+const { WORDS } = require('../contracts/codes.cjs');
+const { PERSON } = require('../core/yes.cjs');
 const { writeTarget, guardOf, guardWay } = require('./host.cjs');
 const { globCovers } = require('../base/glob.cjs');
 const { isAnswered } = require('../base/text.cjs');
 const { gateVerdict, isGuarded, reasonOf } = require('../core/gate.cjs');
-const { bothReasons, takesOutWhy, cameFromWhy, grownLine } = require('../core/text/gate.cjs');
+const { bothReasons, takesOutWhy, cameFromWhy } = require('../core/text/gate.cjs');
 const { protectPolicy, afterEdit, addsOnly, removed } = require('../core/policy.cjs');
 const { contractVerdict } = require('./promise.cjs');
 const { phase } = require('./phase.cjs');
+const { worksOn } = require('./here.cjs');
 const store = require('./store.cjs');
 const trust = require('./trust.cjs');
 
@@ -36,15 +39,9 @@ async function promised(event, io, plan) {
 
 async function untrusted(event, io, { out, web }) {
   const view = web.views.find((v) => v.id === out.plan);
-  if (out.verdict === 'ask' && event.session_id) trust.noteAsked(io, event, { view, file: out.file }); // a host's event; a dry reading (gateRead) writes nothing
+  if (out.verdict === 'ask' && event.session_id) trust.noteAsked(io, event, { view, file: out.file, code: out.code }); // a host's event; a dry reading (gateRead) writes nothing
   const author = await io.git.author(store.pathOf(view.id));
   return { out: { ...out, reason: reasonOf(out, cameFromWhy(author)) }, code: out.code };
-}
-
-/** A file written outside the frozen plan joins it: the product adds its path to the plan and says so in one line. */
-function grown(io, out) {
-  store.put(io, out.plan, { t: 'link', rel: 'plans', to: `file:${out.file}`, source: 'the gate: written under the READY plan' });
-  return { out: { ...out, context: grownLine(out.plan, out.file) }, code: out.code };
 }
 
 /** `dry`: a reading that writes nothing (gateRead, a folder a shell command writes): no file joins the plan, no phase is kept. */
@@ -54,18 +51,22 @@ async function preEdit(event, io, { dry = false } = {}) {
   const { config = { protect: [], danger: [] }, text, unreadable } = store.readPolicy(io);
   const person = unreadable ? { code: 'policy-unreadable', why: unreadable } : personOnly(event, io, file, text);
   const web = isGuarded(config, file) ? store.readWeb(io, { danger: config.danger }) : null;
-  const asked = { ...config, file, mode: event.permission_mode, person, trusted: (view) => trust.isTrusted(io, view) };
+  const asked = { ...config, file, mode: event.permission_mode, person, trusted: (view) => trust.isTrusted(io, view),
+    ours: (view) => worksOn(io, event.session_id, view) };
   const out = gateVerdict({ ...asked, ...(web ? { branch: await io.git.branch(), web } : {}) });
   const said = await promised(event, io, await broughtBy(event, io, { out, web, dry }));
   if (!dry) firstWrite(io, event, said, out.plan);
   return out.code === 'plan-draft-here' ? draftAsks(said, web.views.find((view) => view.id === out.plan)) : said;
 }
 
-/** What the plan's verdict brings with it: an untrusted plan's ask is noted with who brought the plan; a file outside the frozen
- * plan joins it. */
+/** What the plan's verdict brings with it: an untrusted plan's ask is noted with who brought the plan; an ask of a file outside the
+ * frozen plan is noted, so the person's yes adds it (postEdit). */
 async function broughtBy(event, io, { out, web, dry }) {
   if (out.code === 'plan-not-here') return untrusted(event, io, { out, web });
-  return out.code === 'plan-grown' && !dry ? grown(io, out) : { out, code: out.code };
+  if (out.code === 'plan-outside' && out.verdict === 'ask' && event.session_id && !dry) {
+    trust.noteAsked(io, event, { view: web.views.find((v) => v.id === out.plan), file: out.file, code: out.code });
+  }
+  return { out, code: out.code };
 }
 const firstWrite = (io, event, said, plan) => said.out.verdict === 'allow' && plan && phase(io, event, plan, 'first-write');
 
@@ -75,9 +76,12 @@ function draftAsks(said, draft) {
   return asks ? { ...said, n: { ...said.n, asks }, codes: { 'gate-question': 1 } } : said;
 }
 
+// the write the gate asked about ran, so the person said yes: a file outside the frozen plan joins it as theirs, else its plan is used here
 async function postEdit(event, io) {
   const file = await writeTarget(event, io);
   const ask = file && trust.answered(io, event, file);
+  if (ask && ask.code === 'plan-outside') store.put(io, ask.id, { t: 'link', rel: 'plans', to: refOf('file', file), by: PERSON, source: WORDS.joinedOnYes });
+  else if (ask) trust.keepAsked(io, ask);
   return { out: { code: ask ? 'trust-kept' : 'trust-none', ...(ask ? { plan: ask.id } : {}) }, code: ask ? 'trust-kept' : 'trust-none' };
 }
 

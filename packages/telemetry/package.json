@@ -2,7 +2,7 @@
   "name": "@atlasbound/telemetry",
   "version": "0.0.0",
   "private": true,
-  "description": "Opt-in, counts-only measurement: what would be sent can be inspected first. The only package that may use the network.",
+  "description": "A daily usage report per module a person chooses: counts, ranges and closed words, every byte shown first. The only package that may use the network; in this build it has no address.",
   "license": "AGPL-3.0-only",
   "files": ["index.cjs", "adapters/", "contracts/", "core/", "debug/", "run/", "steps/"],
   "main": "./index.cjs",
@@ -14,17 +14,26 @@
   },
   "atlasbound": {
     "verbs": [
-      { "words": ["debug", "telemetry"], "call": "debug.telemetry", "render": "debug.render", "reads": true, "what": "what would leave; nothing is sent" },
-      { "words": ["telemetry"], "what": "opt-in, counts-only measurement" },
-      { "words": ["telemetry", "on"], "call": "optIn", "render": "debug.render", "noWords": true, "by": "person", "phrase": "turn on telemetry",
-        "what": "opt in, for your user on this machine: you type the phrase at a plain terminal; no environment variable and no AI session can" },
-      { "words": ["telemetry", "off"], "call": "optOut", "render": "debug.render", "noWords": true, "what": "opt out" },
-      { "words": ["telemetry", "status"], "call": "status", "render": "debug.render", "noWords": true, "looks": true,
-        "what": "on or off, why, and where counts would go" },
-      { "words": ["telemetry", "send"], "call": "send", "render": "debug.render", "noWords": true,
-        "what": "send what debug telemetry shows, only if you opted in" }
+      { "words": ["debug", "telemetry"], "call": "debug.telemetry", "render": "debug.render", "noWords": true, "reads": true, "what": "what the next attempt would post, without closing a day; nothing is sent",
+        "help": {"line": "show the state and the exact request the next attempt would post; nothing is sent or written", "when": "before you decide to turn telemetry on", "example": "atlasbound debug telemetry", "changes": "nothing"} },
+      { "words": ["telemetry"], "what": "a daily usage report: step counts, ranges and outcome codes, the version, Node major, OS family and a random id; never your code, text, names or paths (every field: PRIVACY.md)",
+        "help": {"when": "to read about telemetry and its commands", "example": "atlasbound telemetry status", "changes": "nothing"} },
+      { "words": ["telemetry", "on"], "call": "optIn", "render": "debug.render", "asks": true, "by": "person", "phrase": "turn on telemetry", "what": "[module] turn it on for the modules installed now; you type the phrase at your own terminal",
+        "help": {"usage": "[module]", "when": "only if you want to send the report to help the product", "example": "atlasbound telemetry on db", "changes": "your choice, kept in ~/.atlasbound"} },
+      { "words": ["telemetry", "off"], "call": "optOut", "render": "debug.render", "what": "[module] turn telemetry off, all or one module; anyone may, an AI session too",
+        "help": {"usage": "[module]", "when": "whenever you change your mind", "example": "atlasbound telemetry off", "changes": "your choice, kept in ~/.atlasbound, and the reports waiting here"} },
+      { "words": ["telemetry", "status"], "call": "status", "render": "debug.render", "noWords": true, "looks": true, "what": "on or off per module, why, where reports would go and what waits here",
+        "help": {"line": "say whether telemetry is on or off per module, why, and where reports would go", "when": "to check what is set", "example": "atlasbound telemetry status", "changes": "nothing"} },
+      { "words": ["telemetry", "next"], "call": "next", "render": "debug.render", "noWords": true, "what": "print the exact request the next attempt would post; sends nothing",
+        "help": {"when": "to see every byte before it leaves", "example": "atlasbound telemetry next", "changes": "finished days become reports here, and a waiting report that may no longer leave is deleted; nothing leaves"} },
+      { "words": ["telemetry", "history"], "call": "history", "render": "debug.render", "noWords": true, "looks": true, "what": "print every report made here, its state and exact bytes",
+        "help": {"when": "to see what was made and sent from this repository", "example": "atlasbound telemetry history", "changes": "nothing"} },
+      { "words": ["telemetry", "reset"], "call": "reset", "render": "debug.render", "noWords": true, "flags": ["--forget"], "what": "[--forget] a new random id; with --forget turn it off, delete what waits here and ask the server to delete what your id sent",
+        "help": {"when": "to start a new id, or to have what was sent deleted", "flags": {"--forget": "turn telemetry off, delete what waits here and ask the server to delete what your id sent"}, "example": "atlasbound telemetry reset --forget", "changes": "the random id in ~/.atlasbound and the reports waiting here"} },
+      { "words": ["telemetry", "send"], "call": "send", "render": "debug.render", "noWords": true, "what": "one attempt now, only for what you turned on",
+        "help": {"line": "make one attempt now; the product attempts once a day on its own", "when": "seldom", "example": "atlasbound telemetry send", "changes": "the reports here leave this machine only when telemetry is on and this build has an address"} }
     ],
     "free": ["telemetry status"],
-    "provides": { "hint": "hint" }
+    "provides": { "hint": "hint", "due": "due" }
   }
 }

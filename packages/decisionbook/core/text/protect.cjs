@@ -4,12 +4,12 @@
 'use strict';
 // PURE. What `protect` answers and what a session start says of protection: the paths that need a plan, or that
 // there are none and who chose that.
-const { text: { safe: { clip }, lines: { counted, filled } } } = require('@atlasbound/kit');
-const { WORDS } = require('../../contracts/codes.cjs');
+const { text: { lines: { counted, filled } } } = require('@atlasbound/kit');
+const { WORDS, SHOWN: { protect: shown } } = require('../../contracts/codes.cjs');
 
 /** One line: the protected paths, or none (a person's answer, or nobody chose yet). */
 function protectLine({ protect, answer }) {
-  if (protect.length) return filled(WORDS.protectedPaths, { globs: clip(protect.join(', '), 600) });
+  if (protect.length) return filled(WORDS.protectedPaths, { globs: shown.globs(protect.join(', ')) });
   return answer && answer.answer === 'none' ? WORDS.answeredNone : WORDS.unprotected;
 }
 
@@ -23,7 +23,9 @@ function candidateLine({ glob, files, testFiles }) {
 function protectText(out) {
   if (out.code === 'protect-answered') {
     if (out.answer === 'none') return WORDS.answeredNone;
-    return [filled(WORDS.protectedPaths, { globs: out.current.join(', ') }), WORDS.protectNext].join('\n');
+    const held = (out.held || []).map(([glob, by]) => filled(WORDS.protectHeld, { glob, by }));
+    return [filled(WORDS.protectedPaths, { globs: out.current.join(', ') }), ...held, ...(out.quote ? [WORDS.protectQuote] : []), WORDS.protectNext]
+      .join('\n');
   }
   const now = filled(WORDS.protectedNow, { globs: (out.current || []).join(', ') || WORDS.noneChosen });
   const folders = out.candidates.length ? out.candidates.map(candidateLine) : [WORDS.protectNoFolder];

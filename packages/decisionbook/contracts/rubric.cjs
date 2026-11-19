@@ -9,6 +9,7 @@ const { enums: { itemKind } } = require('./record.json');
 const { globsOverlap } = require('../base/glob.cjs');
 
 const LEVELS = ['micro', 'normal', 'critical']; // small fix · normal work · critical work
+const higher = (level, than) => LEVELS.indexOf(level) > LEVELS.indexOf(than);
 const all = (n = 1) => ({ micro: n, normal: n, critical: n });
 const full = (normal, critical = normal) => ({ normal, critical });
 const critical = (n = 1) => ({ critical: n });
@@ -22,6 +23,7 @@ const RUBRIC = Object.freeze([
   { id: 'command', code: 'ready-no-command', floor: full(1) }, // a validation command
   { id: 'tasks', code: 'ready-tasks', floor: critical() }, // every criterion covered by a task, every task covers one
   { id: 'questions', code: 'ready-open-question', floor: all() }, // no open blocking question
+  { id: 'replaces', code: 'ready-replace-unasked', floor: all() }, // a person's decision their words here change has their answer
   { id: 'danger', code: 'ready-danger-undecided', floor: all() }, // every danger zone has a decision
   { id: 'standards', code: 'ready-standard-undecided', floor: full(1) }, // two ways where a new file goes, asked once (judged at `ready`)
   { id: 'actors', code: 'ready-no-actor', floor: critical() },
@@ -40,10 +42,6 @@ const RUBRIC = Object.freeze([
 const HARD_PATHS = [/(^|\/)(migrations|migrate)\//, /(^|\/)(db|database)\//, /(^|\/)schema\.[A-Za-z]+$/];
 /** A danger path: a danger zone of the policy, or a database schema or migration. Only the person lets one into a plan. */
 const isDangerPath = (danger, file) => danger.some((zone) => globsOverlap(zone, file)) || HARD_PATHS.some((re) => re.test(file));
-/** The danger paths a plan took in after the person's yes (its `plans` links past the count the yes saw): a frozen plan's yes covers
- * every other file it grows by. */
-const dangerSince = (view, danger) => view.links.filter((link) => link.rel === 'plans').slice(view.confirm.after)
-  .map((link) => link.to.slice('file:'.length)).filter((file) => isDangerPath(danger, file));
 const SOFT_PATHS = [/(^|\/)(auth|authn|authz|authentication|authorization)\//, /(^|\/)(billing|payments?)\//,
   /(^|\/)(infrastructure|infra|terraform|deploy|deployment|ci|\.github|\.gitlab)\//];
 const MICRO_PATHS = [/(^|\/)(common|shared)(-[^/]+)?\//, /(^|\/)(bin|cmd|entrypoints?)\//, /(^|\/)(e2e|playwright|cypress)\//];
@@ -73,6 +71,8 @@ const RESEARCH_NOTE = Object.freeze({ normal: 3 });
 // The gaps of any change, fixed and in order: the guide for what to ask the person and what to research (the words are in
 // words.json `askGuide` and the command text), never records a plan must fill. A gap item is still read (an older plan holds them).
 const GAPS = Object.freeze(['existing-data', 'invalid-input', 'config-docs', 'compat-rollout', 'failure-visibility', 'scope-surfaces', 'tests-proof']);
+// A record made as the person's stores their words (`said`) up to this many characters, cut at a word and marked: a plan file is committed
+const HEARD = Object.freeze({ said: 500 });
 
-module.exports = { LEVELS, RUBRIC, isDangerPath, dangerSince, HARD_PATHS, SOFT_PATHS, MICRO_PATHS, RISK_WORDS, UI_PATHS, QUIET_ROLES,
-  FANOUT_MIN, MICRO_FILES, GROWN_FACTOR, GROWN_FLOOR, FORKS, GAPS, isPointerTool, RESEARCH_NOTE };
+module.exports = { LEVELS, higher, RUBRIC, isDangerPath, HARD_PATHS, SOFT_PATHS, MICRO_PATHS, RISK_WORDS, UI_PATHS,
+  QUIET_ROLES, FANOUT_MIN, MICRO_FILES, GROWN_FACTOR, GROWN_FLOOR, FORKS, GAPS, HEARD, isPointerTool, RESEARCH_NOTE };

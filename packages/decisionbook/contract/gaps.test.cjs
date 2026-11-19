@@ -8,7 +8,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const decisionbook = require('@atlasbound/decisionbook');
-const { bookWorld, begin, added, refusedWith, recordsFor, unmetOf, readFor, GAP_IDS: GAPS } = require('./world.cjs'); // the list, frozen there
+const { bookWorld, begin, added, refusedWith, recordsFor, unmetOf, leavesOthers, readFor, GAP_IDS: GAPS } = require('./world.cjs'); // the list, frozen there
 
 const { verbs } = decisionbook;
 const { WORDS } = decisionbook.codes;
@@ -32,9 +32,11 @@ test('[I-27] no level\'s READY asks for a gap item: normal and critical work are
   const critical = await begin(io, { title: 'Critical poll limit', level: 'critical' });
   await readFor(io, critical, ['src/report/export.js']); // critical research rests on a file read
   await added(io, critical, gapless('critical', '.critical'));
+  await leavesOthers(io, critical);
   assert.deepEqual(await unmetOf(io, critical), []);
   const small = await begin(io, { title: 'Small poll fix', level: 'micro' });
   await added(io, small, gapless('micro', '.small'));
+  await leavesOthers(io, small);
   assert.deepEqual(await unmetOf(io, small), [], 'a small fix needs no gap');
   const bare = await begin(io, { title: 'Bare poll plan' });
   const res = await verbs.ready(io, { rest: [bare] });

@@ -2,44 +2,46 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-// PURE. One earlier plan as a card: which plan, why it is relevant to the work at hand, what it decided and built,
-// what it is linked to, and the commands that go deeper.
-const { text: { safe: { clip } } } = require('@atlasbound/kit');
+// PURE. One earlier plan as a card: which plan, why it is relevant to the work, what it decided and built, its links, what goes deeper.
+const { text: { lines: { dayOf } } } = require('@atlasbound/kit');
 const { showCall } = require('./calls.cjs');
-const { deciderOf } = require('./records.cjs');
+const { deciderOf, agedOf, replacedBy, rivalText } = require('./records.cjs');
+const { WORDS, SHOWN: { card: shown } } = require('../../contracts/codes.cjs');
+const { refOf } = require('../../contracts/shapes.cjs');
 
 const BUILT_FILES = 3;
 const SHA = 12;
 
 /** What the plan built: its first files, then its last own commit, or the range from its first to its last. */
 function builtLine({ files, own }) {
-  const shown = clip(files.slice(0, BUILT_FILES).join(', '), 160);
+  const named = shown.files(files.slice(0, BUILT_FILES).join(', '));
   const more = files.length > BUILT_FILES ? ` (+${files.length - BUILT_FILES} files)` : '';
-  const shas = own.map((commit) => clip(String(commit.sha).slice(0, SHA), 100));
+  const shas = own.map((commit) => shown.sha(String(commit.sha).slice(0, SHA)));
   const range = shas.length > 1 ? `..${shas[0]} (${shas.length} commits)` : '';
-  return `  built: ${shown}${more} @ ${shas.at(-1)}${range}`;
+  return `  built: ${named}${more} @ ${shas.at(-1)}${range}`;
 }
 
-function cardDecision(d) {
-  const replaced = d.supersededBy ? ` replaced by ${clip(d.supersededBy, 120)}` : '';
-  return `${clip(d.key, 60)} = ${clip(d.value, 60)} (by ${deciderOf(d.by)})${replaced}`;
-}
+const cardDecision = (d, day) => (d.rivals?.length ? `${shown.key(d.key)} ${rivalText(d)}` : `${shown.key(d.key)} = ${shown.value(d.value)} (by ${
+  deciderOf(d.by)}${agedOf(d, day)})${d.supersededBy ? ` replaced${replacedBy(d)}` : ''}`);
 
 /** The commands that show more of a card: its decisions, the history of the file it was found by, its first
  * decision. */
 function deeperLine(card) {
-  const file = card.file ? [showCall(`file:${clip(card.file, 160)}`)] : [];
-  const decision = card.decisions.length ? [showCall(`decision:${clip(card.decisions[0].key, 60)}`)] : [];
+  const file = card.file ? [showCall(refOf('file', shown.file(card.file)))] : [];
+  const decision = card.decisions.length ? [showCall(refOf('decision', shown.key(card.decisions[0].key)))] : [];
   return `  deeper: ${[showCall(card.id, 'decisions'), ...file, ...decision].join(' | ')}`;
 }
 
 function cardText(card) {
-  const replaced = card.replacedBy ? `, replaced by ${clip(card.replacedBy, 100)}` : '';
-  const decisions = card.decisions.length ? [`  decisions: ${card.decisions.map(cardDecision).join('; ')}`] : [];
+  const day = card.at ? dayOf(card.at) : null;
+  const replaced = card.replacedBy ? `, replaced by ${shown.replacedBy(card.replacedBy)}` : '';
+  const more = card.more ? `; ${card.more} more: ${showCall(card.id, 'decisions')}` : ''; // the decisions the card left out, and where they are
+  const decisions = card.decisions.length ? [`  decisions: ${card.decisions.map((d) => cardDecision(d, day)).join('; ')}${more}`] : [];
   const built = card.built && card.built.own.length ? [builtLine(card.built)] : [];
   const links = card.linked.map((l) => `${l.rel} ${l.id}: ${l.why}`).join('; ');
-  const linked = card.linked.length ? [`  linked: ${clip(links, 300)}`] : [];
-  return [`- ${card.id} ${card.state}${replaced}: ${clip(card.title, 100)}`, `  why here: ${clip(card.path, 300)}`,
+  const linked = card.linked.length ? [`  linked: ${shown.links(links)}`] : [];
+  const unverified = card.unverified ? ` ${WORDS.cardUnverified}` : '';
+  return [`- ${card.id} ${card.state}${day ? ` (${day})` : ''}${unverified}${replaced}: ${shown.title(card.title)}`, `  why here: ${shown.path(card.path)}`,
     ...decisions, ...built, ...linked, deeperLine(card)].join('\n');
 }
 

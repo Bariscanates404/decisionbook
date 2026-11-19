@@ -37,7 +37,7 @@ function bookWorld({ files = {}, branch = 'feat/export', head = 'h0', commits = 
   // (a person's unless a test says no) with `above`, its ancestors' command words (null: the walk could not be done).
   // `heard`, the person's journaled prompts the root hands from handoff ({ id, at, text }); null: none handed; `absent`, why an answer
   // is null as the root says it (off by choice when `journalOff`, else not installed)
-  return { fs, home, clock, root: ROOT, run: 'r1', trace: tracer.forPackage('decisionbook', decisionbook.vocabulary), git, state, guarded, imports: importsFrom(graph),
+  return { fs, home, clock, root: ROOT, run: 'r1', hostEnv: ['CLAUDE_PROJECT_DIR', 'CLAUDE_CODE_SESSION_ID', 'CLAUDE_PID'], trace: tracer.forPackage('decisionbook', decisionbook.vocabulary), git, state, guarded, imports: importsFrom(graph),
     terminal: person, above: [], heard: () => heard, guardedWay: () => guardedWay, research: () => research,
     actor(prompts) {
       const walk = () => this.above && { chain: [['-zsh'], ...this.above], leader: 0 }; // under a login shell that leads the terminal
@@ -59,8 +59,6 @@ const planRecords = (io, id) => io.fs.readText(logFile(id)).trim().split('\n').m
 /** One no-fork item per planned path among `records` (plans links): what a plan with fewer forks than its level states. */
 const noForks = (records) => records.filter((r) => r.t === 'link' && r.rel === 'plans').map((r) => ({ t: 'item', kind: 'no-fork',
   file: r.to.slice('file:'.length), text: 'Read whole: the task settles what this file does, nothing in it is open.' }));
-/** A turn's end as the host sends it: the AI's last message of the turn (what it showed the person). */
-const shows = (io, message) => require('@atlasbound/decisionbook').handlers.stop({ hook_event_name: 'Stop', session_id: io.session, last_assistant_message: message }, io);
 const onDay = (day) => `2026-10-${String(day).padStart(2, '0')}T09:00:00.000Z`; // a hand-built history's record time, on a day of October
 const researchRows = (n) => Array.from({ length: n }, (_, i) => ({ t: 'research', tool: 'grep', asked: `export query ${i}`,
   answer: `src/report/export.js:${i + 1}`, source: `src/report/export.js:${i + 1}` }));
@@ -100,9 +98,19 @@ async function readyOne(io, { plans = ['src/report/**'], title, level = 'normal'
   const id = await begin(io, { ...(title ? { title } : {}), level });
   if (level === 'critical') await readFor(io, id, ['src/report/export.js']);
   let last = null; // the write that completes the plan makes it READY and says so; no ready call follows
-  for (const record of recordsFor(level, plans, title ? `.${title.toLowerCase().replace(/\W+/g, '-')}` : '')) last = await added(io, id, record);
+  for (const record of recordsFor(level, plans, title ? `.${title.toLowerCase().replace(/\W+/g, '-')}` : '')) {
+    if (record.t === 'confirm') await leavesOthers(io, id);
+    last = await added(io, id, record);
+  }
   return { id, res: { out: last.out.state, text: last.text } };
 }
+/** Plan `id` says, in a non-goal, that its change leaves as it is each person's standing decision of another plan on its files. */
+async function leavesOthers(io, id) {
+  const covers = ((await verbs.show(io, { rest: [id] })).out.unmet.find((u) => u.id === 'replaces')?.changed ?? []).map((c) => c.ref);
+  return covers.length ? added(io, id, { t: 'item', kind: 'non-goal', text: 'this change leaves it as it is', covers }) : null;
+}
+/** Whether plan `id` waits for the person's answer on a decision it places nowhere (a conflict of one key among them). */
+const waitsForAnswer = async (io, id) => (await verbs.ready(io, { rest: [id] })).out.unmet.some((u) => u.code === 'ready-replace-unasked');
 /** The rubric rows a plan does not hold yet, by code. */
 const unmetOf = async (io, id) => (await verbs.ready(io, { rest: [id] })).out.unmet.map((u) => u.code);
 const editEvent = (file, tool = 'Edit') => ({ hook_event_name: 'PreToolUse', session_id: 's1', tool_name: tool, tool_input: { file_path: `${ROOT}/${file}` } });
@@ -125,17 +133,20 @@ const ruling = (said) => [said.verdict, said.code]; // a gate's answer as [verdi
 /** the whole text a handler gives, its context then its say items, as the hook port joins them before its one context rule holds what a context was
  * told. */
 const textOf = (out) => [out.context, ...(out.say || []).map((s) => s.text)].filter(Boolean).join('\n');
-/** the JSON a text hands with the call `atlasbound decisionbook <words>`, a quoted heredoc: the line after its head, ended by `JSON`. */
+/** the JSON a text hands with the call `atlasbound decisionbook <words>`, as a draft (in the acting session's drafts folder, or the folder
+ * itself with no session): the line between the draft's head and the call. */
 function sentBy(text, words) {
   const lines = String(text).split('\n');
-  const at = lines.indexOf(`atlasbound decisionbook ${words} <<'JSON'`);
-  return at >= 0 && lines[at + 2] === 'JSON' ? JSON.parse(lines[at + 1]) : null;
+  const name = words.split(' ').at(-1);
+  const at = lines.findIndex((line) => new RegExp(`^write this JSON with your Write tool to \\.atlasbound/drafts/([0-9a-f]{12}/)?${name}\\.json:$`).test(line));
+  const draft = at >= 0 && lines[at].slice('write this JSON with your Write tool to '.length, -1);
+  return at >= 0 && lines[at + 2] === `then run: atlasbound decisionbook ${words} --file ${draft}` ? JSON.parse(lines[at + 1]) : null;
 }
 
-/** A person's answer to question `q` as an AI sends it: signed for them, `said` their sentence; the product decides whose it is. */
+/** A person's answer to question `q` as an AI sends it: signed for them, `value` its reading, `said` their words; the product decides whose it is. */
 const theirAnswer = (q, key, value, said) => ({ t: 'decision', key, value, why: 'the developer\'s answer', by: 'the developer', said, answers: q, effect: ['check:AC-1'] });
 /** The state a write left: READY, or the codes of the rows the plan still lacks. */
 const stateOf = (res) => (res.out.state.ready ? 'READY' : res.out.state.unmet.map((u) => u.code).join(','));
 
-module.exports = { ROOT, readFor, theirAnswer, stateOf, bookWorld, begin, added, refusedWith, logFile, planRecords, onDay, GAP_IDS, recordsFor, readyOne, unmetOf, editEvent, testWrite, readOf,
-  asMode, starting, writeConfig, tracedSteps, lastN, stepRows, ruling, wire, textOf, sentBy, noForks, shows };
+module.exports = { ROOT, waitsForAnswer, readFor, theirAnswer, stateOf, bookWorld, begin, added, refusedWith, logFile, planRecords, onDay, GAP_IDS, recordsFor, readyOne, leavesOthers, unmetOf, editEvent, testWrite, readOf,
+  asMode, starting, writeConfig, tracedSteps, lastN, stepRows, ruling, wire, textOf, sentBy, noForks };

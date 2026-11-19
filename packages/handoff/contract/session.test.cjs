@@ -26,7 +26,7 @@ test('[I-9] a compaction rebuilds the facts without any model and the start afte
   w.later(20);
   await handoff.handlers.compact(compactEvent('s1'), w.io());
   const said = await saidAtStart(w, 's1', 'compact');
-  assert.match(said, /built 2026-11-12T01:20:00\.000Z at HEAD 0202020$/m);
+  assert.match(said, /built 2026-11-12T01:20:00\.000Z at HEAD 02020202$/m);
   w.later(45);
   assert.equal(await saidAtStart(w, 's1', 'resume'), said, 'a hook names no age: the same note is the same text, said once per context');
   assert.match(said, /^ {2}1 commit since this session began\n {4}"Add the export route"$/m);
@@ -73,6 +73,17 @@ test('[I-12] the context notice is said once per session, at the notice point of
     ['context-noticed', 'message-kept', 'note-refreshed']]);
   const unknown = await handoff.handlers.prompt(transcriptAt(w, 's2', { tokens: 120000, model: 'some-other-model' }), w.io());
   assert.match(unknown.say[0].text, /120,000 tokens \(the window of some-other-model is not known here\)/);
+});
+
+test('[I-12] on Windows the transcript under the home is read in its own spelling: a drive and backslashes', async () => {
+  const w = world();
+  const io = { ...w.io(), env: { ...w.io().env, userHome: () => 'C:\\Users\\ana' } };
+  const event = { ...transcriptAt(w, 's1', { tokens: 600000 }), transcript_path: 'c:\\Users\\ana\\.claude\\projects\\-fake\\s1.jsonl' };
+  const due = await handoff.handlers.prompt(event, io);
+  assert.match(due.say?.[0]?.text ?? '', /600,000 tokens/, 'before: a path not under `${home}/` was never read, so no notice');
+  const cased = { ...event, session_id: 's2', transcript_path: 'c:\\users\\ANA\\.claude\\projects\\-fake\\s2.jsonl' };
+  transcriptAt(w, 's2', { tokens: 600000 });
+  assert.match((await handoff.handlers.prompt(cased, io)).say?.[0]?.text ?? '', /600,000 tokens/, 'a Windows folder is one in any case');
 });
 
 test('[I-9] an event with no usable session id and a user with no home folder are answered with a code and nothing else', async () => {

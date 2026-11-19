@@ -9,10 +9,10 @@
 // a `phrase`: it takes a protection away or sends something off this machine) is refused under a program that can type
 // for a person, and is done only once the person types the phrase that names it. Every answer of who acts is the root's `actor` trace
 // row, beside the verb's own.
-const { errors: { fail }, text: { shell }, paths: { nameOf }, person: { hostCalled } } = require('@atlasbound/kit');
+const { errors: { fail }, text: { shell, lines: { filled } }, paths: { nameOf }, person: { hostCalled }, host: { SHELL_TOOLS } } = require('@atlasbound/kit');
 const { PRODUCT, YES_FLAG } = require('../contracts/verbs.cjs');
-const { SHELL_GATE, EVENTS } = require('../contracts/shapes.cjs');
-const { shortOf } = require('../contracts/codes.cjs');
+const { PORT_GATE, EVENTS } = require('../contracts/shapes.cjs');
+const { shortOf, WORDS: { person: W } } = require('../contracts/codes.cjs');
 
 /** Whether `row` is the person's as it was sent: a `by: person` row, with one of its `when` flags when it names any. */
 const isPersons = (row, flags) => row.by === 'person' && (!row.when || row.when.some((flag) => Object.hasOwn(flags, flag.slice(2))));
@@ -21,11 +21,11 @@ const isPersons = (row, flags) => row.by === 'person' && (!row.when || row.when.
  * person stands above that terminal; each refusal is one coded trace row. `argv`: the words as sent, for the line the person types. */
 function onlyThePerson(io, what, argv, grave = false) {
   const { who, why, wrapped } = io.actor();
-  const found = who === 'terminal' ? `${wrapped} at this terminal` : `the AI, ${why}`;
+  const found = who === 'terminal' ? filled(W.terminal, { wrapped }) : filled(W.ai, { why });
   if (who === 'terminal' && !(grave && wrapped)) return;
   const code = who === 'terminal' ? 'person-wrapped' : 'person-only';
   io.trace.event(io.run, 'cli.verb', { code, msg: `${what}: ${who === 'terminal' ? found : why}` });
-  throw fail(code, `${what} (found: ${found}); the person types: ${[PRODUCT, ...argv.map(shell.word)].join(' ')}`);
+  throw fail(code, filled(W.refused, { what, found, line: [PRODUCT, ...argv.map(shell.word)].join(' ') }));
 }
 
 /** What a grave act's phrase names beside the row's words, when sent: `flags`, the row's flags that choose what it takes (`--purge`,
@@ -58,10 +58,10 @@ async function typedOrRefused(ask, info = '') {
 /** The verbs of this install only a person may run, as a person reads them: `modules off`, `protect --none`. */
 const personRows = (verbs) => verbs.filter((row) => row.by === 'person').map((row) => [...row.words, ...(row.when ?? [])].join(' '));
 
-/** The port's shell gate: a shell command whose text names a verb only a person runs is denied, with the command the person types;
+/** The port's gate of a shell command: one whose text names a verb only a person runs is denied, with the command the person types;
  * null for any other event or command. One coded trace row per denial. */
 function shellRefused(io, event, payload) {
-  const command = event === SHELL_GATE.event && payload.tool_name === SHELL_GATE.matcher ? (payload.tool_input || {}).command : null;
+  const command = event === PORT_GATE.event && Object.hasOwn(SHELL_TOOLS, payload.tool_name) ? (payload.tool_input || {}).command : null;
   if (typeof command !== 'string') return null;
   const names = [PRODUCT, nameOf(io.machine.bin)];
   const row = shell.verbNamed(command, names, [HOST_ONLY, ...io.catalog.verbs.filter((one) => one.by === 'person')]);

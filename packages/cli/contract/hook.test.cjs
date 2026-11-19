@@ -7,7 +7,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { makeWorld, makeRepo, run, tmp, readSettings, commandsFor, fire, editOf } = require('./support.cjs');
+const { makeWorld, makeRepo, run, tmp, readSettings, commandsFor, fire, editOf, traceRows } = require('./support.cjs');
 
 const hook = (event, matcher, handler) => ({ event, matcher, handler, timeout: 15 });
 const fake = (hooks, handlers) => ({ manifest: { hooks }, body: `{ handlers: ${handlers} }` });
@@ -93,7 +93,10 @@ test('[I-6] broken stdin fails open with the visible line and exit 0', () => {
   const res = run(world.bin, ['hook', 'PreToolUse'], { cwd: repo, input: 'not json', env: { CLAUDE_PROJECT_DIR: repo } });
   assert.equal(res.code, 0);
   assert.match(replyOf(res).systemMessage, /no verdict formed.*hook-input-invalid/);
+  const rowIn = traceRows(repo).find((r) => r.step === 'hook.in');
+  assert.deepEqual([rowIn.ok, rowIn.err], [false, { code: 'hook-input-invalid', msg: 'hook-input-invalid: SyntaxError' }], 'traced, with why: not JSON');
 });
+
 
 test('[I-6] a trace store that cannot be written still answers: the deny stands and the line names it', () => {
   const { repo } = wired({ gatekeeper: fake([hook('PreToolUse', 'Edit', 'h')], '{ h: () => ({ verdict: "deny", reason: "no" }) }') });
@@ -159,6 +162,7 @@ test('[I-7] only PreToolUse and Stop can block: a deny on another event is not p
   const stop = replyOf(fire(repo, portOf(commandsFor(settings, 'Stop', 'x'))[0], { session_id: 's', hook_event_name: 'Stop' }));
   assert.equal(stop.decision, 'block');
   assert.equal(stop.reason, 'stop');
+  assert.match(stop.systemMessage, /^atlasbound: a deliberate check, not a crash: /, 'the host shows a Stop block as a hook error: the person reads why');
   const seed = replyOf(fire(repo, portOf(commandsFor(settings, 'SessionStart', 'startup'))[0], { session_id: 's', hook_event_name: 'SessionStart',
     source: 'startup' }));
   assert.equal(seed.hookSpecificOutput.additionalContext, 'seed text');

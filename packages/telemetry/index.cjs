@@ -2,34 +2,25 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-// @atlasbound/telemetry: every verb is `(io, args)`; `net` defaults to the one real port (send only). Opting in is a person's alone: its
-// row says so (package.json `by: person`), and the cli refuses anyone else before this code runs.
-const codes = require('./contracts/codes.cjs');
-const rules = require('./contracts/rules.cjs');
-const { PKG, SCHEMA, ENUMS, STORE, SENT_PATH, CONSENT_PATH, INGEST_URL, SHAPES } = require('./contracts/shapes.cjs');
-const { redact } = require('./core/redact.cjs');
+// @atlasbound/telemetry: every verb is `(io, args)`; `net` defaults to the one real port and `machine` to this machine's facts. A module
+// registers by its descriptor and the counts its steps trace: it gets no handle of its own, no id, address, network client or free JSON.
+const { isCode } = require('./contracts/codes.cjs');
+const { PKG, SCHEMA, ENUMS, WIRE } = require('./contracts/shapes.cjs');
 const run = require('./run/telemetry.cjs');
-const { viewOf, stateView, render } = require('./debug/telemetry.cjs');
+const { renderTelemetry, doctorOf } = require('./debug/telemetry.cjs');
 const { createNet } = require('./adapters/net.cjs');
+const { machineFacts } = require('./adapters/machine.cjs');
 
-const ctxOf = (io, args = {}) => ({ run: args.run ?? io.run, version: args.version ?? io.version, net: args.net });
-const readerOf = (io) => ({ person: io.actor().who === 'terminal' }); // the hint is for a person: who acts is kit's one answer
-// The preview first, so the consent's own record is no row of what the view measures.
-const debugView = async (io, ctx) => {
-  const found = await run.preview(io, ctx);
-  return viewOf((await run.status(io, ctx)).consent, found);
-};
-const stateVerb = (verb) => async (io, args) => stateView(await verb(io, ctxOf(io, args)), INGEST_URL);
+const ctxOf = (io, args = {}) => ({ run: args.run ?? io.run, version: args.version ?? io.version,
+  net: args.net ?? createNet(WIRE.limits), machine: machineFacts(WIRE.os) });
+const verb = (fn) => (io, args = {}) => fn(io, ctxOf(io, args), args);
 
 module.exports = {
-  vocabulary: { steps: ENUMS.step, isCode: codes.isCode },
-  preview: (io, args) => run.preview(io, ctxOf(io, args)),
-  send: (io, args) => run.send(io, { ...ctxOf(io, args), net: args?.net || createNet() }),
-  optIn: stateVerb(run.optIn), optOut: stateVerb(run.optOut), status: stateVerb(run.status),
-  hint: (io, args) => run.hint(io, ctxOf(io, args), readerOf(io)),
-  doctor: (io) => run.consentDoctor(io, ctxOf(io)), spareStores: run.unsentStores,
-  keptStores: { [STORE]: 'the day telemetry\'s hint was last shown here and a copy of what was sent (your choice is kept in your home)' },
-  debug: { telemetry: (io, args) => debugView(io, ctxOf(io, args)), render },
-  redact, codes, PKG, SCHEMA, SHAPES, SENT_PATH, CONSENT_PATH, INGEST_URL,
-  PAYLOAD_BYTE_CAP: rules.PAYLOAD_BYTE_CAP, MAX_ROWS_PER_SEND: rules.MAX_ROWS_PER_SEND,
+  vocabulary: { steps: ENUMS.step, isCode },
+  status: verb(run.consentStatus), optIn: verb(run.turnOn), optOut: verb(run.turnOff), next: verb(run.nextShown),
+  history: verb(run.historyKept), reset: verb(run.resetNow), send: verb(run.sendNow), due: verb(run.dueNow), hint: verb(run.hintSaid),
+  doctor: async (io) => doctorOf(await run.consentStatus(io, ctxOf(io))),
+  debug: { telemetry: verb(run.lookOnly), render: renderTelemetry },
+  spareStores: () => ['.atlasbound/telemetry'],
+  PKG, SCHEMA,
 };

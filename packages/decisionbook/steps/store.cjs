@@ -4,8 +4,9 @@
 'use strict';
 // THE one reader and writer of `.decisionbook/`: one append-only file per plan, and the config; an unreadable plan is named, never
 // stops the others.
-const { errors: { fail, isFail }, text: { safe: { clip } } } = require('@atlasbound/kit');
+const { errors: { fail, isFail }, text: { lines: { filled } } } = require('@atlasbound/kit');
 const { SCHEMA, DIR, CONFIG, SHAPES, storedLine, bound } = require('../contracts/shapes.cjs');
+const { WORDS, SHOWN: { store: shown } } = require('../contracts/codes.cjs');
 const { foldPlan, scopeOf } = require('../core/fold.cjs');
 const { webOf } = require('../core/web.cjs');
 const { bareWord, isGlob } = require('../base/glob.cjs');
@@ -20,25 +21,28 @@ const textAt = (io, key) => io.fs.readText(key, { noLink: 'symbolic' });
 const put = (io, id, record, { first = false } = {}) => io.fs[first ? 'createExclusive' : 'append'](pathOf(id), storedLine(record, io.clock.now()));
 // a batch ({ id, lines, fresh }) holds its records and is read after the file's text, so each is checked as if the ones before it were
 // written; then one append, or for a `fresh` one (a new: its plan record first) one exclusive create, so a refused new leaves no
-// file
+// file. commit -> false where another process made a fresh batch's file while it was judged: nothing is written, the new takes the
+// next id (steps/write)
 const hold = (io, batch, record) => batch.lines.push(storedLine(record, io.clock.now()));
 const commit = (io, batch) => io.fs[batch.fresh ? 'createExclusive' : 'append'](pathOf(batch.id), batch.lines.join(''));
 
 const batchOf = (batch, id) => (batch && batch.id === id ? batch : { lines: [], fresh: false });
 
-/** A plan's records as written, its plan record first, with the lines refused; `batch`: the records a write holds, read after the
- * file's. */
+/** A plan's records as written, its plan record first, with the lines refused and the file line of each record; `batch`: the records a
+ * write holds, read after the file's. */
 function planRows(io, id, batch = null) {
   const held = batchOf(batch, id);
   const text = textAt(io, pathOf(id)) ?? (held.fresh ? '' : null);
   if (text === null) throw fail('plan-unknown', id);
-  const { rows, refused } = bound.kept(text + held.lines.join(''), 'Record');
-  if (!rows.length || rows[0].t !== 'plan') throw fail('record-invalid', `${id}: its first line is not its plan record`);
-  if (rows[0].id !== id) throw fail('record-invalid', `${id}: its plan record names ${rows[0].id}, so it is a copy, never read as that one`);
+  const whole = text + held.lines.join('');
+  const { rows, refused } = bound.kept(whole, 'Record');
+  if (!rows.length || rows[0].t !== 'plan') throw fail('record-invalid', filled(WORDS.notPlanFirst, { id }));
+  if (rows[0].id !== id) throw fail('record-invalid', filled(WORDS.planCopy, { id, named: rows[0].id }));
   if (rows[0].schema !== SCHEMA) throw fail('schema-major', `${id}: ${rows[0].schema}`);
-  return { rows, refused: refused.map(({ line, code }) => ({ line, code })) };
+  const lines = whole.split('\n').flatMap((line, i) => (line.trim() && !refused.some((r) => r.line === i + 1) ? [i + 1] : []));
+  return { rows, refused: refused.map(({ line, code }) => ({ line, code })), lines };
 }
-const readPlan = (io, id, batch = null, { rows, refused } = planRows(io, id, batch)) => foldPlan(rows, refused);
+const readPlan = (io, id, batch = null, { rows, refused, lines } = planRows(io, id, batch)) => foldPlan(rows, refused, lines);
 
 function plansOf(io, batch) {
   const listed = (io.fs.list(DIR) || []).filter((name) => name.endsWith('.jsonl')).map((name) => name.slice(0, -'.jsonl'.length));
@@ -74,13 +78,17 @@ function readWeb(io, { danger = null, batch = null, asked } = {}) {
     refused: [...(policy.unreadable ? [{ id: CONFIG, code: 'policy-unreadable' }] : []), ...refused] };
 }
 
+// the plan files `web` could not read, each with why: unknown, never absent
+// the plans not read whole: a file that did not read, and one with a line that did not (its line numbers named)
+const unreadPlans = (web) => [...web.refused.filter((r) => r.id !== CONFIG).map((r) => ({ file: pathOf(r.id), code: r.code })),
+  ...web.views.filter((v) => v.refused.length).map((v) => ({ file: `${pathOf(v.id)}:${v.refused.map((r) => r.line).join(',')}`, code: v.refused[0].code }))];
 const WORDS_READ = Object.keys(SHAPES.Config);
 
 function bookConfig(io) {
   const text = textAt(io, CONFIG);
   const said = bound.shape('Config', text === null ? {} : bound.json(text, 'policy-unreadable'));
   const stray = Object.keys(said).find((word) => !WORDS_READ.includes(word));
-  if (stray) throw fail('policy-word-unknown', `${clip(stray, 40)}: the policy's words are ${WORDS_READ.join(', ')}`);
+  if (stray) throw fail('policy-word-unknown', filled(WORDS.policyWords, { stray: shown.stray(stray), words: WORDS_READ.join(', ') }));
   return { protect: (said.protect || []).map(bareWord), danger: (said.danger || []).map(bareWord), answer: said.answer || null };
 }
 
@@ -99,11 +107,6 @@ const dangerOf = (io) => (readPolicy(io).config || {}).danger || [];
 const writeConfig = (io, config) => io.fs.writeAtomic(CONFIG, `${JSON.stringify(Object.fromEntries(Object.entries(config).filter(([, v]) => v !== null)))}\n`);
 const keepsPlan = (io) => io.fs.list(DIR) !== null;
 const taken = (io) => (id) => io.fs.exists(pathOf(id));
-/** The branch's plans that are open (a draft or READY). */
-async function openHere(io) {
-  const branch = await io.git.branch();
-  return readWeb(io).views.filter((view) => view.branch === branch && ['draft', 'ready'].includes(view.stage));
-}
 
-module.exports = { pathOf, textAt, put, hold, commit, planRows, readPlan, readWeb, bookConfig, readPolicy, dangerOf, writeConfig,
-  keepsPlan, taken, openHere };
+module.exports = { pathOf, textAt, put, hold, commit, planRows, readPlan, readWeb, unreadPlans, bookConfig, readPolicy, dangerOf,
+  writeConfig, keepsPlan, taken };

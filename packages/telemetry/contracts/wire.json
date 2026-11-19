@@ -1,0 +1,19 @@
+{
+  "$comment": "What telemetry may do, as data; no env var, flag or argument changes any of it. url and forget are EMPTY in this build: nothing is dialled. Opening them is a data change that also raises policy and re-pins lock, so a choice made under this build is asked again. unchosen: ask (setup asks a person) or on (the beta's default for betaModules after the notice).",
+  "url": "",
+  "forget": "",
+  "protocol": "ab-report/1",
+  "policy": 1,
+  "lock": { "1": "7611d617f88e80518d9ab44648dd59dc2666bae943aca51a57ab4c7edb732dc8" },
+  "unchosen": "ask",
+  "betaUntil": "2027-03-31",
+  "betaModules": ["cli", "db", "handoff"],
+  "owners": { "cli": ["cli"], "db": ["decisionbook"], "handoff": ["handoff"] },
+  "periodDays": 30,
+  "retention": { "days": 30, "months": 13 },
+  "limits": { "queueDays": 14, "queueBytes": 1048576, "historyDays": 14, "historyBytes": 2097152, "reportBytes": 60000, "reportRows": 2000,
+    "requestBytes": 65536, "requestReports": 64, "answerBytes": 16384, "countCap": 100000, "attemptHours": 24, "retryDays": 7,
+    "jitterMinutes": 60, "forgetTries": 14, "pairMinutes": 10, "closeRows": 200000 },
+  "os": { "darwin": "macos", "linux": "linux", "win32": "windows" },
+  "words": { "os": ["macos", "linux", "windows", "other"], "consent": ["default", "person"] }
+}

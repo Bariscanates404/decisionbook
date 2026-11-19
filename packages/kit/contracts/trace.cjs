@@ -4,6 +4,7 @@
 'use strict';
 // The published trace contract, ab-trace/1: where a run's records live and the shape of one record.
 // A record's `v` is the major of this schema. `step` is an enum the package names through trace.forPackage.
+const { dayOf } = require('../base/text.cjs');
 const SCHEMA = 'ab-trace/1';
 const SHAPES = {
   TraceRecord: { v: 'int', pkg: 'str', run: 'id', seq: 'int', step: 'step', at: 'str', ms: 'num?', ok: 'bool', in: 'digest?', out: 'digest?',
@@ -18,6 +19,6 @@ const TRACE_DIR = '.atlasbound/trace';
 /** The one place a run's records live. The caller's run id is checked (shape `id`) before anything is written. */
 const tracePath = (run) => `${TRACE_DIR}/${run}.ndjson`;
 /** Hook runs share one file per UTC day (`run` still separates them), so one file per hook call never piles up. */
-const dailyPath = (at) => `${TRACE_DIR}/hooks-${at.slice(0, 10)}.ndjson`;
+const dailyPath = (at) => `${TRACE_DIR}/hooks-${dayOf(at)}.ndjson`;
 
 module.exports = { SCHEMA, SHAPES, REFUSE, VERDICTS, TRACE_DIR, tracePath, dailyPath };

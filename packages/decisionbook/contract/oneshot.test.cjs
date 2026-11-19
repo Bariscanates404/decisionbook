@@ -61,20 +61,20 @@ test('a valid new that is not READY keeps one plan, and the one add its reply na
     writeConfig(io, { protect: ['lib/**'] });
     const first = await made(io, { ...head, level, title: 'Default priority', records: [{ t: 'link', rel: 'plans', to: 'file:lib/sched/parse.js', why: 'the default' }] });
     assert.deepEqual(plansHere(io), [`${first.out.id}.jsonl`], 'one plan');
-    const missing = sentBy(first.text, `add ${first.out.id}`); // the add as a quoted heredoc, the reply's last lines
-    assert.ok(missing && first.text.endsWith('\nJSON\n'), first.text);
+    const missing = sentBy(first.text, `add ${first.out.id}`); // the add as a draft and its call, the reply's last lines
+    assert.ok(missing && first.text.endsWith(`--file .atlasbound/drafts/${first.out.id}.json\n`), first.text);
     const second = await verbs.add(io, { rest: [first.out.id, JSON.stringify(missing.map(fill))] });
     assert.deepEqual(plansHere(io), [`${first.out.id}.jsonl`], 'still one plan: no second new');
     return { first, missing: missing.map((r) => r.kind || r.t), second };
   };
   const small = await started('micro');
-  assert.deepEqual([small.first.out.state.rows, small.missing], [{ met: 3, asked: 4 }, ['confirm']], 'the small form lacks the person\'s yes only');
+  assert.deepEqual([small.first.out.state.rows, small.missing], [{ met: 4, asked: 5 }, ['confirm']], 'the small form lacks the person\'s yes only');
   assert.equal(small.second.out.state.ready, true, small.second.text);
   const normal = await started('normal');
   assert.deepEqual(normal.first.out.state.unmet.map((u) => u.code), ['ready-checks', 'ready-no-command', 'ready-answers', 'ready-no-confirm']);
   assert.deepEqual(normal.missing, ['check', 'confirm'], 'the missing rows in rubric order, the person\'s yes last; the answers are asked, never a blank');
   assert.deepEqual(normal.second.out.state.unmet.map((u) => u.code), ['ready-answers'], 'the add filled every row it named');
-  assert.match(normal.second.text, /not READY as normal work: 10 of 11 rows met\n {2}still missing, as said before: ready-answers\n$/,
+  assert.match(normal.second.text, /not READY as normal work: 11 of 12 rows met\n {2}still missing, as said before: ready-answers\n$/,
     'a reply to an add says what changed, the row left by its code, and no fill-in again');
 });
 

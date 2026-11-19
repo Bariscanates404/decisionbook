@@ -5,28 +5,21 @@
 // PURE. What a writing verb says when it refuses: every refused record of a batch with its place, in one reply; what
 // the plan refuses of a question or a step; a yes or a resume no person gave; a close git cannot attribute, with each
 // route on as a condition the person checks.
-const { text: { safe: { clip }, lines: { filled } } } = require('@atlasbound/kit');
-const { WORDS, shortOf } = require('../../contracts/codes.cjs');
-const { decision } = require('../../base/fill.cjs');
+const { text: { lines: { filled, shortSha } } } = require('@atlasbound/kit');
+const { WORDS, shortOf, SHOWN: { refused: shown } } = require('../../contracts/codes.cjs');
 
 /** A question asked before any research is on record. */
 const researchFirst = (id) => filled(WORDS.researchFirst, { id });
 /** A question that restates a field of the task: which field, and its text. */
-const restatesTask = (q, field, text) => filled(WORDS.restates, { q: q.q, field, value: clip(text, 80) });
+const restatesTask = (q, field, text) => filled(WORDS.restates, { q: q.q, field, value: shown.text(text) });
 /** A question that asks leave to edit a file the plan already names: which, and why that is no fork. */
-const asksPermission = (q, file) => `${filled(WORDS.permission, { q: q.q, file: clip(file, 120) })}: ${shortOf('question-permission')}`;
-/** A question whose fork a person's standing decision settles: that decision and who made it, then the way on: the one
- * record by which the AI proposes replacing it (a proposal binds nothing), for the person to answer with their own. */
-function settledDecision(q, standing) {
-  const proposal = decision({ key: standing.key, by: 'ai', proposed: true, supersedes: [standing.ref] });
-  const slots = { q: q.q, ref: standing.ref, value: clip(standing.value, 80), by: clip(standing.by, 40) };
-  return filled(WORDS.settledBy, { ...slots, record: JSON.stringify(proposal) });
-}
-/** A decision that replaces a person's with no answer of theirs to its proposal: the way on. -> [code, detail] */
-const supersedeUnasked = (refs, proposal) => ['supersede-not-asked',
-  filled(proposal ? WORDS.supersedeAnswer : WORDS.supersedePropose, { refs: refs.join(', ') })];
-/** A decision that names itself in its supersedes. -> [code, detail] */
-const supersedeSelf = (key) => ['supersede-self', clip(key, 80)];
+const asksPermission = (q, file) => `${filled(WORDS.permission, { q: q.q, file: shown.file(file) })}: ${shortOf('question-permission')}`;
+/** A question whose fork a person's standing decision settles: that decision and who made it, then the way on: the same
+ * question naming it as what it asks the person to replace. */
+const settledDecision = (q, standing) => filled(WORDS.settledBy, { q: q.q, ref: standing.ref, value: shown.value(standing.value),
+  by: shown.by(standing.by) });
+/** A decision refused for the standing decisions it names (`refs`): which, then the way on. -> [code, detail] */
+const refusedRefs = (code, refs) => [code, `${shown.refs(refs.join(', '))}: ${shortOf(code)}`];
 
 /** A record's place in its batch; one record of an add stands alone, unless a refused plan record stands beside it. */
 const recordPlace = (i, count, beside) => (count > 1 || beside ? `record ${i + 1} of ${count}` : '');
@@ -44,9 +37,16 @@ function batchRefusal(refused) {
   return { code, detail: `${WORDS.noneWritten}: ${refused.map(recordText).join('; ')}` };
 }
 
+/** Their messages numbered in the order typed, by why the words are not theirs there (kit's reading); '' where none was read. */
+function theirMessages(whys) {
+  const said = Object.entries(WORDS.notTheirsBy).map(([why, words]) => [words, whys.flatMap((one, i) => (one === why ? [i + 1] : []))])
+    .filter(([, ns]) => ns.length).map(([words, ns]) => filled(words, { ns: ns.join(', ') }));
+  return said.length ? filled(WORDS.notTheirsWhy, { whys: said.join('; ') }) : '';
+}
+
 /** Why a yes or a resume is not the person's; `told`: the session holds a person's message that says otherwise, else
  * the product saw none and says so first. */
-const notSaid = (code, told) => [...(told ? [] : [WORDS.unseen]), shortOf(code)].join(': ');
+const notSaid = (code, told, whys = []) => [[...(told ? [] : [WORDS.unseen]), shortOf(code)].join(': '), theirMessages(whys)].filter(Boolean).join('. ');
 
 /** A confirm on a plan that grew past what the person saw: what grew. */
 const yesOutgrown = (grown) => filled(WORDS.confirmGrew, { what: grown.join('; ') });
@@ -67,11 +67,13 @@ function closeHeld(view, held, head) {
   const to = view.branch ? filled(WORDS.checkoutBranch, { b: view.branch }) : WORDS.checkoutDetach;
   const holds = held.sha === head
     ? filled(WORDS.closeHoldsHead, { ref: held.ref })
-    : filled(WORDS.closeHoldsLine, { ref: held.ref, sha: held.sha.slice(0, 7) });
+    : filled(WORDS.closeHoldsLine, { ref: held.ref, sha: shortSha(held.sha) });
   const slots = { ref: held.ref, b: branch, to, back: filled(WORDS.closeBack, { to }) };
   const routes = WORDS.closeRoutes.map((route) => filled(route, slots));
   return { detail: filled(WORDS.closeHeld, { id: view.id, holds }), routes };
 }
 
-module.exports = { researchFirst, restatesTask, asksPermission, settledDecision, supersedeUnasked, supersedeSelf, recordPlace,
-  batchRefusal, notSaid, yesOutgrown, yesUnseen, closeElsewhere, closeHeld };
+const noSuchLine = (source) => filled(WORDS.noSuchLine, { source }); // a record cites a line its file does not have
+
+module.exports = { researchFirst, restatesTask, asksPermission, settledDecision, refusedRefs, recordPlace,
+  noSuchLine, batchRefusal, notSaid, yesOutgrown, yesUnseen, closeElsewhere, closeHeld };

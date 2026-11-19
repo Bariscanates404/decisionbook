@@ -4,83 +4,107 @@
 'use strict';
 // PURE. One record on one line, as every text of this package writes it; each value goes through kit's clip, so a
 // committed value forges no line.
-const { text: { safe: { clip }, lines: { filled } } } = require('@atlasbound/kit');
-const { WORDS, shortOf } = require('../../contracts/codes.cjs');
+const { text: { lines: { filled, dayOf } } } = require('@atlasbound/kit');
+const { WORDS, shortOf, SHOWN: { records: shown } } = require('../../contracts/codes.cjs');
 const { isAi, isAnswered } = require('../../base/text.cjs');
+const { DIR } = require('../../contracts/shapes.cjs');
 
-const deciderOf = (by) => (isAi(by) ? 'the AI' : clip(by, 40));
+const deciderOf = (by) => (isAi(by) ? 'the AI' : shown.by(by));
+// a decision's age as every item handed says it: its day (not where its plan's line says `planDay`), who kept it since and when
+const agedOf = (d, planDay = null) => `${d.at && dayOf(d.at) !== planDay ? `, ${dayOf(d.at)}` : ''}${d.kept ? `, kept by ${deciderOf(d.kept.by)} ${dayOf(d.kept.at)}` : ''}`;
 
-// a person's decision shows their own sentence beside the value an AI wrote of it, so a summary cannot drop a part of it
+/** By what a decision was replaced: that decision, who made it, when, and their own sentence; '' where none replaced it. */
+const replacedBy = (d, { by, at, said } = d.replaced || {}) => (d.supersededBy
+  ? ` by ${shown.supersededBy(d.supersededBy)} (${deciderOf(by)}, ${dayOf(at)}${said ? `: "${shown.quote(said)}"` : ''})` : '');
+
+/** What a draft's decision replaces once READY, and what a person's answer keeps; '' where neither. */
+const pendingOf = (d) => `${d.replacing?.length ? filled(WORDS.replacesPending, { refs: shown.replacing(d.replacing.join(', ')) }) : ''}${
+  d.keeps?.length ? `, keeps ${shown.keeps(d.keeps.join(', '))}` : ''}`;
+
+/** One line of a conflict: where it is in the file, whose it is (and whose answer was relayed), their words, the value, its source. */
+const rivalLine = (o, many) => filled(WORDS.rivalLine, { line: o.line, of: many ? ` of ${o.plan}` : '', by: deciderOf(o.by), relayed: o.saidBy ? ` (relayed from ${shown.by(o.saidBy)})`
+  : '', said: shown.said(o.said ?? ''), value: o.said === o.value ? '' : filled(WORDS.rivalValue, { value: shown.value(String(o.value)) }),
+source: o.source ? ` (${shown.source(o.source)})` : '' });
+/** In place of a decision whose key holds a conflict (core/web `rivals`): every line of it in file order, none said to hold, and the
+ * one way out (the person's answer). Every reader of what holds says this instead of the decision. */
+function rivalText(d) {
+  const all = [...d.rivals, d].sort((a, b) => a.plan.localeCompare(b.plan) || a.line - b.line);
+  const many = new Set(all.map((o) => o.plan)).size > 1; // a conflict across plans: each line says its plan
+  return filled(WORDS.rivals, { n: all.length, where: many ? 'across plans' : 'in this plan', refs: JSON.stringify([...new Set(all.map((o) => o.ref))]),
+    file: `${DIR}/${many ? '<plan>' : d.plan}.jsonl`, lines: all.map((o) => rivalLine(o, many)).join('; ') });
+}
+
+// a person's decision shows their own sentence beside the value an AI wrote of it, after its state: a long one hides no replacement
 function decisionLine(d) {
-  const scope = d.scope ? ` [${clip(d.scope, 40)}]` : '';
-  const theirs = !isAi(d.by) && d.said && d.said !== d.value ? `; ${deciderOf(d.by)}: "${clip(d.said, 240)}"` : '';
-  const said = `${clip(d.value, 100)} (${clip(d.why, 80)}; by ${deciderOf(d.by)})${theirs}`;
-  const replacedBy = d.supersededBy ? ` by ${clip(d.supersededBy, 120)}` : '';
-  const conflict = d.conflicts.length ? `, CONFLICT with ${clip(d.conflicts.join(', '), 200)}` : '';
-  const touched = Number.isInteger(d.touched) ? `; ${d.touched} commits touched its files since` : '';
-  return `- ${clip(d.key, 80)}${scope} = ${said} ${d.state}${replacedBy}${conflict}${touched}`;
+  const scope = d.scope ? ` [${shown.scope(d.scope)}]` : '';
+  if (d.rivals?.length) return `- ${shown.key(d.key)}${scope} ${rivalText(d)}`;
+  const theirs = !isAi(d.by) && d.said && d.said !== d.value ? `; ${deciderOf(d.by)}: "${shown.said(d.said)}"` : '';
+  const said = `${shown.value(d.value)} (${shown.why(d.why)}; by ${deciderOf(d.by)})`;
+  const conflict = `${pendingOf(d)}${d.conflicts.length ? `, CONFLICT with ${shown.conflicts(d.conflicts.join(', '))}` : ''}`;
+  const touched = Number.isInteger(d.touched) ? filled(WORDS.touchedSince, { n: d.touched }) : '';
+  return `- ${shown.key(d.key)}${scope} = ${said} ${d.state}${d.state === 'superseded' ? replacedBy(d) : ''}${conflict}${theirs}${touched}`;
 }
 
 /** A settled decision as a new session reads it: a person's with their own sentence (and the value where it says something else),
- * the AI's marked as no person's. */
+ * the AI's marked as no person's; one replaced since says so. */
 function settledLine(d) {
-  const conflict = d.conflicts.length ? `, CONFLICT with ${clip(d.conflicts.join(', '), 200)}` : '';
-  if (isAi(d.by) || !d.said) return `- ${clip(d.key, 80)} = ${clip(d.value, 160)} (${clip(d.why, 80)}; by ${deciderOf(d.by)})${conflict}`;
-  // their own words are the value; a yes kept in their words says what it was a yes to (its why)
-  const value = d.value === d.said ? '' : ` = ${clip(d.value, 100)}`;
-  const yesTo = (d.value === d.said && d.why.startsWith(WORDS.boundYes.split('{')[0])) || d.why === WORDS.boundWhole ? ` (${clip(d.why, 260)})` : '';
-  return `- ${clip(d.key, 80)}${value}; ${deciderOf(d.by)}: "${clip(d.said, 240)}"${yesTo}${conflict}`;
+  if (d.rivals?.length) return `- ${shown.key(d.key)} ${rivalText(d)}`;
+  const conflict = `${d.supersededBy ? `, replaced${replacedBy(d)}` : ''}${d.conflicts.length ? `, CONFLICT with ${shown.conflicts(d.conflicts.join(', '))}` : ''}`;
+  if (isAi(d.by) || !d.said) return `- ${shown.key(d.key)} = ${shown.valueAlone(d.value)} (${shown.why(d.why)}; by ${deciderOf(d.by)}${agedOf(d)})${conflict}`;
+  const value = d.value === d.said ? '' : ` = ${shown.value(d.value)}`; // their own words are the value
+  return `- ${shown.key(d.key)}${value}; ${deciderOf(d.by)}${agedOf(d)}: "${shown.said(d.said)}"${conflict}`;
 }
 
 /** What the research found, with where. */
-const findingLine = (r) => `- ${clip(r.answer, 160)}${r.source ? ` (${clip(r.source, 80)})` : ''}`;
+const findingLine = (r) => `- ${shown.answer(r.answer)}${r.source ? ` (${shown.findingSource(r.source)})` : ''}`;
 
 function stepLine(s) {
   const after = s.after === null ? '' : `, after ${s.after}`;
-  return `- step ${s.order} ${clip(s.file, 120)}${after}: ${clip(s.change, 200)} (verify ${clip(s.verify, 80)})`;
+  return `- step ${s.order} ${shown.file(s.file)}${after}: ${shown.change(s.change)} (verify ${shown.verify(s.verify)})`;
 }
 
 /** A gap item a plan recorded: how it was closed (evidence, asked, na), its text and what it cites. */
 function gapLine(g) {
-  const question = g.q ? ` ${clip(g.q, 40)}` : '';
-  const source = g.source ? ` (${clip(g.source, 120)})` : '';
-  const run = g.run ? ` (run: ${clip(g.run, 120)})` : '';
-  return `gap ${g.gap}: ${g.status}${question}: ${clip(g.text, 160)}${source}${run}`;
+  const question = g.q ? ` ${shown.q(g.q)}` : '';
+  const source = g.source ? ` (${shown.source(g.source)})` : '';
+  const run = g.run ? ` (run: ${shown.run(g.run)})` : '';
+  return `gap ${g.gap}: ${g.status}${question}: ${shown.text(g.text)}${source}${run}`;
 }
 
 function linkLine(l) {
-  const why = l.why ? `: ${clip(l.why, 160)}` : '';
-  return `- ${clip(l.from, 120)} ${clip(l.rel, 40)} ${clip(l.to, 160)}${why}`;
+  const why = l.why ? `: ${shown.linkWhy(l.why)}` : '';
+  return `- ${shown.from(l.from)} ${shown.rel(l.rel)} ${shown.to(l.to)}${why}`;
 }
 
 const openQuestionLines = (view) => view.questions.filter((q) => !q.to && !isAnswered(view, q))
-  .map((q) => `- ${clip(q.q, 40)}: ${clip(q.text, 100)}`);
+  .map((q) => `- ${shown.q(q.q)}: ${shown.question(q.text)}`);
 
 /** The questions parked with someone else and not answered yet, under their heading: said at every session start. */
 function parkedLines(view) {
   const waiting = view.questions.filter((q) => q.to && !isAnswered(view, q))
-    .map((q) => `- ${clip(q.q, 40)} for ${clip(q.to, 60)}: ${clip(q.text, 200)}${q.source ? ` (from ${clip(q.source, 120)})` : ''}`);
+    .map((q) => `- ${shown.q(q.q)} for ${shown.parkedWith(q.to)}: ${shown.parked(q.text)}${q.source ? ` (from ${shown.source(q.source)})` : ''}`);
   return waiting.length ? [WORDS.parkedWith, ...waiting] : [];
 }
 
 /** The records that changed the plan after the person saw it: a count and their kinds, or nothing. */
 function amendedText(kinds) {
   if (!kinds.length) return '';
-  return `; amended after the yes: ${kinds.length} (${clip([...new Set(kinds)].join(', '), 80)})`;
+  return filled(WORDS.amendedAfter, { n: kinds.length, kinds: shown.kinds([...new Set(kinds)].join(', ')) });
 }
 /** The person's yes as a list of one line, or of none when the plan holds no yes. */
 function confirmLines(confirm, amended = []) {
   if (!confirm) return [];
-  return [`confirmed by ${clip(confirm.by, 40)}: ${clip(confirm.said, 160)}${amendedText(amended)}`];
+  const unverified = confirm.here === false ? ` ${WORDS.yesUnverified}` : ''; // a line no receipt here backs: hand-added, or another machine's
+  return [`confirmed by ${shown.by(confirm.by)}: ${shown.quote(confirm.said)}${unverified}${amendedText(amended)}`];
 }
 
 function assumptionLine(a) {
-  const question = a.q ? ` for ${clip(a.q, 40)}` : '';
-  return `- ${clip(a.text, 160)} (${clip(a.why, 80)})${question}`;
+  const question = a.q ? ` for ${shown.q(a.q)}` : '';
+  return `- ${shown.text(a.text)} (${shown.why(a.why)})${question}`;
 }
 
 /** What a close recorded as the plan's own, as `close` and `show` count it. */
-const shippedCounts = (c) => `${c.own.length} own commits, ${c.files.length} files, ${c.tests.length} tests`;
+const shippedCounts = (c) => filled(WORDS.shippedCounts, { own: c.own.length, files: c.files.length, tests: c.tests.length });
 
 /** A plan's contract link, as the write, READY and show say it. */
 const planContractLine = (link) => filled(WORDS.contractPlan, { line: link.why, from: link.source });
@@ -88,11 +112,10 @@ const planContractLine = (link) => filled(WORDS.contractPlan, { line: link.why, 
 /** The level in force; when it is not the one proposed, why, with the signals that raised it. */
 function levelLine(level) {
   if (!level.code) return `level: ${WORDS.levels[level.level]}`;
-  const signals = level.signals.length ? `: ${clip(level.signals.join(', '), 120)}` : '';
+  const signals = level.signals.length ? `: ${shown.signals(level.signals.join(', '))}` : '';
   const proposed = `proposed ${WORDS.levels[level.proposed]}: ${shortOf(level.code)}${signals}`;
   return `level: ${WORDS.levels[level.level]} (${proposed})`;
 }
 
-module.exports = { deciderOf, decisionLine, settledLine, findingLine, stepLine, gapLine, linkLine, openQuestionLines, parkedLines,
-  amendedText, confirmLines,
-  assumptionLine, shippedCounts, planContractLine, levelLine };
+module.exports = { deciderOf, agedOf, replacedBy, rivalText, decisionLine, settledLine, findingLine, stepLine, gapLine,
+  linkLine, openQuestionLines, parkedLines, amendedText, confirmLines, assumptionLine, shippedCounts, planContractLine, levelLine };

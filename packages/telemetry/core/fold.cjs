@@ -2,84 +2,62 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-// Trace rows -> raw events (counts only), pure over the rules of the installed packages' words: one event of a declared run form per run of
-// the steps a package marks with it, one step_summary per measured step and day; a banded field leaves as its band.
-const { LOCAL_ONLY, BAND_WORDS, BANDS, HISTOGRAMS, wireWord } = require('../contracts/rules.cjs');
-const { bucketOf, addTo, markOf } = require('../contracts/helpers.cjs');
-const { stateEvents, codesOf, decisionsOf } = require('./breakdown.cjs');
+// One namespace's trace rows of one day through its handle, pure: per measured row its step and outcome, its own run time (never for a
+// step that asks a person), its codes, its failure code, its decision; the metrics its descriptors name, from `ok` rows only; and the host
+// calls that came in and never went out. A row of a local-only step, of another package or of a step nobody registered counts nothing.
+const { trace: { VERDICTS } } = require('@atlasbound/kit');
+const { hostEvent } = require('../contracts/helpers.cjs');
 
-const histogramOf = (row) => Object.entries(HISTOGRAMS).map(([name, edges]) => [name, edges, name === 'ms' ? row.ms : row.n[name]])
-  .filter(([, , value]) => Number.isFinite(value)).map(([name, edges, value]) => [`${name}_${bucketOf(value, edges)}`, 1]);
+const VERDICT = /^decision_(.+)$/u;
+const decidingVerdict = (row) => Object.keys(row.n).map((name) => VERDICT.exec(name)?.[1]).find((word) => VERDICTS.includes(word));
 
-function bucketFor(buckets, mark, row, { FORMS }) {
-  const key = FORMS.run.includes(mark) ? `${mark}|${row.run}` : `${mark}|${row.at.slice(0, 10)}|${row.pkg}|${row.step}`;
-  if (!buckets.has(key)) { // a count name is a key a trace file wrote: no prototype for `__proto__` to reach
-    buckets.set(key,
-      { event: mark, at: row.at, pkg: row.pkg, step: row.step, runs: new Set(), records: 0, failed: 0, ms: null, n: Object.create(null),
-      steps: Object.create(null) });
+// A deciding row is one decision: its one code, or `other` when it said several or none.
+function foldDecision(handle, step, row, codes) {
+  const verdict = decidingVerdict(row);
+  if (verdict) handle.increment('decision', { step: step.word, verdict, code: codes.length === 1 ? codes[0] : 'other' });
+}
+
+function foldMeasured(handle, step, row) {
+  const at = { step: step.word, ...(step.event ? { event: hostEvent(row) } : {}) };
+  const codes = Object.keys(row.codes ?? {});
+  handle.increment('step', { ...at, outcome: row.ok ? 'ok' : 'failed' });
+  if (step.timed && Number.isFinite(row.ms)) handle.observe('step_ms', at, row.ms);
+  codes.forEach((code) => handle.increment('code', { step: step.word, code }));
+  if (row.err) handle.increment('failure', { step: step.word, code: row.err.code });
+  foldDecision(handle, step, row, codes);
+}
+
+// A named metric of an `ok` row: its count added (a counter) or put in its bucket (a histogram), from its step's rows that say its code.
+function foldNamed(handle, space, row) {
+  const key = `${row.pkg}:${row.step}`;
+  const said = (from) => from.step === key && (!from.code || Boolean(row.codes?.[from.code]));
+  for (const [name, spec] of Object.entries(space.metrics).filter(([, one]) => one.from && said(one.from))) {
+    const value = row.n[spec.from.n];
+    if (Number.isFinite(value)) handle[spec.type === 'counter' ? 'increment' : 'observe'](name, {}, value);
   }
-  return buckets.get(key);
 }
 
-// A run's count is taken only from the step that owns its name.
-function add(bucket, row, { RUNS }) {
-  bucket.runs.add(row.run);
-  bucket.records += 1;
-  if (!row.ok) bucket.failed += 1;
-  if (row.ms !== null && row.ms !== undefined) bucket.ms = (bucket.ms || 0) + Math.round(row.ms);
-  addTo(bucket.steps, row.step, 1);
-  const run = Object.hasOwn(RUNS, bucket.event);
-  const { owners } = run ? RUNS[bucket.event] : { owners: {} };
-  const owned = ([name]) => !Object.hasOwn(owners, name) || owners[name] === row.step;
-  [...Object.entries(row.n).filter(owned), ...(run ? [] : histogramOf(row))].forEach(([name, count]) => addTo(bucket.n, name, count));
+/** The host calls of this day that came in (`event.steps` first) and never went out (its last), the later rows read for a pair over
+ * midnight; one that came in less than `pairMs` before `closeMs` is not judged yet. */
+function incompleteCalls(handle, space, { rows, later, closeMs, pairMs }) {
+  const name = Object.keys(space.metrics).find((one) => space.metrics[one].computed === 'hook-incomplete');
+  if (!name || !space.event) return;
+  const first = space.event.steps[0];
+  const last = space.event.steps.at(-1);
+  const owner = space.packages.find((pkg) => space.steps.has(`${pkg}:${first}`));
+  const out = new Set([...rows, ...later].filter((row) => row.pkg === owner && row.step === last).map((row) => row.run));
+  rows.filter((row) => row.pkg === owner && row.step === first && !out.has(row.run) && Date.parse(row.at) <= closeMs - pairMs)
+    .forEach((row) => handle.increment(name, { event: hostEvent(row) }));
 }
 
-// The counts the fold measured itself win over a step's own `n` of the same name.
-function payloadOf(bucket, { RUNS }) {
-  const measured = bucket.ms === null ? {} : { ms: bucket.ms };
-  const run = Object.hasOwn(RUNS, bucket.event) && RUNS[bucket.event];
-  if (!run) return { ...bucket.n, ...measured, pkg: bucket.pkg, step: wireWord(bucket.step), runs: bucket.runs.size,
-    records: bucket.records, failed: bucket.failed };
-  const funnel = Object.fromEntries(Object.entries(bucket.steps).map(([step, count]) => [`step_${step}`, count]));
-  const rowsOf = Object.entries(run.rowsOf).filter(([, step]) => bucket.steps[step]).map(([name, step]) => [name, bucket.steps[step]]);
-  return { ...bucket.n, ...funnel, ...measured, ...Object.fromEntries(rowsOf), steps: bucket.records, failed: bucket.failed };
-}
-
-function inBands(event, { EVENT_RULES }) {
-  const { enums } = EVENT_RULES[event.event];
-  const band = ([name, value]) => [name, enums[name] === BAND_WORDS && Number.isSafeInteger(value) ? bucketOf(value, BANDS) : value];
-  return { ...event, payload: Object.fromEntries(Object.entries(event.payload).map(band)) };
-}
-
-function fold(rows, version, rules) {
-  const buckets = new Map();
-  const unruled = new Set();
-  const stated = [];
-  const measured = [];
-  let localOnly = 0;
-  for (const row of rows) {
-    const mark = markOf(row, rules);
-    if (mark === LOCAL_ONLY) localOnly += 1;
-    else if (!Object.hasOwn(rules.EVENT_RULES, mark ?? '')) unruled.add(`${row.pkg}.${row.step}`);
-    else if (rules.FORMS.stated.includes(mark)) stated.push(row);
-    else {
-      measured.push(row);
-      add(bucketFor(buckets, mark, row, rules), row, rules);
-    }
+/** Fold one day: `rows` of that day at or after the namespace's `since`, `later` the rows after it (for pairs). */
+function foldDay(handle, space, day) {
+  for (const row of day.rows) {
+    const step = space.steps.get(`${row.pkg}:${row.step}`);
+    if (step?.measured) foldMeasured(handle, step, row);
+    if (step?.measured && row.ok) foldNamed(handle, space, row);
   }
-  const tables = [stateEvents(stated, rules), codesOf(measured, rules), decisionsOf(measured, rules)];
-  const runEvents = [...buckets.values()].map((bucket) => ({ event: bucket.event, at: bucket.at, payload: payloadOf(bucket, rules) }));
-  const events = [...runEvents, ...tables.flatMap((table) => table.events)].map((event) => ({ ...inBands(event, rules), cv: version }));
-  return { events, unruled: [...unruled].sort(), localOnly, cut: tables.reduce((sum, table) => sum + table.cut, 0) };
+  incompleteCalls(handle, space, day);
 }
 
-// What all sends add up to where a run declares it (`whole`): `taken`, the rows of its step; `sum`, the count it names over them, null when
-// no row stated one (absent is never 0). No declaration: both null.
-function wholeOf(rows, rules) {
-  const { WHOLE } = rules;
-  const taken = WHOLE && rows.filter((r) => markOf(r, rules) === WHOLE.event && r.step === WHOLE.step);
-  const stated = (taken ?? []).map((r) => r.n[WHOLE.sum]).filter(Number.isInteger);
-  return { rows: rows.length, taken: taken && taken.length, sum: stated.length ? stated.reduce((a, b) => a + b, 0) : null };
-}
-
-module.exports = { fold, wholeOf };
+module.exports = { foldDay };

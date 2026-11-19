@@ -7,6 +7,7 @@
 // person's statements are.
 const { text: { lines: { filled } } } = require('@atlasbound/kit');
 const { WORDS } = require('../../contracts/codes.cjs');
+const { DIR } = require('../../contracts/shapes.cjs');
 const { amendedText, levelLine } = require('./records.cjs');
 
 /** One plan: its state and level, the rubric rows a draft misses, a READY not confirmed on this machine, what changed
@@ -23,20 +24,20 @@ function planStateLine(plan, session) {
 /** How the asking session began, what it read and by which door, the decisions the pack said in it. */
 function sessionLines({ session, began, read, packed }) {
   const resumed = began.resumed ? 'yes' : 'no';
-  const start = `session ${session} began with a ${began.as} prompt; a person's /resume-handoff in it: ${resumed}`;
-  const reads = read.map((r) => `read in session ${session} by ${r.door}: ${r.id}`);
-  const pack = packed.length ? [`the pack said in session ${session}: ${packed.join(', ')}`] : [];
+  const start = filled(WORDS.sessionBegan, { session, as: began.as, resumed });
+  const reads = read.map((r) => filled(WORDS.sessionRead, { session, door: r.door, id: r.id }));
+  const pack = packed.length ? [filled(WORDS.sessionPack, { session, ids: packed.join(', ') })] : [];
   return [...(began.as ? [start] : []), ...reads, ...pack];
 }
 
 function promiseLine(p) {
   const names = p.names.join(', ') || 'the module';
-  return `promise ${p.file} gives ${names}: \`${p.text}\` (in ${p.from})`;
+  return filled(WORDS.promiseGives, { file: p.file, names, text: p.text, from: p.from });
 }
 
 function debugText(out) {
   const states = out.plans.map((plan) => planStateLine(plan, out.session));
-  const plans = states.length ? states : ['no plan on this branch'];
+  const plans = states.length ? states : [WORDS.noPlanHere];
   const refused = out.refused.map((r) => `refused ${r.id}: ${r.code}`);
   const promises = out.promises.map(promiseLine);
   const kept = out.kept.at ? filled(WORDS.keptAt, out.kept) : WORDS.keptNoHome;
@@ -46,9 +47,11 @@ function debugText(out) {
 
 /** The doctor's one line: how many plans read, or which files were refused. */
 function doctorText(web) {
-  if (!web.refused.length) return `${web.views.length} plans here`;
-  const refused = web.refused.map((r) => `${r.id} (${r.code})`);
-  return `refused ${refused.join(', ')}`;
+  const torn = tornLines(web).map((r) => `${DIR}/${r.id}.jsonl line ${r.line} (${r.code})`);
+  if (!web.refused.length && !torn.length) return `${web.views.length} plans here`;
+  return `refused ${[...web.refused.map((r) => `${r.id} (${r.code})`), ...torn].join(', ')}`;
 }
+/** Each line a plan's file holds that does not read: its plan, line and code; the plan reads without it. */
+const tornLines = (web) => web.views.flatMap((v) => v.refused.map((r) => ({ id: v.id, ...r })));
 
-module.exports = { debugText, doctorText };
+module.exports = { debugText, doctorText, tornLines };

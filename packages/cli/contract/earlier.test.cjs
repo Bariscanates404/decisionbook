@@ -42,10 +42,10 @@ test('through the real bin a plan made READY in one session covers its Edit and 
   assert.doesNotMatch(started, /"t":"resume"|earlier session/);
   assert.deepEqual(decided('s2', edit), {}, 'a later session, no resume record: the READY plan covers its edit (silence)');
   assert.deepEqual(decided('s2', shell), {}, 'and the shell command that writes the same file');
-  // a protected file outside the frozen plan, no danger path: allowed, the product adds it to the plan and says so in one line
-  const grown = said('s2', 'PreToolUse', editOf(OTHER));
-  assert.deepEqual([hookDecisionOf(grown).permissionDecision, hookContextOf(grown)], [undefined,
-    `DecisionBook: ${OTHER} was outside plan ${id}; the plan is frozen and took it in (one line added to it). Nothing to do.`]);
+  // a protected file outside the frozen plan, no danger path: asked; the person's yes to the edit adds it to the plan
+  const outside = hookDecisionOf(said('s2', 'PreToolUse', editOf(OTHER)));
+  assert.deepEqual([outside.permissionDecision, /plan-outside: [^\n]*open a new plan for this file/.test(outside.permissionDecisionReason)], ['ask', true]);
+  assert.equal(said('s2', 'PostToolUse', editOf(OTHER)).code, 0, 'the person said yes');
   assert.deepEqual(decided('s2', editOf(OTHER)), {}, 'inside the plan from then on: silence');
   assert.match(ab('decisionbook', 'show', `file:${OTHER}`).out, new RegExp(`^- file:${OTHER} planned-in plan:${id}$`, 'm'));
   // a resume record is still taken and kept as history; nothing reads it

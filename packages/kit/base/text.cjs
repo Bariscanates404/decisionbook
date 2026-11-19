@@ -33,6 +33,11 @@ const WORD = '\\p{L}\\p{Nl}\\p{Nd}\\p{Mn}\\p{Mc}\\p{Pc}_'; // class contents of 
 const CONT = `${WORD}$`; // class contents: write [${CONT}]
 const IDENT = `[${START}][${CONT}]*`; // a whole identifier
 const filled = (word, slots) => word.replace(/\{(\w+)\}/g, (all, name) => (Object.hasOwn(slots, name) ? String(slots[name]) : all)); // a word's `{slot}`s, once
+const unmarked = (text) => text.normalize('NFD').replace(/\p{M}/gu, ''); // letters without their marks (ử is u), by Unicode's own table
+// a commit, a day and an id as every package shows them short: 8 characters of a sha, an ISO time's date, 8 characters of an id
+const shortSha = (sha) => String(sha).slice(0, 8);
+const dayOf = (at) => String(at).slice(0, 10);
+const shortId = (id) => String(id).slice(0, 8);
 const escapedRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'); // text as a regex source matching itself
 
-module.exports = { linesOf, lineCount, counted, indentOf, blockEnd, CONT, IDENT, escapedRe, filled };
+module.exports = { linesOf, lineCount, counted, indentOf, blockEnd, CONT, IDENT, escapedRe, filled, unmarked, shortSha, dayOf, shortId };

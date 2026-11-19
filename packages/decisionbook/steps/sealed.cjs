@@ -6,13 +6,11 @@
 // the root says a session writes) as a write's target is refused STORE_SEALED, with kit's line for that code. A placed write is judged by
 // its path; a write the reader cannot place by every store path its text names. Reading the store writes nothing, so it passes. Named
 // limit: a command that builds the path so that its text does not hold it is not seen.
-const { paths: { OWN_STORE, resolveFrom }, text: { lines: { escapedRe } } } = require('@atlasbound/kit');
-const { shortOf, ruleOf } = require('../contracts/codes.cjs');
+const { paths: { OWN_STORE, resolveFrom }, store: { inStore, sealedFile, sealedReason } } = require('@atlasbound/kit');
 
 const HOME_SPELLED = /^(?:~|\$HOME|\$\{HOME\})\//u; // the home's spellings a shell expands
 const STOP = /[\s'"`;|&<>()]/u; // what ends a shell word that may name a path
 const FOLDER = OWN_STORE.replace(/\/$/u, '');
-const IN_STORE = new RegExp(`^${escapedRe(FOLDER)}(?:/|$)`, 'u'); // a key in the store, or the store itself
 
 /** Every distinct word of `command` that holds the store's folder name; one pass, never a backtracking match (quadratic on a long
  * word). */
@@ -29,16 +27,11 @@ function namedIn(command) {
   return [...words];
 }
 
-/** The store file a spelled path lands in, as a person reads it (`~/` for the home), or null. */
+/** The store file a spelled path lands in (kit's seal), as a person reads it, or null; a home the shell expands is the person's home. */
 function storeFile(io, spelled, dir) {
   const rest = spelled.replace(HOME_SPELLED, '');
-  if (rest !== spelled) return IN_STORE.test(rest) ? `~/${rest}` : null;
-  const host = resolveFrom(dir, spelled);
-  const key = io.fs.keyAt(host);
-  const open = io.sessionWrites ? io.sessionWrites() : [];
-  if (key !== null) return IN_STORE.test(key) && !open.some((prefix) => key.startsWith(prefix)) ? key : null;
-  const home = io.home ? io.home.keyAt(host) : null;
-  return home !== null && IN_STORE.test(home) ? `~/${home}` : null;
+  if (rest !== spelled) return inStore(rest) ? `~/${rest}` : null;
+  return sealedFile(io, resolveFrom(dir, spelled));
 }
 
 /** -> the STORE_SEALED verdict of a command `read` (kit's writtenBy) in folder `dir`, or null. */
@@ -47,7 +40,7 @@ function sealedBy(io, command, read, dir) {
   const named = read.unplaced || read.writes.some((write) => write.cd.length) ? namedIn(command) : [];
   let file = null;
   for (const spelled of [...placed, ...named]) file = file || storeFile(io, spelled, dir); // the first store file is named
-  return file ? { verdict: 'deny', code: 'STORE_SEALED', file, reason: `STORE_SEALED: ${shortOf('STORE_SEALED')} — ${file}. ${ruleOf('STORE_SEALED')}` } : null;
+  return file ? { verdict: 'deny', code: 'STORE_SEALED', file, reason: sealedReason(file) } : null;
 }
 
 module.exports = { sealedBy };

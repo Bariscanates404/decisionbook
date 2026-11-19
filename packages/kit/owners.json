@@ -12,9 +12,9 @@
     "slack": 20,
     "why": 200,
     "title": 120,
-    "pipeline": 3020,
-    "debug": 56,
-    "tests": 6341
+    "pipeline": 3573,
+    "debug": 57,
+    "tests": 6921
   },
   "slow": [
     "contract/hard.test.cjs",
@@ -24,6 +24,7 @@
     "run/lock.cjs": "the lock primitive, inside its caller's step: publish counts the waits (n.waits); kit has no step of its own",
     "run/traced.cjs": "the writer of every step's record; a record of itself would be one per record",
     "run/child.cjs": "the starter of a background child, inside its caller's step: the caller's records say what it did",
-    "run/person.cjs": "the answer to who acts, told to the composition root with every answer: the cli writes its row (step actor) in one format"
+    "run/person.cjs": "the answer to who acts, told to the composition root with every answer: the cli writes its row (step actor) in one format",
+    "run/store.cjs": "the seal's answer, inside the step of the gate that asks: that gate writes the coded row (STORE_SEALED)"
   }
 }

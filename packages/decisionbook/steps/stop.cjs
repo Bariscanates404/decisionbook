@@ -8,7 +8,6 @@ const { stopVerdict } = require('../core/stop.cjs');
 const { hereKeep, keptStart } = require('./here.cjs');
 const { startName } = require('../base/here.cjs');
 const { guardedPolicy, changedNow } = require('./changed.cjs');
-const { shownAtStop } = require('./open.cjs');
 const store = require('./store.cjs');
 
 // once per session: a resumed or compacted session keeps the head it began on, and its time (the gate's startedAt)
@@ -23,12 +22,6 @@ async function keepStart(event, io) {
 
 // files changed at the start that git's status still names with the same bytes are not this session's; no start kept: n.kept says so
 async function stopCheck(event, io) {
-  const codes = await shownAtStop(event, io); // what this turn's last message showed the person of the open plans
-  const { out, code, n } = await stopVerdictOf(event, io);
-  return { out, code, n, codes };
-}
-
-async function stopVerdictOf(event, io) {
   const { config, off } = guardedPolicy(io);
   if (off) return { out: { verdict: 'allow', code: off }, code: off };
   const kept = keptStart(io, event.session_id);

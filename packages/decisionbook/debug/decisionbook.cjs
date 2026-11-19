@@ -8,7 +8,7 @@ const { readWeb } = require('../steps/store.cjs');
 const { isTrusted } = require('../steps/trust.cjs');
 const { isAi, isAnswered, unrevised } = require('../base/text.cjs');
 const { sessionReads, keptRows, keptAt, begunOf, promptedSince, saidByPack } = require('../steps/here.cjs');
-const { debugText, doctorText } = require('../core/text/debug.cjs');
+const { debugText, doctorText, tornLines } = require('../core/text/debug.cjs');
 const { tracedStep } = require('../run/verbs.cjs');
 const { promisesHere, journalHere } = require('../steps/surface.cjs');
 
@@ -19,14 +19,15 @@ async function plansHere(io, web = readWeb(io)) {
     id: v.id,
     state: v.state,
     level: v.level,
-    unmet: v.state === 'draft' ? v.unmet.map((u) => u.code) : [],
+    unmet: v.unmet.filter((u) => v.state === 'draft' || u.id === 'replaces').map((u) => u.code), // a READY plan: a conflict holds it
     here: v.ready ? isTrusted(io, v) : null, // no yes here: asked once at the gate
     asked: io.session ? promptedSince(io, v.at) : null, // may a confirm be the person's yes in this session
     amended: v.amended, // what changed the plan after that yes
     // for Handoff's note: the person's standing decisions with their sentence, and the blocking questions still asked of them
-    decided: unrevised(v.decisions).filter((d) => !d.proposed && !isAi(d.by))
+    decided: unrevised(v.decisions).filter((d) => !d.proposed && !isAi(d.by) && !d.rivals?.length)
       .map((d) => ({ key: d.key, value: d.value, ...(d.said ? { said: d.said } : {}) })),
-    open: v.questions.filter((q) => q.blocking && !isAnswered(v, q)).map((q) => `${q.q}: ${q.text}`),
+    open: [...v.decisions.filter((d) => d.rivals?.length).map((d) => `${d.key}: a conflict, ask the person which holds`),
+      ...v.questions.filter((q) => q.blocking && !isAnswered(v, q)).map((q) => `${q.q}: ${q.text}`)],
   }));
 }
 
@@ -54,7 +55,7 @@ async function decisionbook(io, args) {
 
 async function bookDoctor(io) {
   const web = readWeb(io);
-  return { ok: !web.refused.length, says: doctorText(web) };
+  return { ok: !web.refused.length && !tornLines(web).length, says: doctorText(web) };
 }
 
 module.exports = { decisionbook, bookDoctor, plansHere };

@@ -4,15 +4,17 @@
 'use strict';
 // THE hook port: fails open, never silently (a visible "no verdict formed" line), exit always 0: a non-zero hook blocks the agent or
 // disappears.
-const { traced, errors: { fail, isFail }, hash: { digest } } = require('@atlasbound/kit');
-const { EVENTS } = require('../contracts/shapes.cjs');
+const { traced, errors: { fail, isFail }, hash: { digest }, text: { lines: { filled } } } = require('@atlasbound/kit');
+const { EVENTS, PORT_READ_MS } = require('../contracts/shapes.cjs');
 const validate = require('../contracts/validate.cjs');
+const { WORDS: { adapters: W } } = require('../contracts/codes.cjs');
 const core = require('../core/hooks.cjs');
 const { compose, clock } = require('./compose.cjs');
 const { tellContext } = require('../steps/said.cjs');
 const { sayNow } = require('../core/said.cjs');
 const { offOf } = require('../steps/modules.cjs');
-const { shellRefused, hostCall } = require('../steps/person.cjs');
+const { hostCall } = require('../steps/person.cjs');
+const { portGates } = require('../steps/sealed.cjs');
 
 /** The context rule over every item, the off line last: once said, it goes to the person as a plain line, not into the agent's context. */
 function toldOf(io, { event, payload, items, off }) {
@@ -29,10 +31,11 @@ async function stdinText() {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-// eslint-disable-next-line no-restricted-syntax -- not silent: a null payload is the visible hook-input-invalid note below
-const payloadOf = (text) => Promise.resolve().then(() => validate.shape('Payload', validate.json(text, 'hook-input-invalid'))).catch(() => null);
+/** The host's input, read once -> its payload with the paths as this host opens them, or null and why it is no hook event (the reader's
+ * words, for the trace): a null payload is the visible hook-input-invalid note. */
+const hookInput = (text) => Promise.resolve().then(() => validate.shape('Payload', validate.json(text, 'hook-input-invalid')))
+  .then((payload) => ({ payload: core.hostPaths(payload), why: null }), (err) => ({ payload: null, why: String(err.message || err.name) }));
 const deadlineMs = (seconds) => Math.max(500, seconds * 1000 - 1000);
-const LOST_MS = 300; // how long the port reads a shell command whose gate formed no verdict, to tell a read from a write; past it, it asks
 
 function within(promise, ms, label) {
   return new Promise((resolve, reject) => {
@@ -51,7 +54,7 @@ function runOne(io, decl, payload, ref) {
   let decision = null;
   const step = traced(io, 'hook.handler', async (input) => {
     const fn = (io.packages.load(decl.pkg).handlers || {})[decl.handler];
-    if (typeof fn !== 'function') throw fail('package-broken', `${label}: no such handler`);
+    if (typeof fn !== 'function') throw fail('package-broken', filled(W.noHandler, { label }));
     const said = await within(Promise.resolve(fn(input, io.packages.ioFor(decl.pkg))), deadlineMs(decl.timeout), label);
     decision = validate.shape('Decision', said || {});
     return { out: { handler: label, decision }, n: {}, codes: { [`hook-${decision.verdict || 'none'}`]: 1 } };
@@ -60,9 +63,23 @@ function runOne(io, decl, payload, ref) {
   return step(payload, { run: io.run, ref: { ...ref, handler: label } }).then(() => ({ decision: own() }), (err) => ({ decision: own(), note: `${label} (${isFail(err) && io.trace.knows(err.code) ? err.code : 'hook-handler-threw'})` }));
 }
 
-/** The port's whole answer: the reply, and per package what reached the agent (`agent`) and what was the person's (`person`), which debug
- * inject reads. */
-async function answer(io, event, text, payload) {
+/** The trace's row of what the host sent: an input that is no hook event says why. */
+function inRecord(io, text, why, ref) {
+  io.trace.record({ run: io.run, step: 'hook.in', ok: !why, in: digest(text), n: { bytes: Buffer.byteLength(text) }, ref,
+    ...(why ? { err: { code: 'hook-input-invalid', msg: why } } : {}) });
+}
+
+/** Why no gate could judge this event: a config that does not read, an input that is no hook event, or one naming no tool or target. */
+function unjudgedOf(io, event, payload) {
+  const config = io.configRefused ? [`hook (${io.configRefused.message})`] : [];
+  if (!payload || !Object.hasOwn(EVENTS, event)) return [...config, 'hook (hook-input-invalid)'];
+  const gap = core.inputGap(event, payload);
+  return gap ? [...config, `hook (hook-input-invalid: ${gap})`] : config;
+}
+
+/** The port's whole answer to the host's input as read (`hookInput`): the reply, and per package what reached the agent (`agent`) and what
+ * was the person's (`person`), which debug inject reads. */
+async function answer(io, event, text, { payload, why }) {
   const notes = new Set();
   const call = hostCall(io, event); // a call that carries the person's words is heard only from the host: else no handler runs
   const noting = (fn, what) => Promise.resolve().then(fn).catch((err) => {
@@ -71,18 +88,18 @@ async function answer(io, event, text, payload) {
   const ref = { event, session: (payload && payload.session_id) || null };
   // a payload or a config that cannot be read is a gate that formed no verdict: no handler runs, it asks like the failure path, and both
   // rows are written
-  const unread = [...(io.configRefused ? [`hook (${io.configRefused.message})`] : []), ...(payload && Object.hasOwn(EVENTS, event) ? [] : ['hook (hook-input-invalid)'])];
+  const unread = unjudgedOf(io, event, payload);
   const known = !unread.length;
   unread.forEach((note) => notes.add(note));
-  await noting(() => io.trace.record({ run: io.run, step: 'hook.in', ok: true, in: digest(text), n: { bytes: Buffer.byteLength(text) }, ref }), 'trace');
+  await noting(() => inRecord(io, text, why, ref), 'trace');
   const { manifests, problems } = await noting(() => io.packages.declared(), 'packages').then((v) => v || { manifests: [], problems: [] });
   problems.forEach((p) => notes.add(p));
   const reached = (known ? core.reached(manifests, event, payload) : []).filter(() => call.heard);
   const results = await Promise.all(reached.map((d) => runOne(io, d, payload, ref)));
   results.forEach((r) => r.note && notes.add(r.note));
   const lost = await askedFor(io.clock, event, payload, [...unread, ...results.filter((r) => r.note && !r.decision).map((r) => r.note)]);
-  const own = known ? await noting(() => shellRefused(io, event, payload), 'person') : null; // the port's own gate: a person's verbs
-  const merged = core.merge([...results.map((r) => r.decision), own, lost].filter(Boolean));
+  const own = known ? await noting(() => portGates(io, event, payload, manifests), 'port') : null; // a person's verbs, the product's own files
+  const merged = core.merge([...results.map((r) => r.decision), ...(own || []), lost].filter(Boolean));
   const off = await noting(() => offOf(io, { known, results, event, payload, manifests }), 'packages');
   const told = (await noting(() => toldOf(io, { event, payload, items: merged.items, off }), 'said')) || { ...sayNow(new Map(), merged.items), plain: [] };
   const agent = core.reachedAgent(event, merged.verdict, told.sizes);
@@ -101,7 +118,7 @@ async function answer(io, event, text, payload) {
 
 /** Where the port's own read of the command fails too, it cannot tell a read, so it asks naming that failure as well. */
 function askedFor(clock, event, payload, lost) {
-  const until = clock.elapsedMs() + LOST_MS;
+  const until = clock.elapsedMs() + PORT_READ_MS;
   const past = () => clock.elapsedMs() > until;
   return Promise.resolve().then(() => core.lostAsk(event, payload, lost, past)).catch((err) => core.lostAsk(event, null, [...lost, `hook (${err.code || err.name})`], past));
 }
@@ -112,16 +129,16 @@ async function failedReply(event, payload, note) {
 }
 
 async function hookPort(event) {
-  const read = { payload: null };
+  let payload = null;
   const opened = async () => {
     const text = await stdinText();
-    read.payload = await payloadOf(text);
-    return (await answer(compose({ start: (read.payload && read.payload.cwd) || process.cwd(), mode: 'hook' }), event, text,
-      read.payload)).reply;
+    const input = await hookInput(text);
+    ({ payload } = input);
+    return (await answer(compose({ start: (payload && payload.cwd) || process.cwd(), mode: 'hook' }), event, text, input)).reply;
   };
   // a coded failure before any handler names its case (the file it could not read), as every verb would; an uncoded one its name only
-  const reply = await opened().catch((err) => failedReply(event, read.payload, `hook (${isFail(err) ? err.message : err.name})`));
+  const reply = await opened().catch((err) => failedReply(event, payload, `hook (${isFail(err) ? err.message : err.name})`));
   return Object.keys(reply).length ? `${JSON.stringify(reply)}\n` : '';
 }
 
-module.exports = { hookPort, answer, payloadOf, stdinText };
+module.exports = { hookPort, answer, hookInput, stdinText };

@@ -48,7 +48,11 @@ const created = (sh, command) => new Promise((resolve) => {
     resolve(names);
   });
 });
-const madeBy = async (command) => (await Promise.all(SHELLS.filter((sh) => sh !== 'dash' || !command.includes("$'")).map((sh) => created(sh, command)))).flat(); // dash has no $'…'
+// Kit reads a ' inside a double-quoted ${…} as bash 3.2 and zsh do, a letter; bash 5.2 and later read it as a quote, so they are no oracle there.
+const BASH_QUOTES = SHELLS.includes('bash') && Number(spawnSync('bash', ['-c', 'echo $((BASH_VERSINFO[0] * 10 + BASH_VERSINFO[1]))']).stdout) >= 52;
+const oracles = (command) => SHELLS.filter((sh) => (sh !== 'dash' || !command.includes("$'")) // dash has no $'…'
+  && (sh !== 'bash' || !BASH_QUOTES || !/"[^"]*\$\{[^}]*'/.test(command)));
+const madeBy = async (command) => (oracles(command).length ? (await Promise.all(oracles(command).map((sh) => created(sh, command)))).flat() : null);
 
 test('[I-57] generated commands against the real shells: every file a shell creates is named, or the answer is unplaced', { skip: SHELLS.length ? false : 'no bash, zsh or dash here' }, async () => {
   const pick = generator(4011);
@@ -58,9 +62,9 @@ test('[I-57] generated commands against the real shells: every file a shell crea
   for (const [k, command] of commands.entries()) {
     const read = kit.text.shell.writtenBy(command);
     const named = new Set(read.writes.map((w) => w.path));
-    const missed = [...new Set(made[k])].filter((file) => !named.has(file));
+    const missed = [...new Set(made[k] || [])].filter((file) => !named.has(file));
     assert.ok(read.unplaced || !missed.length, `${command}: the shells create ${missed} that kit does not name`);
-    assert.deepEqual([...named].filter((file) => !made[k].includes(file)), [], `${command}: kit names a file no shell creates`);
+    if (made[k]) assert.deepEqual([...named].filter((file) => !made[k].includes(file)), [], `${command}: kit names a file no shell creates`);
   }
 });
 

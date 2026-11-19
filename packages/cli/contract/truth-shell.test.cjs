@@ -25,7 +25,7 @@ test('119 real commands through the real hook entry: reads are silent, and every
   const row = portRow(repo, 'PreToolUse', 'Bash');
   const { bin } = shellWorld();
   const gone = JSON.parse(fs.readFileSync(path.join(path.dirname(bin), '..', 'contracts', 'host.json'), 'utf8')).rowGone;
-  assert.ok(row.endsWith(`"${bin}" hook PreToolUse; echo '${gone}'`), `the row the host runs is the entry this test calls: ${row}`);
+  assert.ok(row.endsWith(`"${bin}" hook PreToolUse; else echo '${gone}'; fi`), `the row the host runs is the entry this test calls: ${row}`);
   const [read, write] = [TABLE.rows.find((r) => r.human.verdict === 'allow'), TABLE.rows.find((r) => r.human.verdict === 'ask')];
   assert.deepEqual(replyJson(said('PreToolUse', shellEvent(repo, read))), {}, 'through the settings row the host runs: the first read is silent');
   assert.deepEqual(replyJson(said('PreToolUse', shellEvent(repo, write))), expectedReply(write),

@@ -54,6 +54,9 @@ test('[I-12] critical READY: five records on files read in its sessions, no ceil
   assert.deepEqual(trace(io, 'research.read').map((r) => [r.ref.file, r.ref.via, Object.keys(r.codes)[0]]), [['src/report/export.js', 'Bash', 'read-by-shell']]);
   await handlers.preShell(bashAt('cat src/report/export.js'), io);
   assert.equal(trace(io, 'research.read').length, 1, 'once per session and file');
+  // the PowerShell tool's text is read in its own language (a backslash is a folder's separator) and receipted under its own name
+  await handlers.preShell({ ...bashAt('Set-Location src; Get-Content report\\csv.js'), tool_name: 'PowerShell' }, io);
+  assert.deepEqual(trace(io, 'research.read').map((r) => [r.ref.file, r.ref.via]).at(-1), ['src/report/csv.js', 'PowerShell']);
   await readFor(io, id, []); // the session shows the plan: its reads are this plan's
   const ready = await verbs.ready(io, { rest: [id] });
   assert.equal(ready.out.ready, true, ready.text);
@@ -112,5 +115,5 @@ test('[I-12] show decisions gives a person\'s decision in their own sentence bes
     { t: 'question', q: 'Q1', text: 'How do open clients follow a palette change?', decides: 'ui.palette', whyNotCode: 'a product rule', blocking: true },
     { t: 'decision', key: 'ui.palette', value: 'the setting is the only list', why: 'one source', by: 'Ayse', said, answers: 'Q1', effect: ['check:AC-1'] }]);
   const text = (await verbs.show(io, { rest: [id, 'decisions'] })).text;
-  assert.match(text, /- ui\.palette = the setting is the only list \(one source; by the person\); the person: "The setting is the only list\. Whatever accepts a reaction name refuses one the setting does not list, with 422\."/);
+  assert.match(text, /- ui\.palette = the setting is the only list \(one source; by the person\) active; the person: "The setting is the only list\. Whatever accepts a reaction name refuses one the setting does not list, with 422\."/);
 });

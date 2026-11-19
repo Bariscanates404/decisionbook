@@ -21,7 +21,7 @@ function sessionIds(io) {
 
 /** The first `max` of `rows` on one line, and how many more there are of `n`. */
 const listedRows = (rows, n, max) => `${rows.slice(0, max).join(', ')}${n > max ? ` (+${n - max} more)` : ''}`;
-/** Who reads a note a verb just built: the clock now, the HEAD it was built at (so it is never stale), the asking session. */
+/** Who reads a note a verb just built: the clock now, the HEAD it was built at (so it is never stale), the asking session's record. */
 const liveOf = (io, note, session) => ({ now: io.clock.now(), head: note.facts.head, session });
 
 module.exports = { hereOf, noteKey, sessionKey, sessionIds, listedRows, liveOf };

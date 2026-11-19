@@ -5,7 +5,7 @@
 // @atlasbound/kit, the public entry: the only file another package can reach; `io` is created once per process by the composition root.
 const { createValidate } = require('./contracts/validate.cjs');
 const { traced } = require('./run/traced.cjs');
-const { createFs } = require('./io/fs.cjs');
+const { createFs, scratch } = require('./io/fs.cjs');
 const { createGit } = require('./io/git.cjs');
 const { createTrace } = require('./io/trace.cjs');
 
@@ -24,12 +24,14 @@ module.exports = {
   lock: require('./run/lock.cjs'),
   child: require('./run/child.cjs'),
   person: require('./run/person.cjs'),
-  said: require('./text/said.cjs'),
+  store: require('./run/store.cjs'),
+  said: { ...require('./text/said.cjs'), ...require('./text/said-words.cjs') },
   repo: require('./repo/file-role.cjs'),
   text: { lines: require('./base/text.cjs'), safe: require('./text/safe.cjs'), secrets: require('./text/secrets.cjs'),
     shell: { ...require('./text/shell.cjs'), ...require('./text/shell-named.cjs') } },
   debug: { load: require('./debug/load.cjs'), render: require('./debug/render.cjs') },
-  io: { createFs, createGit, createTrace, clock: require('./io/clock.cjs'), env: require('./io/env.cjs'), proc: require('./io/proc.cjs') },
+  io: { createFs, scratch, createGit, createTrace, clock: require('./io/clock.cjs'), env: require('./io/env.cjs'),
+    proc: { ...require('./io/proc.cjs'), ...require('./io/ps.cjs') } },
   get testing() {
     return { ...require('./testing/fake-io.cjs'), ...require('./testing/trash.cjs') };
   },

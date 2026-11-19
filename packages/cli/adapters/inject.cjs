@@ -6,23 +6,20 @@
 // home, so nothing a handler writes (plans, promises, handoff drafts, receipts, the said record) lands here; the
 // copy goes unless --keep.
 const { PassThrough } = require('node:stream');
-const { errors: { fail }, paths } = require('@atlasbound/kit');
+const { errors: { fail }, paths, text: { lines: { filled } } } = require('@atlasbound/kit');
 const validate = require('../contracts/validate.cjs');
+const { WORDS: { adapters: W } } = require('../contracts/codes.cjs');
 const { serversOf } = require('../core/host.cjs');
 const { payloadsOf, mcpOf, injectView } = require('../debug/inject.cjs');
 const { compose } = require('./compose.cjs');
-const { answer, payloadOf } = require('./hook.cjs');
+const { answer, hookInput } = require('./hook.cjs');
 
-async function scratchSh(io, script, ...args) {
-  const res = await io.proc.run({ cmd: '/bin/sh', env: { PATH: '/usr/bin:/bin' }, args: ['-c', script, 'inject', ...args] });
-  if (res.code !== 0) throw fail('io-write-failed', `debug inject scratch copy: ${(res.stderr || res.error || '').trim().split('\n')[0]}`);
-  return res.stdout.trim();
-}
 /** The repository's files, its git and its ignored state (.atlasbound, .decisionbook, .claude), node_modules apart: what a hook reads. */
-async function copyOf(io) {
-  const dir = await scratchSh(io, 'cd "$(mktemp -d)" && mkdir repo home && pwd -P');
-  await scratchSh(io, 'tar -C "$1" --exclude=node_modules -cf - . | tar -C "$2" -xf -', io.root, `${dir}/repo`);
-  return { dir, root: `${dir}/repo`, home: `${dir}/home` };
+function copyOf(io) {
+  const { dir, copy, remove } = io.machine.scratch('atlasbound-inject-');
+  copy(io.root, 'repo', ['node_modules']);
+  io.machine.fsAt(dir).makeDir('home');
+  return { remove, root: `${dir}/repo`, home: `${dir}/home` };
 }
 
 /** The package whose manifest declares the MCP server, of those wired here, or null. */
@@ -38,7 +35,7 @@ async function speak(io, server, messages) {
   const { serve, handshake } = io.packages.load(owner);
   const first = typeof handshake === 'string' && handshake.endsWith('\n') ? validate.jsonOrNull(handshake.split('\n')[0]) : null; // the envelope
   if (!first) {
-    throw fail('inject-handshake-unread', `${owner}'s handshake is ${typeof handshake === 'string' ? 'no JSON message first' : typeof handshake}`);
+    throw fail('inject-handshake-unread', filled(W.handshake, { owner, what: typeof handshake === 'string' ? W.noJsonFirst : typeof handshake }));
   }
   const input = new PassThrough();
   const output = new PassThrough();
@@ -63,7 +60,7 @@ async function toolReply(io, servers, payload) {
   const named = payload.hook_event_name === 'PostToolUse' && mcpOf(payload.tool_name);
   if (!named) return {};
   const server = servers.find((s) => s.name === named.server);
-  if (!server) return { note: `${named.server} is not wired here` };
+  if (!server) return { note: filled(W.notWired, { server: named.server }) };
   const params = { name: named.tool, arguments: payload.tool_input || {} };
   const [, reply] = await speak(io, server, [{ method: 'tools/call', params }]);
   const text = reply?.result ? reply.result.content.map((c) => c.text).join('') : JSON.stringify(reply?.error || null);
@@ -77,7 +74,7 @@ function withTool(agent, { said, owner }) {
 async function oneEvent(at, servers, { label, event, payload }) {
   const io = compose({ start: at.root, mode: 'hook', replay: { home: at.home, session: payload.session_id } });
   const text = JSON.stringify(payload);
-  const port = await answer(io, event, text, await payloadOf(text));
+  const port = await answer(io, event, text, await hookInput(text));
   const tool = await toolReply(io, servers, payload);
   return { label, event, tool: payload.tool_name || null, agent: tool.said === undefined ? port.agent : withTool(port.agent, tool),
     verdict: port.verdict,
@@ -85,11 +82,11 @@ async function oneEvent(at, servers, { label, event, payload }) {
 }
 
 async function scriptOf(io, file) {
-  if (typeof file !== 'string') throw fail('args-invalid', 'debug inject --script <file.json>: a JSON list of host events');
+  if (typeof file !== 'string') throw fail('args-invalid', W.scriptUsage);
   const where = paths.resolveFrom(process.cwd(), file);
   const beside = io.machine.fsAt(paths.parentDir(where));
   const text = beside.readText(paths.nameOf(where));
-  if (text === null) throw fail('args-invalid', `debug inject --script ${file}: no such file`);
+  if (text === null) throw fail('args-invalid', filled(W.noScript, { file }));
   return { script: validate.json(text, 'args-invalid'), beside };
 }
 
@@ -97,7 +94,7 @@ async function scriptOf(io, file) {
 function laid(io, { script, beside }, home) {
   for (const name of new Set((Array.isArray(script) ? script : []).map((e) => e && e.transcript).filter(Boolean).map(paths.nameOf))) {
     const text = beside.readText(name);
-    if (text === null) throw fail('args-invalid', `debug inject: the transcript ${name} is not beside the script`);
+    if (text === null) throw fail('args-invalid', filled(W.noTranscript, { name }));
     io.machine.fsAt(home).writeAtomic(name, text);
   }
   return script;
@@ -105,7 +102,7 @@ function laid(io, { script, beside }, home) {
 
 async function debugInject(args, io) {
   const read = await scriptOf(io, args.flags.script);
-  const at = await copyOf(io);
+  const at = copyOf(io);
   try {
     const script = laid(io, read, at.home);
     const first = compose({ start: at.root, mode: 'hook', replay: { home: at.home, session: 'debug-inject' } });
@@ -115,7 +112,7 @@ async function debugInject(args, io) {
     const standing = await standingOf(first, servers);
     return injectView({ events, standing, copy: args.flags.keep ? at.root : null, modules: io.catalog.modules.modules });
   } finally {
-    if (!args.flags.keep) await scratchSh(io, 'rm -rf "$1"', at.dir);
+    if (!args.flags.keep) at.remove();
   }
 }
 

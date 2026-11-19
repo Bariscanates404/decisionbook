@@ -9,7 +9,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const decisionbook = require('@atlasbound/decisionbook');
-const { bookWorld: world, begin, added, recordsFor, readyOne, unmetOf, editEvent, writeConfig, textOf } = require('./world.cjs');
+const { bookWorld: world, begin, added, recordsFor, readyOne, leavesOthers, unmetOf, editEvent, writeConfig, textOf } = require('./world.cjs');
 
 const { verbs, handlers } = decisionbook;
 const PKG = path.dirname(require.resolve('@atlasbound/decisionbook'));
@@ -38,11 +38,12 @@ test('[I-13] who, when and why on every answer; an AI assumption is its own reco
   const lines = io.fs.readText(`.decisionbook/${id}.jsonl`).trim().split('\n').map((line) => JSON.parse(line));
   assert.ok(lines.filter((r) => r.t === 'decision').every((r) => r.by && r.why && /^2026-/.test(r.at)), 'who, why and when on every decision');
   const said = (await verbs.resume(io, { rest: [] })).text;
-  assert.match(said, /\n- report\.export\.column = drop \(the BI team moved off it; by the person\)\n/);
+  assert.match(said, /\n- report\.export\.column = drop \(the BI team moved off it; by the person, 2026-11-02\)\n/);
   assert.match(said, /assumed by the AI, not a person's answer:\n- nobody reads the old column \(no reader found by grep\)/);
   assert.match(said, /confirmed by the person: yes, with extra\.js/);
   const ai = await begin(io, { title: 'AI answers only' });
   for (const record of recordsFor('normal', ['src/report/**'], '.ai').map((r) => (r.t === 'decision' ? { ...r, by: 'ai' } : r))) await added(io, ai, record);
+  await leavesOthers(io, ai);
   assert.deepEqual(await unmetOf(io, ai), ['ready-open-question', 'ready-answers'], 'questions the AI answered itself are not a person\'s answers');
 });
 
@@ -84,7 +85,7 @@ test('[I-16] at a prompt, /resume-handoff adds DecisionBook\'s shared part, and 
   const prompt = (text) => handlers.prompt({ hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt: text }, io);
   writeConfig(io, { protect: ['src/**'] });
   const nudge = await prompt('please make the export stream its rows instead of buffering');
-  assert.deepEqual([nudge.code, /^atlasbound decisionbook new <<'JSON'\n\{/m.test(textOf(nudge))], ['prompt-nudge', true], 'the plan pack\'s calls (as fill-in JSON)');
+  assert.deepEqual([nudge.code, /^write this JSON with your Write tool to \.atlasbound\/drafts\/[0-9a-f]{12}\/new\.json:\n\{/m.test(textOf(nudge))], ['prompt-nudge', true], 'the plan pack\'s calls (as fill-in JSON)');
   for (const text of ['ok', '/decisionbook export', '/handoff']) assert.equal((await prompt(text)).code, 'prompt-passed', text);
   const { id } = await readyOne(io);
   await added(io, id, { t: 'question', q: 'Q7', text: 'a cap on rows?', decides: 'report.export.cap', whyNotCode: 'a product rule', blocking: false });
@@ -95,21 +96,21 @@ test('[I-16] at a prompt, /resume-handoff adds DecisionBook\'s shared part, and 
   assert.equal((await prompt('please make the export stream its rows instead of buffering')).code, 'prompt-passed', 'a READY plan needs no nudge');
 });
 
-test('[I-17] protect: candidates come from tracked files by kit\'s roles, and each answer is kept with its door and time',
+test('[I-17] protect: candidates are tracked files by kit\'s roles and a root entry file; each answer keeps its door, no time',
   async () => {
   const io = world({ tracked: ['src/a.js', 'src/b/c.py', 'test/a.test.js', 'README.md', 'docs/x.md', 'main.go'] });
   const listed = await verbs.protect(io, {});
-  assert.deepEqual(listed.out.candidates, [{ glob: 'src/**', files: 2, testFiles: 0 }, { glob: 'test/**', files: 1, testFiles: 1 }]);
+  assert.deepEqual(listed.out.candidates, [{ glob: 'main.go', files: 1, testFiles: 0 }, { glob: 'src/**', files: 2, testFiles: 0 },
+    { glob: 'test/**', files: 1, testFiles: 1 }]);
   assert.deepEqual([listed.out.answer, listed.out.current], [null, null]);
   const quiet = await handlers.session({ hook_event_name: 'SessionStart', source: 'startup' }, io);
   assert.deepEqual([quiet.code, /protects nothing[^]*atlasbound protect/.test(textOf(quiet))], ['session-unprotected', true]);
   const source = await verbs.protect(io, { flags: { source: true } });
-  assert.match(source.text, /protected paths: src\/\*\*, test\/\*\*/);
+  assert.match(source.text, /protected paths: main\.go, src\/\*\*, test\/\*\*/);
   const config = JSON.parse(io.fs.readText('.decisionbook/config.json'));
-  assert.deepEqual([config.protect, config.answer.answer, config.answer.door, /^2026-/.test(config.answer.at)],
-    [['src/**', 'test/**'], 'source', 'protect-command', true]);
+  assert.deepEqual([config.protect, config.answer], [['main.go', 'src/**', 'test/**'], { answer: 'source', door: 'protect-command' }]);
   await verbs.protect(io, { rest: ['docs/**,main.go'], door: 'setup-terminal' });
-  assert.deepEqual(JSON.parse(io.fs.readText('.decisionbook/config.json')).protect, ['src/**', 'test/**', 'docs/**', 'main.go']);
+  assert.deepEqual(JSON.parse(io.fs.readText('.decisionbook/config.json')).protect, ['main.go', 'src/**', 'test/**', 'docs/**']);
   await assert.rejects(verbs.protect(io, { flags: { none: true } }), { code: 'protect-person' },
     'no terminal, no person to ask: taking protection away is refused');
   const asked = [];
@@ -122,7 +123,7 @@ test('[I-17] protect: candidates come from tracked files by kit\'s roles, and ea
   }
   assert.equal(JSON.parse(io.fs.readText('.decisionbook/config.json')).protect.length, 4, 'a refusal writes nothing');
   await verbs.protect(io, { flags: { none: true }, ask: typed(true) }); // the root's question answers whether the phrase was typed
-  assert.equal(asked[0], 'this takes protection away from src/**, test/**, docs/**, main.go: an AI session may then edit them with no plan');
+  assert.equal(asked[0], 'this takes protection away from main.go, src/**, test/**, docs/**: an AI session may then edit them with no plan');
   assert.deepEqual([JSON.parse(io.fs.readText('.decisionbook/config.json')).protect, JSON.parse(io.fs.readText('.decisionbook/config.json')).answer.door],
     [[], 'protect-terminal']);
   assert.equal((await handlers.preEdit(editEvent('src/a.js'), io)).code, 'gate-off');
@@ -138,8 +139,8 @@ test('[I-18] the manifest declares the eight hooks and the three commands, and t
   assert.deepEqual(manifest.hooks.map((h) => [h.event, h.handler]), [['SessionStart', 'session'], ['UserPromptSubmit', 'prompt'], ['PreToolUse', 'preEdit'],
     ['PostToolUse', 'postEdit'], ['PostToolUse', 'recall'],
     ['PreToolUse', 'preShell'], ['SessionStart', 'start'], ['Stop', 'stop']]);
-  assert.deepEqual(manifest.hooks.slice(5).map((h) => h.matcher), ['Bash', null, null],
-    'Bash only, so the port is not spawned on every tool call');
+  assert.deepEqual(manifest.hooks.slice(5).map((h) => h.matcher), ['Bash|PowerShell', null, null],
+    'the shell tools only, so the port is not spawned on every tool call');
   assert.ok(manifest.hooks.every((h) => typeof handlers[h.handler] === 'function'));
   [2, 3].forEach((i) => assert.deepEqual(manifest.hooks[i].matcher.split('|').sort(), ['Edit', 'MultiEdit', 'NotebookEdit', 'Write']));
   assert.deepEqual(manifest.hooks[4].matcher.split('|').sort(), ['Edit', 'MultiEdit', 'NotebookEdit', 'Read', 'Write'],

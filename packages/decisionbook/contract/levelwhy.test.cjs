@@ -20,7 +20,7 @@ test('a new judged above its proposed level says the reason first, in the gate\'
   writeConfig(io, { protect: ['lib/**'], danger: ['lib/pay/**'] });
   const three = await firstLine(io, 'micro', plans('lib/sched/index.js', 'lib/sched/parse.js', 'lib/sched/run.js'));
   assert.equal(three[0], 'level: normal work (proposed small fix: not a small fix: it runs as normal work: more than 2 files (3))');
-  assert.ok(three.findIndex((l) => l.startsWith('atlasbound decisionbook add ')) > 0, 'the add comes after the reason');
+  assert.ok(three.findIndex((l) => l.startsWith('then run: atlasbound decisionbook add ')) > 0, 'the add comes after the reason');
   const glob = await firstLine(io, 'micro', plans('lib/sched/**'));
   assert.equal(glob[0], 'level: normal work (proposed small fix: not a small fix: it runs as normal work: a glob (lib/sched/**))');
   const zone = await firstLine(io, 'normal', plans('lib/pay/charge.js'));
@@ -33,11 +33,12 @@ test('a new judged above its proposed level says the reason first, in the gate\'
 test('the pack of a prompt naming no file is laid out as normal work and names what keeps a plan from being a small fix', async () => {
   const io = bookWorld({ files: FILES });
   writeConfig(io, { protect: ['lib/**'] });
-  const [words, small] = (await verbs.pack(io, { rest: ['tenants', 'and', 'quotas'] })).text.split('\n');
+  const [none, words, small] = (await verbs.pack(io, { rest: ['tenants', 'and', 'quotas'] })).text.split('\n');
+  assert.equal(none, 'no record here: no earlier plan relates to this work', 'an area no earlier plan holds says so');
   assert.ok(words.startsWith('this task runs as normal work (the prompt names no file, so the plan is laid out for several files); READY there needs: '), words);
   assert.ok(small.startsWith('A small fix instead ("level":"micro") when none of these holds: more than 2 files, a glob, a shared or entry path, '
     + 'a danger zone, a schema path, a sensitive path, a risk word or 3+ shared consumers; it needs only: '), small);
-  const risky = (await verbs.pack(io, { rest: ['a', 'payment', 'webhook'] })).text.split('\n');
+  const risky = (await verbs.pack(io, { rest: ['a', 'payment', 'webhook'] })).text.split('\n').slice(1); // after no record here
   assert.ok(risky[0].startsWith('this task runs as critical work (from the prompt\'s words only: it names no file; more than 2 files, a glob, a shared or entry '
     + 'path, a danger zone, a schema path, a sensitive path, a risk word or 3+ shared consumers raise it: a risk word (payment)); '), risky[0]);
   assert.ok(risky[1].startsWith('If this request changes code'), 'no small form where the words already raise it');

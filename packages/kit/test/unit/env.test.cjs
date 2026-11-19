@@ -94,6 +94,21 @@ test('an absolute Windows or backslash home is accepted; only a trailing / is tr
   assert.equal(home('\\\\server\\share'), '\\\\server\\share/.atlasbound');
 });
 
+test('on Windows the HOME Git Bash hands and a plain terminal\'s none name the one home, in any case and with either separator', () => {
+  const real = os.userInfo;
+  os.userInfo = () => ({ ...real(), homedir: 'C:\\Users\\ana' });
+  const onWindows = (HOME, platform = 'win32') => withEnv({ HOME }, () => env.stateHome(platform));
+  try {
+    for (const spelling of [undefined, 'C:\\Users\\ana', 'c:\\users\\Ana\\', 'C:/Users/ana', 'C:/Users/ana/']) {
+      assert.equal(onWindows(spelling), 'C:\\Users\\ana/.atlasbound', String(spelling));
+    }
+    assert.throws(() => onWindows('C:\\Users\\other'), refused, 'another folder is still refused');
+    assert.throws(() => onWindows('C:/Users/ana', 'linux'), refused, 'elsewhere a spelling is its bytes');
+  } finally {
+    os.userInfo = real;
+  }
+});
+
 test('a machine with no password entry, or an empty home in it, is no home: refused, never a guess', () => {
   assert.throws(() => home(''), refused);
   const real = os.userInfo;

@@ -1,0 +1,176 @@
+{
+ "$comment": "Windows write forms through the real hook entry, each verdict by hand: protect ortak/** and scripts/**, a READY plan of ortak/planned.js only, package.json scripts w (writes ortak/zz-npm.js) and test (node --test). `tool`: the host's shell tool.",
+ "policy": {
+  "protect": [
+   "ortak/**",
+   "scripts/**"
+  ],
+  "plan": [
+   "ortak/planned.js"
+  ]
+ },
+ "rows": [
+  {
+   "from": "cmd copy",
+   "tool": "Bash",
+   "cwd": "",
+   "command": "cmd //c \"copy README.md ortak\\zz-b01.js\"",
+   "human": {
+    "verdict": "ask",
+    "file": "ortak/zz-b01.js",
+    "why": "cmd's copy into the protected folder"
+   }
+  },
+  {
+   "from": "cmd echo >",
+   "tool": "Bash",
+   "cwd": "",
+   "command": "cmd //c \"echo x > ortak\\zz-b02.js\"",
+   "human": {
+    "verdict": "ask",
+    "file": "ortak/zz-b02.js",
+    "why": "cmd's redirection into the protected folder"
+   }
+  },
+  {
+   "from": "cmd move",
+   "tool": "Bash",
+   "cwd": "",
+   "command": "cmd //c \"move dersler\\zz-mv-src.txt ortak\\zz-b03.js\"",
+   "human": {
+    "verdict": "ask",
+    "file": "ortak/zz-b03.js",
+    "why": "cmd's move: the source is no protected file, the destination is"
+   }
+  },
+  {
+   "from": "npm run",
+   "tool": "Bash",
+   "cwd": "",
+   "command": "npm run w",
+   "human": {
+    "verdict": "ask",
+    "file": "ortak/zz-npm.js",
+    "why": "the package script w writes the protected file"
+   }
+  },
+  {
+   "from": "powershell -Command Set-Content -Path",
+   "tool": "Bash",
+   "cwd": "",
+   "command": "powershell -NoProfile -Command \"Set-Content -Path ortak/zz-b14.js -Value x\"",
+   "human": {
+    "verdict": "ask",
+    "file": "ortak/zz-b14.js",
+    "why": "PowerShell's Set-Content run from bash"
+   }
+  },
+  {
+   "from": "powershell -Command Set-Content",
+   "tool": "Bash",
+   "cwd": "",
+   "command": "powershell -NoProfile -Command \"Set-Content ortak/zz-ps.js 'x'\"",
+   "human": {
+    "verdict": "ask",
+    "file": "ortak/zz-ps.js",
+    "why": "Set-Content with its path as the first word"
+   }
+  },
+  {
+   "from": "pwsh -c and cmd type",
+   "tool": "Bash",
+   "cwd": "",
+   "command": "pwsh -c \"Add-Content ortak/zz-pw.js x\"; cmd /c \"type nul > ortak\\zz-nul.js\"",
+   "human": {
+    "verdict": "ask",
+    "file": "ortak/zz-pw.js",
+    "why": "both write the protected folder; the first is named"
+   }
+  },
+  {
+   "from": "powershell -EncodedCommand",
+   "tool": "Bash",
+   "cwd": "",
+   "command": "powershell -EncodedCommand ZQBjAGgAbwA=",
+   "human": {
+    "verdict": "ask",
+    "unplaced": true,
+    "why": "an encoded command no one reads here"
+   }
+  },
+  {
+   "from": "npm run, no package.json",
+   "tool": "Bash",
+   "cwd": "",
+   "command": "cd web && npm run build",
+   "human": {
+    "verdict": "ask",
+    "unplaced": true,
+    "why": "no package.json in web: the script cannot be read"
+   }
+  },
+  {
+   "from": "reads",
+   "tool": "Bash",
+   "cwd": "",
+   "command": "pwsh -c \"Get-Content ortak/a.js | Select-String x\"; cmd //c \"type ortak\\a.js\"; npm test",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only; the test script is node --test"
+   }
+  },
+  {
+   "from": "PowerShell tool Set-Content",
+   "tool": "PowerShell",
+   "cwd": "",
+   "command": "Set-Content -Path ortak\\zz.js -Value 'x'",
+   "human": {
+    "verdict": "ask",
+    "file": "ortak/zz.js",
+    "why": "the PowerShell tool's own write"
+   }
+  },
+  {
+   "from": "PowerShell tool Out-File and Copy-Item",
+   "tool": "PowerShell",
+   "cwd": "",
+   "command": "'x' | Out-File ortak/zz-out.js; Copy-Item README.md ortak\\zz-copy.js",
+   "human": {
+    "verdict": "ask",
+    "file": "ortak/zz-out.js",
+    "why": "two writes of the protected folder; the first is named"
+   }
+  },
+  {
+   "from": "PowerShell tool pipeline",
+   "tool": "PowerShell",
+   "cwd": "",
+   "command": "Get-ChildItem ortak -Filter *.js | Remove-Item",
+   "human": {
+    "verdict": "ask",
+    "unplaced": true,
+    "why": "the files are handed down a pipeline"
+   }
+  },
+  {
+   "from": "PowerShell tool reads",
+   "tool": "PowerShell",
+   "cwd": "",
+   "command": "Get-Content ortak/a.js | Select-String foo; git status; Write-Output x > $null",
+   "human": {
+    "verdict": "allow",
+    "why": "reads only, the output thrown away"
+   }
+  },
+  {
+   "from": "PowerShell tool writes elsewhere",
+   "tool": "PowerShell",
+   "cwd": "",
+   "command": "New-Item -Path dersler -Name notes.txt -Value x; Set-Content dersler/b.txt y",
+   "human": {
+    "verdict": "allow",
+    "why": "writes outside the protected folders"
+   }
+  }
+ ]
+}

@@ -2,175 +2,226 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-// Consent is a home record, never env. Black box: the public entry, kit and fake io. No test dials: the net is a spy.
+// The choice through the public verbs: its order, what each command writes (the transition table), setup's question and notice
+// under both values of the default, the old record, the env names that cannot open it (I-13) and the records that read as off (I-14).
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { io: kitIo, testing: { memoryFs, fixedClock }, trace: { tracePath }, errors: { fail } } = require('@atlasbound/kit');
-require('./address.cjs');
+const { errors: { fail } } = require('@atlasbound/kit');
 const telemetry = require('@atlasbound/telemetry');
-const { declaredHere, packageDataOf } = require('./declared.cjs');
+const { internals, declaredDescriptors, telemetryWorld, addressFilled } = require('./world.cjs');
 
-const { send, optIn, optOut, status, debug, CONSENT_PATH, INGEST_URL, SCHEMA, codes } = telemetry;
-const ctx = { run: 'job-run', version: '1.2.3' };
-// Only a person at a terminal opts in.
-const asPerson = { ...ctx, ask: async () => assert.fail('opting in asks nothing') };
-const HOSTILE_URL = 'https://attacker.example/steal';
-// Every name a repository could plausibly set to open the door or move it.
-const PLAUSIBLE_ON = [
-  'ATLASBOUND_TELEMETRY', 'ATLASBOUND_TELEMETRY_ENABLED', 'ATLASBOUND_TELEMETRY_OPT_IN', 'ATLASBOUND_TELEMETRY_OPTIN', 'ATLASBOUND_OPT_IN',
-  'ATLASBOUND_CONSENT', 'ATLASBOUND_PUMP', 'TELEMETRY', 'TELEMETRY_ENABLED', 'ENABLE_TELEMETRY', 'DO_TRACK',
-];
-const PLAUSIBLE_URL = [
-  'ATLASBOUND_TELEMETRY_URL', 'ATLASBOUND_TELEMETRY_ENDPOINT', 'ATLASBOUND_CLOUD_URL', 'ATLASBOUND_INGEST_URL', 'ATLASBOUND_URL', 'ATLASBOUND_ENDPOINT',
-  'TELEMETRY_URL', 'TELEMETRY_ENDPOINT', 'OTEL_EXPORTER_OTLP_ENDPOINT',
-];
-const EVERY_NAME = {
-  ...Object.fromEntries(PLAUSIBLE_ON.map((name) => [name, '1'])),
-  ...Object.fromEntries(PLAUSIBLE_URL.map((name) => [name, HOSTILE_URL])),
-};
-
-const envOf = (values) => ({ get: (name) => values[name] ?? null });
-// a step of a package every install has
-const row = (over) => ({
-  v: 1, pkg: 'handoff', run: 'r1', seq: 1, step: 'start', at: '2026-11-02T05:00:00.000Z', ms: 10, ok: true, in: null, out: null,
-  n: {}, codes: {}, ref: null, err: null, ...over,
-});
-const traceFile = () => ({ [tracePath('r1')]: `${JSON.stringify(row({}))}\n` });
-const RECORD_ON = JSON.stringify({ schema: SCHEMA.consent, on: true, at: '2026-11-03T00:00:00.000Z' });
-
-function world({ env = {}, home = {}, noHome = false } = {}) {
-  const fs = memoryFs(traceFile());
-  const clock = fixedClock();
-  const trace = kitIo.createTrace({ fs, clock }).forPackage(telemetry.PKG, telemetry.vocabulary);
-  return { fs, clock, home: noHome ? null : memoryFs(home), trace, env: envOf(env), packageData: packageDataOf(declaredHere()) };
-}
-function spyNet() {
-  const calls = [];
-  return { calls, post: async (url, body) => { calls.push({ url, body }); return { status: 200 }; } };
-}
-const reachOut = async (io) => {
-  const net = spyNet();
-  return { res: await send(io, { ...ctx, net }), net };
-};
-
-test('[I-13] with every plausible env name set and no record: off, and the net port is never called', async () => {
-  for (const [name, value] of Object.entries(EVERY_NAME)) {
-    const { res, net } = await reachOut(world({ env: { [name]: value } }));
-    assert.deepEqual([name, res.sent, res.code, net.calls.length], [name, false, 'telemetry-off', 0]);
+const { PATHS, WIRE, SCHEMA } = internals;
+const URL_SET = 'https://telemetry.example/v1/reports';
+const typed = { ask: async () => true };
+const AT = '2026-11-18T10:00:00.000Z';
+const pair = (ns) => ({ cli: 1, db: 1, handoff: 1 })[ns];
+const entry = (on, ns, core = WIRE.policy) => ({ on, core, policy: pair(ns) ?? 1, at: AT });
+const v2 = (over) => JSON.stringify({ schema: SCHEMA.consent, at: AT, all: null, modules: {}, noticed: null, ...over });
+const homeOf = (text) => ({ [PATHS.consent]: text });
+const codesByNs = async (io) => Object.fromEntries((await telemetry.status(io, {})).states.map((s) => [s.space.ns, s.code]));
+const storedChoice = (io) => JSON.parse(io.home.store.get(PATHS.consent));
+const withWire = async (over, fn) => {
+  const was = { ...WIRE };
+  Object.assign(WIRE, over);
+  try {
+    await fn();
+  } finally {
+    Object.assign(WIRE, was);
   }
-  const { res, net } = await reachOut(world({ env: EVERY_NAME }));
-  assert.deepEqual([res.sent, res.code, net.calls.length], [false, 'telemetry-off', 0]);
+};
+
+test('[I-3] order: an environment switch beats your on, and each switch alone closes', async () => {
+  const on = homeOf(v2({ modules: { cli: entry(true, 'cli'), db: entry(true, 'db'), handoff: entry(true, 'handoff') } }));
+  assert.deepEqual(await codesByNs(telemetryWorld({ home: on })), { cli: 'telemetry-on', db: 'telemetry-on', handoff: 'telemetry-on' });
+  for (const env of [{ DO_NOT_TRACK: '1' }, { ATLASBOUND_TELEMETRY: '0' }, { ATLASBOUND_TELEMETRY: 'off' }, { CI: 'true' }, { MCP_OBS_DISABLED: '1' },
+    { ATLASBOUND_PUMP: 'false' }]) {
+    const view = await telemetry.status(telemetryWorld({ home: on, env }), {});
+    assert.deepEqual([view.killed, view.states.every((s) => s.code === 'telemetry-killed')], [Object.keys(env)[0], true], JSON.stringify(env));
+  }
 });
 
-test('[I-13] the record opens it, and only the built-in URL is dialled whatever env says', async () => {
-  assert.match(INGEST_URL, /^https:\/\//);
-  const { res, net } = await reachOut(world({ env: EVERY_NAME, home: { [CONSENT_PATH]: RECORD_ON } }));
-  assert.equal(res.sent, true);
-  assert.deepEqual(net.calls.map((call) => call.url), [INGEST_URL]);
+test('[I-13] no env var opens it or moves the address: every plausible name, and the switches set to their open words', async () => {
+  const plausible = { ATLASBOUND_TELEMETRY: '1', TELEMETRY: '1', ATLASBOUND_OPT_IN: '1', ATLASBOUND_TELEMETRY_URL: 'https://attacker.example',
+    DO_NOT_TRACK: '0', CI: '' };
+  assert.deepEqual(Object.values(await codesByNs(telemetryWorld({ env: plausible }))), ['telemetry-not-chosen', 'telemetry-not-chosen', 'telemetry-not-chosen']);
+  assert.equal(WIRE.url, '', 'the address is data only');
 });
 
-test('[I-13] the wall is the same with or without env: the decision reads no env name but the hard-off switches', async () => {
-  const asked = [];
-  const home = memoryFs({ [CONSENT_PATH]: JSON.stringify({ schema: SCHEMA.consent, on: true }) });
-  await status({ ...world({}), home, env: { get: (name) => { asked.push(name); return null; } } }, { run: 'consent-run' });
-  assert.deepEqual([...new Set(asked)].sort(), ['ATLASBOUND_PUMP', 'DO_NOT_TRACK', 'MCP_OBS_DISABLED']);
-});
-
-for (const [name, text] of [
-  ['the old file\'s shape', '{"enabled":true}'],
-  ['on as a word', JSON.stringify({ schema: 'ab-consent/1', on: 'true' })],
-  ['on as a number', JSON.stringify({ schema: 'ab-consent/1', on: 1 })],
-  ['an unknown major', JSON.stringify({ schema: 'ab-consent/2', on: true })],
-  ['no schema', JSON.stringify({ on: true })],
-  ['an array', '[true]'],
-  ['null', 'null'],
-]) {
-  test(`[I-14] a record holding ${name} reads off and never dials`, async () => {
-    const { res, net } = await reachOut(world({ home: { [CONSENT_PATH]: text } }));
-    assert.deepEqual([res.sent, res.code, net.calls.length], [false, 'telemetry-off', 0]);
+test('[I-3] order: a record that does not read beats any choice; your off beats a module on; a module off beats the default', async () => {
+  for (const text of ['{not json', v2({ schema: 'ab-consent/9' }), JSON.stringify({ schema: SCHEMA.consent, all: 'off' })]) {
+    assert.deepEqual(new Set(Object.values(await codesByNs(telemetryWorld({ home: homeOf(text) })))), new Set(['telemetry-consent-unreadable']), text);
+  }
+  const allOff = homeOf(v2({ all: 'off', modules: { db: entry(true, 'db') } }));
+  assert.equal((await codesByNs(telemetryWorld({ home: allOff }))).db, 'telemetry-off');
+  addressFilled(URL_SET, '');
+  await withWire({ unchosen: 'on' }, async () => {
+    const noticed = { core: WIRE.policy, at: AT, policies: { cli: 1, db: 1, handoff: 1 } };
+    const moduleOff = homeOf(v2({ noticed, modules: { db: entry(false, 'db') } }));
+    assert.deepEqual(await codesByNs(telemetryWorld({ home: moduleOff })), { cli: 'telemetry-default', db: 'telemetry-off', handoff: 'telemetry-default' });
   });
-}
-
-test('[I-14] a record that is not JSON is off, by its own code, with the file named in nothing that leaves', async () => {
-  const { res, net } = await reachOut(world({ home: { [CONSENT_PATH]: '{"on":tr' } }));
-  assert.deepEqual([res.sent, res.code, net.calls.length], [false, 'telemetry-consent-unreadable', 0]);
-  assert.ok(codes.isCode(res.code));
+  addressFilled('', '');
 });
 
-test('doctor measures the stored choice: a torn record is a problem naming its code and its file; a readable one is a fact', async () => {
-  const torn = await telemetry.doctor({ ...world({ home: { [CONSENT_PATH]: '{"on":tr' } }), run: 'doctor-run' });
-  assert.deepEqual(torn, { ok: false, says: `off: telemetry-consent-unreadable: the stored choice could not be read; telemetry stays off until atlasbound telemetry on or off writes it again (~/${CONSENT_PATH})` },
-    'telemetry answers doctor itself, so a torn choice is a problem, never "not measured"');
-  assert.deepEqual(await telemetry.doctor({ ...world({ home: { [CONSENT_PATH]: JSON.stringify({ schema: SCHEMA.consent, on: true }) } }), run: 'doctor-run' }),
-    { ok: true, says: `on: telemetry-on: ${codes.shortOf('telemetry-on')}` });
-  assert.deepEqual(await telemetry.doctor({ ...world(), run: 'doctor-run' }), { ok: true, says: `off: telemetry-off: ${codes.shortOf('telemetry-off')}` });
+test('[I-3] order: an on counts only under the current (core, namespace) pair; an off of any pair holds', async () => {
+  const old = homeOf(v2({ modules: { cli: entry(true, 'cli', WIRE.policy - 1), db: { ...entry(true, 'db'), policy: 0 }, handoff: entry(false, 'handoff', 0) } }));
+  assert.deepEqual(await codesByNs(telemetryWorld({ home: old })), { cli: 'telemetry-not-chosen', db: 'telemetry-not-chosen', handoff: 'telemetry-off' });
 });
 
-test('[I-14] a record that is refused for being a link is off, not a crash', async () => {
-  const io = world();
-  io.home.readText = () => { throw fail('path-link', 'a planted link'); };
-  const { res, net } = await reachOut(io);
-  assert.deepEqual([res.sent, res.code, net.calls.length], [false, 'telemetry-consent-unreadable', 0]);
+test('[I-3] order: nobody chose: on only as the beta default, with an address, after the notice, until betaUntil', async () => {
+  const noticed = homeOf(v2({ noticed: { core: WIRE.policy, at: AT, policies: { cli: 1, db: 1, handoff: 1 } } }));
+  assert.equal((await codesByNs(telemetryWorld({ home: noticed }))).db, 'telemetry-not-chosen', 'unchosen ask: no default');
+  await withWire({ unchosen: 'on' }, async () => {
+    assert.equal((await codesByNs(telemetryWorld({ home: noticed }))).db, 'telemetry-not-chosen', 'no address: no default');
+    await withWire({ url: URL_SET }, async () => {
+      assert.equal((await codesByNs(telemetryWorld({ home: noticed }))).db, 'telemetry-default');
+      assert.equal((await codesByNs(telemetryWorld({ home: homeOf(v2({})) }))).db, 'telemetry-not-chosen', 'no notice seen: no default');
+      assert.equal((await codesByNs(telemetryWorld({ home: noticed, at: '2027-04-01T00:00:00.000Z' }))).db, 'telemetry-not-chosen', 'after betaUntil');
+      await withWire({ betaModules: ['cli'] }, async () => assert.equal((await codesByNs(telemetryWorld({ home: noticed }))).db, 'telemetry-not-chosen'));
+    });
+  });
 });
 
-test('[I-15] .atlasbound/telemetry.json is not read: enabled:true does not open it, enabled:false does not stop an opt-in', async () => {
-  const OLD = '.atlasbound/telemetry.json';
-  assert.notEqual(CONSENT_PATH, OLD);
-  assert.equal((await reachOut(world({ home: { [OLD]: '{"enabled":true}' } }))).net.calls.length, 0);
-  assert.equal((await reachOut(world({ home: { [OLD]: '{"enabled":false}', [CONSENT_PATH]: RECORD_ON } }))).net.calls.length, 1);
+test('[I-3] transitions: a bare off closes every entry the record holds, another install\'s too; on m after it turns on m alone', async () => {
+  const io = telemetryWorld({ home: homeOf(v2({ modules: { bound: { on: true, core: 1, policy: 3, at: AT }, db: entry(true, 'db') } })) });
+  await telemetry.optOut(io, {});
+  assert.equal(storedChoice(io).all, 'off');
+  assert.deepEqual(Object.entries(storedChoice(io).modules).map(([ns, one]) => [ns, one.on]).sort(),
+    [['bound', false], ['cli', false], ['db', false], ['handoff', false]]);
+  await telemetry.optIn(io, { rest: ['db'], ...typed });
+  assert.equal(storedChoice(io).all, null);
+  assert.deepEqual(await codesByNs(io), { cli: 'telemetry-off', db: 'telemetry-on', handoff: 'telemetry-off' });
+  assert.equal(storedChoice(io).modules.bound.on, false, 'an entry of a namespace not here never comes back by itself');
 });
 
-test('[I-16] telemetry on writes the record, status reads it, off closes it; each says so', async () => {
-  const io = world();
-  assert.deepEqual((await status(io, ctx)).consent.code, 'telemetry-off');
-  const on = await optIn(io, asPerson);
-  assert.deepEqual([on.consent.on, on.consent.code, on.url], [true, 'telemetry-on', INGEST_URL]);
-  assert.equal(JSON.parse(io.home.store.get(CONSENT_PATH)).on, true);
-  assert.equal((await status(io, ctx)).consent.on, true);
-  assert.equal((await reachOut(io)).net.calls.length, 1);
-  const off = await optOut(io, ctx);
-  assert.deepEqual([off.consent.on, off.consent.code], [false, 'telemetry-off']);
-  assert.equal(JSON.parse(io.home.store.get(CONSENT_PATH)).on, false);
-  assert.equal((await reachOut(io)).net.calls.length, 0);
+test('[I-3] transitions: off m closes m alone; a bare on lists and opens what is here; a package name is a module word', async () => {
+  const io = telemetryWorld();
+  const said = [];
+  await telemetry.optIn(io, { rest: [], ask: async (info) => said.push(info) > 0 });
+  assert.match(said[0], /For: cli \(the command line and its hooks\), db \(DecisionBook: plans, answers and gate decisions\), handoff \(Handoff: notes\)/);
+  assert.match(said[0], /This build has no address to send to/);
+  assert.deepEqual(await codesByNs(io), { cli: 'telemetry-on', db: 'telemetry-on', handoff: 'telemetry-on' });
+  await telemetry.optOut(io, { rest: ['decisionbook'] });
+  assert.deepEqual(await codesByNs(io), { cli: 'telemetry-on', db: 'telemetry-off', handoff: 'telemetry-on' });
+  assert.equal(storedChoice(io).all, null);
+  await assert.rejects(telemetry.optOut(io, { rest: ['nowhere'] }), { code: 'telemetry-module-unknown' });
+  await assert.rejects(telemetry.optIn(io, { rest: [], ask: async () => false }), { code: 'telemetry-phrase-not-typed' });
 });
 
-test('[I-16] nothing is written to the repository by on or off, and status writes no record', async () => {
-  const io = world();
-  await status(io, ctx);
-  assert.equal(io.home.store.has(CONSENT_PATH), false);
-  await optIn(io, asPerson);
-  await optOut(io, ctx);
-  assert.deepEqual([...io.fs.store.keys()].filter((key) => key.includes('consent')), []);
+test('[I-3] transitions: 0.25.1\'s off reads as your off; then on db under the default turns on db alone', async () => {
+  const io = telemetryWorld({ home: homeOf(JSON.stringify({ schema: SCHEMA.consentOld, on: false, at: AT })) });
+  assert.deepEqual(new Set(Object.values(await codesByNs(io))), new Set(['telemetry-off']));
+  await withWire({ unchosen: 'on', url: URL_SET }, async () => {
+    await telemetry.optIn(io, { rest: ['db'], ...typed });
+    io.home.store.set(PATHS.consent, v2({ ...storedChoice(io), noticed: { core: WIRE.policy, at: AT, policies: { cli: 1, db: 1, handoff: 1 } } })); // the notice seen: the default holds
+    assert.deepEqual(await codesByNs(io), { cli: 'telemetry-off', db: 'telemetry-on', handoff: 'telemetry-off' });
+  });
+  const on = telemetryWorld({ home: homeOf(JSON.stringify({ schema: SCHEMA.consentOld, on: true, at: AT })) });
+  assert.deepEqual(new Set(Object.values(await codesByNs(on))), new Set(['telemetry-not-chosen']), '0.25.1\'s on was for another collection');
 });
 
-test('[I-16] a kill switch set after on wins, status says so, and off still works', async () => {
-  const io = world({ env: { DO_NOT_TRACK: '1' }, home: { [CONSENT_PATH]: RECORD_ON } });
-  assert.equal((await status(io, ctx)).consent.code, 'telemetry-killed');
-  assert.equal((await reachOut(io)).net.calls.length, 0);
-  assert.equal((await optOut(io, ctx)).consent.on, false);
+test('[I-4] address set, a person at a plain terminal: Enter or y on; n off; another word asked again, then no choice said', async () => {
+  addressFilled(URL_SET, '');
+  for (const [answers, code] of [[[''], 'telemetry-on'], [['y'], 'telemetry-on'], [['n'], 'telemetry-off'], [['1', 'y'], 'telemetry-on'],
+    [['later', '1'], 'telemetry-not-chosen'], [[null], 'telemetry-not-chosen']]) {
+    const io = telemetryWorld();
+    const asked = [];
+    const said = await telemetry.hint(io, { ask: async (question) => asked.push(question) && answers[asked.length - 1] });
+    assert.equal(asked.length, answers.length);
+    if (answers.length > 1) assert.match(asked[1], /^Please answer y or n \[Y\/n\]/);
+    assert.equal(/no choice was recorded/.test(JSON.stringify(said)), answers.length > 1 && code === 'telemetry-not-chosen', JSON.stringify(said));
+    assert.match(asked[0], /^Send a daily usage report during the beta\? It goes to telemetry\.atlasbound\.dev/);
+    assert.match(asked[0], /For: cli \(.*\), db \(.*\), handoff \(.*\)/);
+    assert.match(asked[0], /\[Y\/n\] \(Enter = yes\) $/);
+    assert.deepEqual(new Set(Object.values(await codesByNs(io))), new Set([code]), JSON.stringify(answers));
+    if (code !== 'telemetry-not-chosen') assert.equal(storedChoice(io).all, null);
+  }
+  addressFilled('', '');
 });
 
-test('[I-16] a machine with no home: off, status says why, and on is refused by code', async () => {
-  const io = world({ noHome: true });
-  assert.equal((await status(io, ctx)).consent.code, 'telemetry-no-home');
-  assert.equal((await reachOut(io)).net.calls.length, 0);
-  await assert.rejects(() => optIn(io, asPerson), (err) => err.code === 'telemetry-no-home');
+test('[I-4] a no is never asked again; an on under an older pair is; an answered namespace is not', async () => {
+  addressFilled(URL_SET, '');
+  const io = telemetryWorld({ home: homeOf(v2({ modules: { cli: entry(false, 'cli', 0), db: entry(true, 'db', 0), handoff: entry(true, 'handoff') } })) });
+  const asked = [];
+  await telemetry.hint(io, { ask: async (question) => asked.push(question) && 'n' });
+  assert.match(asked[0], /For: db \(DecisionBook[^)]*\)\n/);
+  addressFilled('', '');
 });
 
-test('[I-16] debug telemetry and status read the same consent as send', async () => {
-  const io = world({ home: { [CONSENT_PATH]: RECORD_ON } });
-  assert.equal((await debug.telemetry(io, ctx)).consent.on, true);
-  assert.equal((await status(io, ctx)).consent.on, true);
-  assert.ok(debug.render(await status(io, ctx)).includes('telemetry-on'));
+test('[I-4] nothing asked or written for an AI, a pipe, a wrapped terminal, a switch, your off, or an empty address', async () => {
+  const cases = [{ actor: { who: 'ai' } }, { ask: null }, { actor: { who: 'terminal', wrapped: 'expect' } }, { env: { DO_NOT_TRACK: '1' } },
+    { env: { CI: '1' } }, { env: { ATLASBOUND_TELEMETRY: 'no' } }, { home: homeOf(v2({ all: 'off' })) }];
+  for (const unchosen of ['ask', 'on']) {
+    await withWire({ unchosen, url: URL_SET }, async () => {
+      for (const one of cases) {
+        const io = telemetryWorld(one);
+        const before = io.home.store.get(PATHS.consent);
+        const said = await telemetry.hint(io, { ask: one.ask === null ? null : async () => assert.fail('asked') });
+        assert.equal(io.home.store.get(PATHS.consent), before, `${unchosen} ${JSON.stringify(one)}: nothing written, noticed neither`);
+        if (one.env || one.home) assert.equal(said.line, null);
+      }
+    });
+    await withWire({ unchosen }, async () => {
+      const io = telemetryWorld();
+      assert.deepEqual(await telemetry.hint(io, { ask: async () => assert.fail('asked') }), { line: null }, 'no address: nothing at all');
+      assert.equal(io.fs.store.size, 1, 'only its own trace row');
+    });
+  }
 });
 
-test('[I-16] every consent verb leaves its trace, with its code', async () => {
-  const io = world();
-  await optIn(io, asPerson);
-  await optOut(io, ctx);
-  await status(io, ctx);
-  const rows = io.fs.store.get(tracePath(ctx.run)).trim().split('\n').map((line) => JSON.parse(line));
-  assert.deepEqual(rows.map((one) => one.step), ['consent-on', 'consent-off', 'consent-status']);
-  assert.deepEqual(rows[0].codes, { 'telemetry-on': 1 });
-  assert.deepEqual(rows[1].codes, { 'telemetry-off': 1 });
+test('[I-4] unchosen on: the notice once per core policy to a person, then the default; elsewhere the hint once a day', async () => {
+  await withWire({ unchosen: 'on', url: URL_SET }, async () => {
+    const io = telemetryWorld();
+    const first = await telemetry.hint(io, { ask: async () => assert.fail('the notice asks nothing') });
+    assert.match(first.line, /^Telemetry is on during the beta \(until 2027-03-31\): a daily usage report goes to telemetry\.atlasbound\.dev/);
+    assert.deepEqual(storedChoice(io).noticed.core, WIRE.policy);
+    assert.equal((await codesByNs(io)).db, 'telemetry-default');
+    assert.equal((await telemetry.hint(io, { ask: async () => assert.fail('asked') })).line, null, 'once');
+    const ai = telemetryWorld({ actor: { who: 'ai' } });
+    assert.match((await telemetry.hint(ai, {})).line, /^Telemetry is not on\. A person can turn it on: atlasbound telemetry on/);
+    assert.equal((await telemetry.hint(ai, {})).line, null, 'once a day here');
+  });
+});
+
+test('[I-14] a linked record reads as off, not a crash; no home is off and on is refused by its code', async () => {
+  const io = telemetryWorld({ home: homeOf(v2({ modules: { db: entry(true, 'db') } })) });
+  io.home.readText = () => {
+    throw fail('path-link', PATHS.consent);
+  };
+  assert.equal((await codesByNs(io)).db, 'telemetry-consent-unreadable');
+  const noHome = { ...telemetryWorld(), home: null };
+  assert.equal((await codesByNs(noHome)).db, 'telemetry-no-home');
+  await assert.rejects(telemetry.optIn(noHome, typed), { code: 'telemetry-no-home' });
+  assert.equal((await telemetry.doctor(telemetryWorld({ home: homeOf('{torn') }))).ok, false);
+  assert.equal((await telemetry.doctor(telemetryWorld())).ok, true);
+});
+
+test('[I-16] on and off write only the home record; status writes nothing; each verb leaves its trace row', async () => {
+  const io = telemetryWorld();
+  await telemetry.optIn(io, typed);
+  await telemetry.optOut(io, {});
+  await telemetry.status(io, {});
+  assert.deepEqual([...io.fs.store.keys()].filter((key) => !key.startsWith('.atlasbound/trace/')), []);
+  const steps = io.fs.store.get('.atlasbound/trace/cli-20261118-1.ndjson').trim().split('\n').map((line) => JSON.parse(line).step);
+  assert.deepEqual(steps, ['consent-on', 'consent-off', 'consent-status']);
+});
+
+test('[I-4] a raised module policy is not covered by an earlier notice: not chosen for it, and the notice is said again', async () => {
+  const raised = declaredDescriptors({ open: true }).map((row) => (row.name === 'decisionbook'
+    ? { ...row, text: JSON.stringify({ ...JSON.parse(row.text), policy: 2 }) } : row));
+  await withWire({ unchosen: 'on', url: URL_SET }, async () => {
+    const io = telemetryWorld();
+    await telemetry.hint(io, { ask: async () => assert.fail('the notice asks nothing') });
+    const later = { ...io, packageData: (rel) => (rel === 'contracts/telemetry.json' ? raised : []) };
+    assert.deepEqual(await codesByNs(later), { cli: 'telemetry-default', db: 'telemetry-not-chosen', handoff: 'telemetry-default' });
+    assert.match((await telemetry.hint(later, { ask: async () => assert.fail('asked') })).line, /^Telemetry is on during the beta/);
+    assert.equal((await codesByNs(later)).db, 'telemetry-default');
+  });
+});
+
+test('[I-4] status under the beta default says until when, as the notice does', async () => {
+  await withWire({ unchosen: 'on', url: URL_SET }, async () => {
+    const io = telemetryWorld();
+    await telemetry.hint(io, { ask: async () => assert.fail('asked') });
+    assert.match(telemetry.debug.render(await telemetry.status(io, {})), /^telemetry: ON for cli, db \(decisionbook\), handoff \(the beta's default until 2027-03-31\)$/m);
+  });
 });

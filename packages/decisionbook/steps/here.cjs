@@ -6,7 +6,7 @@
 const { storedLine, bound: { jsonOrNull } } = require('../contracts/shapes.cjs');
 const { paths: { hereKey }, person: { saidAfter } } = require('@atlasbound/kit');
 const { sessionName, isSessionName, startName } = require('../base/here.cjs');
-const { sealedSaid, byTime } = require('../base/text.cjs');
+const { sealedSaid, isTime, isAfter } = require('../base/text.cjs');
 const { store: KEPT } = require('../contracts/promise.json');
 
 // a crash may tear the last line; a kept value is one line, so it is the first row
@@ -16,6 +16,8 @@ const hereAdd = (io, name, row) => io.home && io.home.append(hereKey(io.root, 'd
 const hereValue = (io, name) => hereRows(io, name)[0] ?? null;
 const hereKeep = (io, name, value) => io.home && io.home.writeAtomic(hereKey(io.root, 'decisionbook', name), `${JSON.stringify({ ...value, at: io.clock.now() })}\n`);
 
+/** Every row every session of this repository kept on this machine. */
+const everyRow = (io) => (io.home.list(hereKey(io.root, 'decisionbook')) || []).filter(isSessionName).flatMap((name) => hereRows(io, name));
 const sessionRows = (io, session) => (session ? hereRows(io, sessionName(session)) : []);
 const sessionAdd = (io, session, row) => session && hereAdd(io, sessionName(session), row);
 const sessionReads = (io, session) => sessionRows(io, session).filter((row) => row.t === 'read').map(({ id, door }) => ({ id, door }));
@@ -52,6 +54,16 @@ function begunOf(io, session) {
   const rows = sessionRows(io, session).filter((row) => row.t === 'prompt');
   return { as: rows[0]?.as ?? null, resumed: rows.some((row) => row.as === 'resume'), lastAt: rows.at(-1)?.at ?? null };
 }
+/** Whether `session` works on READY plan `view`: it made or built from it (a `phase` row), wrote to it (a `read` row of door `write`), the
+ * plan went READY while it ran, the person resumed their handoff in it, or it began with no new task (a short reply first, or no message
+ * yet); no home or no session: it does. Named limit: two sessions at once on one branch both work on the READY one made meanwhile. */
+function worksOn(io, session, view) {
+  const on = (row) => row.id === view.id && (row.t === 'phase' || (row.t === 'read' && row.door === 'write'));
+  const begun = begunOf(io, session);
+  if (!io.home || !session || sessionRows(io, session).some(on) || begun.resumed || begun.as !== 'task') return true;
+  const since = startedAt(io, session);
+  return Boolean(since && view.ready && isAfter(view.ready.at, since));
+}
 // the decisions the plan pack said in this context, `<id>/<key>`; a compaction or clear (a `forgot` row) ends the context that held them
 const PACK_ROW = 'packed'; // steps/pack's row of the decisions a pack listed
 const SAID_BY = { [PACK_ROW]: (said, row) => new Set([...said, ...row.refs]), forgot: () => new Set() };
@@ -59,25 +71,12 @@ const saidByPack = (io, session) => sessionRows(io, session)
   .reduce((said, row) => (SAID_BY[row.t] ? SAID_BY[row.t](said, row) : said), new Set());
 const FORGETS = ['compact', 'clear']; // a SessionStart source whose context no longer holds what was said
 const contextEnds = (io, event) => FORGETS.includes(event.source) && sessionAdd(io, event.session_id, { t: 'forgot' });
-// a prompt's row: its flag, and its clauses sealed (a digest beside each sentence, in the person's home), which test a `said` as theirs;
-// `of`: per open plan, which question each of its list items quotes back (steps/open quotedAtPrompt), where any does
-const keepPrompt = (io, session, { as, text, of }) => sessionAdd(io, session, { t: 'prompt', as, said: sealedSaid(text), ...(Object.keys(of).length && { of }) });
-/** The person's prompts this session's rows hold, oldest first (a time, a flag and sealed clauses each); null outside a
+// a prompt's row: its flag, and its clauses sealed (a digest beside each sentence, in the person's home), which test a `said` as theirs
+const keepPrompt = (io, session, { as, text }) => sessionAdd(io, session, { t: 'prompt', as, said: sealedSaid(text) });
+/** The person's prompts this session's rows hold, oldest first (a time, a flag and sealed clauses each): the only messages a record
+ * made as theirs may quote (core/yes), so a prompt of another session (one the AI could start itself) never counts; null outside a
  * session. */
 const promptsOf = (io) => (io.session ? sessionRows(io, io.session).filter((row) => row.t === 'prompt') : null);
-/** The person's prompts every session of this repository kept here, oldest first: their words stand in whichever session heard them, so
- * a session that died after their answer loses none; null outside a session. */
-function heardOf(io, t = 'prompt') {
-  if (!io.session || !io.home) return null;
-  const names = (io.home.list(hereKey(io.root, 'decisionbook')) || []).filter(isSessionName);
-  return names.flatMap((name) => hereRows(io, name)).filter((row) => row.t === t).sort(byTime);
-}
-// what the AI's last message of a turn showed the person of the open plans (steps/open shownAtStop): per plan, the questions shown
-// with their proposal and whether it asked to set the plan aside; ids and flags, never the message's words
-const SHOWN = 'shown';
-const keepShown = (io, session, plans) => sessionAdd(io, session, { t: SHOWN, plans });
-/** Those rows of every session of this repository, oldest first; null outside a session. */
-const shownOf = (io) => heardOf(io, SHOWN);
 /** Who acts here, by kit's one answer (the root's `io.actor`) over those rows. */
 const actorOf = (io) => io.actor(promptsOf(io));
 /** Whether a person stands behind an act on what was made at `at` (a plan's `new`): yes, no, or unknown, never a yes (kit's rule). */
@@ -89,8 +88,8 @@ const keepRows = (io, rows) => io.home && io.home.writeAtomic(hereKey(io.root, '
 const keptAt = (io) => (io.home ? `~/${hereKey(io.root, 'decisionbook', KEPT)}` : null);
 
 const keptStart = (io, session) => (session ? hereValue(io, startName(session)) : null);
-const startedAt = (io, session) => [(keptStart(io, session) || {}).at].find((at) => Number.isFinite(Date.parse(at))) || null;
+const startedAt = (io, session) => [(keptStart(io, session) || {}).at].find(isTime) || null;
 
-module.exports = { hereRows, hereHas, hereAdd, hereValue, hereKeep, sessionRows, sessionAdd, sessionReads, sessionRead, keepReads,
-  readsByPlan, saidByPack, contextEnds, keepPrompt, keepShown, shownOf, promptsOf, heardOf, actorOf, promptedSince, begunOf, keptRows,
+module.exports = { everyRow, hereRows, hereHas, hereAdd, hereValue, hereKeep, sessionRows, sessionAdd, sessionReads, sessionRead, keepReads,
+  readsByPlan, saidByPack, contextEnds, keepPrompt, promptsOf, actorOf, promptedSince, begunOf, worksOn, keptRows,
   keepRows, keptAt, keptStart, startedAt };

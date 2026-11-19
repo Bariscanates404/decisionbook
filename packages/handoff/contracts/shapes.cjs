@@ -28,7 +28,7 @@ const SHAPES = {
   // notes/<branch>.json: the one note of this worktree and branch, overwritten each time; the one before it is <branch>.before.json
   Note: { schema: 'noteSchema', at: 'str', session: 'str?', facts: 'Facts', now: 'str?', next: 'str[]', kept: 'Kept[]',
     dropped: 'Dropped[]', handed: 'str?', since: 'int', heard: 'Heard[]?' },
-  Heard: { at: 'str', text: 'str' }, // a head of the journal, whichever session kept it
+  Heard: { at: 'str', text: 'str', session: 'str?' }, // a head of the journal and the first 8 characters of the session that kept it
   // what was measured when the note was built; a fact that could not be measured is null and named in `unmeasured` with its code
   Facts: { branch: 'str?', head: 'str?', subject: 'str?', commits: 'Rows?', dirty: 'Rows?', touched: 'Touched?', plans: 'Plan[]?',
     unmeasured: 'Unmeasured[]' },

@@ -1,63 +1,48 @@
 {
   "$comment": [
-    "What tells the person's own words, as data, read only by text/said.cjs. Every list is lower case and may grow: a language's",
-    "words are added here, never in code.",
-    "`negations`: a sentence that holds one is quoted whole, never by a part; `words` stand alone, `parts` are found inside a word or",
-    "in a text with no spaces between words.",
-    "`joins`: a word the person sets two clauses apart with. `intent`: what says a line is done, dropped, cancelled or changed.",
-    "`common`: words that carry no content, so two texts sharing only these are not about the same thing.",
-    "`about`: words are about a line when they share at least `share` of its content words (never fewer than `least`); two words",
-    "are one when either begins with the other and the shorter has `stem` letters. A message is read whole: no count of its clauses is cut.",
-    "An answer to a question: `nays` are the negations that answer by themselves (a clause of only these negates no clause after",
-    "it); `assent` says yes and `picks` point at what the question offered, so an answer of only these takes its value from the",
-    "question's words. `held`: a value is the answer's when at most `foreign` of its words, and at most `share` of them, are not.",
-    "`takesAll`: what says the person takes whole what was offered to them (every proposal shown, the defaults); what was shown is",
-    "the caller's to know, and a sentence with a negation never takes anything.",
-    "`aside`: the words for setting work aside; a question of the AI that holds one asks the person exactly that."
+    "A person's own words, by language: a language's words are added here, never in code. Words are lower case; a role is a list of words,",
+    "or `words` (whole) and `parts` (inside a word, or in a text with no spaces). `negations`: a sentence holding one is quoted only whole;",
+    "`joins` set clauses apart; `intent` says done, dropped or changed; `common` carry no content; `endings` are what a form adds to a",
+    "stem. `about`: the numbers of the test of what words are about."
   ],
-  "aside": {
-    "words": ["aside", "shelve", "shelved", "park", "parked", "pause", "paused", "kenara", "rafa", "beklet", "beiseite", "zurückstellen",
-      "aparcar", "aplazar"],
-    "parts": ["on hold", "askıya", "de côté", "保留", "棚上げ", "搁置", "보류"]
-  },
-  "takesAll": {
-    "words": ["suggestions", "defaults", "recommendations", "recommended", "recommend", "proposals", "önerilerin", "önerilerinle",
-      "önerilerini", "önerdiklerin", "varsayılanlar", "varsayılanlarla", "vorschläge", "empfehlungen", "sugerencias",
-      "recomendaciones", "recommandations", "sugestões", "suggerimenti"],
-    "parts": ["yes to all", "all of them", "as suggested", "as proposed", "as you suggest", "as you propose", "önerdiğin gibi",
-      "önerdiğiniz gibi", "hepsine evet", "ja zu allem", "sí a todo", "si a todo", "oui à tout", "như đề xuất", "提案どおり",
-      "提案通り", "おすすめで", "按你的建议", "제안대로"]
-  },
-  "nays": ["no", "nope", "nah", "hayır", "yok", "nein", "non", "não", "нет", "không"],
-  "assent": ["yes", "yeah", "yep", "yup", "ok", "okay", "sure", "fine", "agreed", "agree", "right", "correct", "good", "go", "ahead",
-    "do", "evet", "tamam", "olur", "aynen", "ja", "gut", "sí", "si", "vale", "oui", "sim", "đồng", "được", "да", "はい", "好", "네"],
-  "picks": ["first", "second", "third", "last", "former", "latter", "both", "option", "suggestion", "suggested", "proposed",
-    "proposal", "yours", "same", "it", "ilk", "ikinci", "üçüncü", "son", "önerin", "erste", "zweite", "primero", "segundo",
-    "premier", "deuxième"],
-  "held": { "foreign": 1, "share": 0.2 },
-  "negations": {
-    "words": ["no", "not", "never", "none", "nothing", "neither", "nor", "without", "cannot", "stop", "avoid", "refuse", "forbid",
-      "forbidden", "unless", "except", "against", "wrong", "değil", "yok", "asla", "hiç", "hiçbir", "sakın", "olmaz", "yasak", "hayır",
-      "olmadan", "yapma", "etme", "dokunma", "silme", "nicht", "kein", "keine", "keinen", "nie", "niemals", "ohne", "nichts", "nunca",
-      "jamás", "sin", "ningún", "ninguna", "nada", "ne", "pas", "jamais", "sans", "aucun", "aucune", "rien", "non", "não", "sem",
-      "nenhum", "nenhuma", "mai", "senza", "nessun", "nessuna", "không", "đừng", "chưa", "chẳng", "cấm", "не", "нет", "никогда",
-      "без", "нельзя"],
-    "parts": ["n't", "ない", "ません", "禁止", "だめ", "ダメ", "なし", "不", "没", "別", "别", "勿", "禁", "无", "無", "않", "못", "마세요", "금지"]
-  },
-  "joins": ["and", "or", "but", "then", "also", "plus", "ve", "veya", "ama", "fakat", "sonra", "ayrıca", "und", "oder", "aber", "dann",
-    "pero", "luego", "et", "ou", "mais", "puis", "mas", "poi", "và", "hoặc", "nhưng", "rồi", "или", "но"],
-  "intent": {
-    "words": ["done", "drop", "dropped", "cancel", "cancelled", "canceled", "forget", "skip", "remove", "scrap", "abandon", "change",
-      "changed", "instead", "replace", "replaced", "finished", "complete", "completed", "aside", "shelve", "park", "kenara", "rafa", "bitti", "tamam", "tamamlandı", "vazgeç",
-      "vazgeçtim", "iptal", "bırak", "unut", "değiştir", "değişti", "kaldır", "fertig", "erledigt", "abbrechen", "vergiss", "streich",
-      "ändern", "geändert", "listo", "hecho", "cancela", "olvida", "cambia", "quita", "fini", "terminé", "annule", "oublie", "laisse",
-      "xong", "bỏ", "hủy", "thôi", "đổi", "готово", "отмена", "отмени", "забудь", "измени"],
-    "parts": ["no longer", "never mind", "not needed", "gerek yok", "完了", "済み", "やめ", "中止", "キャンセル", "不要", "変更", "取り消", "完成",
-      "取消", "不用", "放弃"]
-  },
-  "common": ["the", "and", "for", "with", "that", "this", "these", "those", "from", "into", "are", "was", "were", "you", "your", "our",
-    "all", "any", "can", "will", "should", "must", "have", "has", "had", "its", "job", "please", "also", "then", "when", "what",
-    "about", "rule", "line", "one", "two", "bir", "ile", "için", "olan", "der", "die", "das", "und", "ein", "eine", "los", "las", "una",
-    "les", "des", "une"],
-  "about": { "share": 0.25, "least": 1, "stem": 4 }
+  "about": { "share": 0.25, "least": 1, "stem": 4 },
+  "languages": {
+    "en": {
+      "negations": { "words": ["no", "not", "never", "none", "nothing", "neither", "nor", "without", "cannot", "stop", "avoid", "refuse", "forbid",
+        "forbidden", "unless", "except", "against", "wrong"], "parts": ["n't"] },
+      "joins": ["and", "or", "but", "then", "also", "plus"],
+      "intent": { "words": ["done", "drop", "dropped", "cancel", "cancelled", "canceled", "forget", "skip", "remove", "scrap", "abandon", "change",
+        "changed", "instead", "replace", "replaced", "finished", "complete", "completed", "aside", "shelve", "park"],
+        "parts": ["no longer", "never mind", "not needed"] },
+      "common": ["the", "and", "for", "with", "that", "this", "these", "those", "from", "into", "are", "was", "were", "you", "your", "our", "all",
+        "any", "can", "will", "should", "must", "have", "has", "had", "its", "job", "please", "also", "then", "when", "what", "about", "rule",
+        "line", "one", "two", "thanks", "thank"],
+      "endings": ["s", "es", "ed", "d", "ing", "e", "er", "al", "ion", "ly"]
+    },
+    "tr": {
+      "negations": { "words": ["değil", "yok", "asla", "hiç", "hiçbir", "sakın", "olmaz", "yasak", "hayır", "olmadan", "yapma", "etme", "dokunma",
+        "silme", "değiştirme"], "parts": ["masın", "mesin", "mayalım", "meyelim", "miyor", "mıyor", "muyor", "müyor"] },
+      "joins": ["ve", "veya", "ama", "fakat", "sonra", "ayrıca"],
+      "intent": { "words": ["kenara", "rafa", "bitti", "tamam", "tamamlandı", "vazgeç", "vazgeçtim", "iptal", "bırak", "unut", "değiştir", "değişti",
+        "kaldır"], "parts": ["gerek yok"] },
+      "common": ["teşekkürler", "lütfen", "hepsi", "bir", "ile", "için", "olan"],
+      "endings": ["lar", "ler", "ı", "i", "u", "ü", "a", "yı", "yi", "yu", "yü", "ya", "ye", "da", "de", "ta", "te", "dan", "den", "tan", "ten",
+        "ın", "in", "un", "ün", "nın", "nin", "nun", "nün", "sı", "si", "su", "sü", "m", "n", "k", "dı", "di", "du", "dü", "tı", "ti", "tu", "tü",
+        "sın", "sin", "sun", "sün", "ıl", "il", "ul", "ül", "ma", "me", "mak", "mek", "r", "ar", "ır", "ir"]
+    },
+    "de": { "negations": ["nicht", "kein", "keine", "keinen", "nie", "niemals", "ohne", "nichts"], "joins": ["und", "oder", "aber", "dann"],
+      "intent": ["fertig", "erledigt", "abbrechen", "vergiss", "streich", "ändern", "geändert"], "common": ["der", "die", "das", "und", "ein", "eine"] },
+    "es": { "negations": ["no", "nunca", "jamás", "ningún", "ninguna", "nada"], "joins": ["pero", "luego"],
+      "intent": ["listo", "hecho", "cancela", "olvida", "cambia", "quita"], "common": ["los", "las", "una"] },
+    "fr": { "negations": ["pas", "jamais", "sans", "aucun", "aucune", "rien", "non"], "joins": ["et", "ou", "mais", "puis"],
+      "intent": ["fini", "terminé", "annule", "oublie", "laisse"], "common": ["les", "des", "une"] },
+    "pt": { "negations": ["não", "sem", "nenhum", "nenhuma"], "joins": ["mas"] },
+    "it": { "negations": ["non", "senza", "nessun", "nessuna"], "joins": ["poi"] },
+    "vi": { "negations": ["không", "đừng", "chưa", "chẳng", "cấm"], "joins": ["và", "hoặc", "nhưng", "rồi"], "intent": ["xong", "bỏ", "hủy", "thôi", "đổi"] },
+    "ru": { "negations": ["не", "нет", "никогда", "без", "нельзя"], "joins": ["или", "но"], "intent": ["готово", "отмена", "отмени", "забудь", "измени"] },
+    "ja": { "negations": { "parts": ["ない", "ません", "禁止", "だめ", "ダメ", "なし"] },
+      "intent": { "parts": ["完了", "済み", "やめ", "中止", "キャンセル", "不要", "変更", "取り消"] } },
+    "zh": { "negations": { "parts": ["不", "没", "別", "别", "勿", "禁", "无", "無"] }, "intent": { "parts": ["完成", "取消", "不用", "放弃"] } },
+    "ko": { "negations": { "parts": ["않", "못", "마세요", "금지"] } }
+  }
 }

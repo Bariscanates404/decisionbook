@@ -4,23 +4,30 @@
 'use strict';
 // The shapes the cli checks at its edges and its tables: what a package may declare in package.json `atlasbound`, what a handler may
 // answer, the config, the hook protocol per event, the trace vocabulary. A published shape changes only with a major.
+const { host: { SHELL_TOOLS, WRITE_TOOLS } } = require('@atlasbound/kit');
+
 // A package's whole declaration (package.json `atlasbound`): its hooks, commands, MCP servers, what a session's write tool may write in its
 // store, its verbs, the answers it offers other packages (name -> its entry path) and needs (name -> the value while none answers), the
-// verbs setup allows without a prompt, setup's next steps, its plain name, the store its team commits, the gate it runs, the module
+// verbs setup allows without a prompt (`freeAlone`: only typed alone),
+// setup's next steps, its plain name, the store its team commits, the gate it runs, the module
 // row an add-on brings (`module`: one of its packages holds it), the config keys its hooks read (`hookConfig`: a hook process hands those
 // on), how `debug trace` says its rows (`trace`), and the paths in the product's store its team commits (`teamFiles`: the ignore block
-// leaves them to git, uninstall leaves them).
+// leaves them to git, uninstall leaves them), and its records only its own verbs write (`sealed`: the port asks before a session's write).
 const SHAPES = {
   Manifest: { hooks: 'HookDecl[]?', commands: 'CommandDecl[]?', mcp: 'McpDecl?', sessionWrites: 'str[]?', verbs: 'VerbDecl[]?',
-    provides: 'str{}?', needs: 'obj?', free: 'str[]?', next: 'NextDecl[]?', plain: 'str?', teamStore: 'str?', gate: 'GateDecl?',
-    module: 'ModuleRow?', hookConfig: 'word[]?', trace: 'TraceDecl?', teamFiles: 'str[]?' },
+    provides: 'str{}?', needs: 'obj?', free: 'str[]?', freeAlone: 'str[]?', next: 'NextDecl[]?', plain: 'str?', teamStore: 'str?',
+    gate: 'GateDecl?', module: 'ModuleRow?', hookConfig: 'word[]?', trace: 'TraceDecl?', teamFiles: 'str[]?', sealed: 'str[]?' },
   // facet: a ref field said with its name, counted apart by --tally; ref: ref fields said as their values; counts: name -> [word before,
   // divisor, decimals, word after], said once in that unit
   TraceDecl: { facet: 'word?', ref: 'word[]?', counts: 'obj?' },
   // VerbDecl by: who alone may run it; when: only with one of these flags; phrase: a grave act, typed with these words at a plain terminal
   VerbDecl: { words: 'word[]', what: 'str', call: 'str?', short: 'word?', flags: 'str[]?', values: 'str[]?', render: 'str?',
     looks: 'bool?', reads: 'bool?', asks: 'bool?', noWords: 'bool?', host: 'bool?', next: 'bool?', stdin: 'int?',
-    tasks: 'TaskDecl[]?', by: 'by?', when: 'str[]?', phrase: 'str?' },
+    tasks: 'TaskDecl[]?', by: 'by?', when: 'str[]?', phrase: 'str?', help: 'VerbHelp?' },
+  // what a newcomer reads in `--help`: `line` the plain line where `what` is a format the AI reads, `when` to use it, one `example`, what
+  // it `changes`, each own flag's meaning, `ai` when the AI session runs it (a person seldom does), `exit` where it is not the usual,
+  // `usage` the words after the verb's own where `what` does not begin with them
+  VerbHelp: { line: 'str?', usage: 'str?', when: 'str', example: 'str', changes: 'str', flags: 'str{}?', ai: 'bool?', exit: 'str?' },
   TaskDecl: { question: 'str', run: 'str', read: 'str[]' },
   NextDecl: { step: 'int', verb: 'str', what: 'str' }, // step: its place in setup's list, in the order a person runs them
   GateDecl: { name: 'str', ask: 'str?' },
@@ -47,7 +54,7 @@ const SHAPES = {
   ModuleRow: { name: 'word', title: 'str', packages: 'word[]', what: 'str', loses: 'str', alias: 'word[]?', words: 'str[]?', optIn: 'bool?' },
 };
 const REFUSE = { Manifest: 'manifest-invalid', HookDecl: 'manifest-invalid', CommandDecl: 'manifest-invalid', McpDecl: 'manifest-invalid', McpServer: 'manifest-invalid',
-  VerbDecl: 'manifest-invalid', TaskDecl: 'manifest-invalid', TraceDecl: 'manifest-invalid', NextDecl: 'manifest-invalid', GateDecl: 'manifest-invalid',
+  VerbDecl: 'manifest-invalid', VerbHelp: 'manifest-invalid', TaskDecl: 'manifest-invalid', TraceDecl: 'manifest-invalid', NextDecl: 'manifest-invalid', GateDecl: 'manifest-invalid',
   Payload: 'hook-input-invalid', Config: 'config-invalid', HookConfig: 'config-invalid', Modules: 'manifest-invalid', ModuleRow: 'manifest-invalid' };
 
 // One row per host event a package may attach to. `on`: the payload field a matcher reads. `blocks`: the verdicts the host is told (only
@@ -63,10 +70,12 @@ const EVENTS = {
   PreCompact: { on: 'trigger', blocks: [], context: false }, // never blocks a compaction; the reply is silence
 };
 const ENUMS = { event: Object.keys(EVENTS), verdict: ['deny', 'ask', 'allow'], by: ['person'] };
-// The port's own row, wired whatever module is on: an AI's shell command meets the gate of the verbs only a person runs (steps/person).
-const SHELL_GATE = { event: 'PreToolUse', matcher: 'Bash', timeout: 10 };
+// The port's own row, wired whatever module is on: an AI's shell command meets the gate of the verbs only a person runs (steps/person),
+// and a shell or write tool (kit's tables) the seal of the product's own files (steps/sealed).
+const PORT_GATE = { event: 'PreToolUse', matcher: [...Object.keys(SHELL_TOOLS), ...Object.keys(WRITE_TOOLS)].join('|'), timeout: 10 };
+const PORT_READ_MS = 300; // how long the port itself reads a shell command (the seal, a gate that formed no verdict); past it, it asks
 
-const STEPS = ['cli.verb', 'actor', 'hook.in', 'hook.handler', 'hook.out', 'hook.said', 'packages', 'setup', 'update', 'uninstall', 'doctor', 'probes', 'protect', 'status', 'debug.trace', 'debug.doctor', 'debug.shell', 'debug.inject', 'debug.who', 'modules'];
+const STEPS = ['cli.verb', 'actor', 'hook.in', 'hook.handler', 'hook.out', 'hook.said', 'packages', 'setup', 'update', 'uninstall', 'doctor', 'probes', 'protect', 'status', 'debug.trace', 'debug.doctor', 'debug.shell', 'debug.inject', 'debug.who', 'modules', 'leftovers'];
 const DEBUG_SCHEMA = 'ab-debug/1';
 
 // How compose opens the repository, one word per verb (argv picks it from the row): `hostRoot` the host's project directory names it,
@@ -83,4 +92,5 @@ const CONFIG_FILE = '.atlasbound/cli/config.json';
 const STORE = '.atlasbound';
 const SAID_DIR = '.atlasbound/cli/said'; // one record per session of what its context was told (digests, never text)
 
-module.exports = { SHAPES, REFUSE, EVENTS, ENUMS, SHELL_GATE, STEPS, DEBUG_SCHEMA, CONFIG, CONFIG_FILE, STORE, SAID_DIR, MODES };
+module.exports = { SHAPES, REFUSE, EVENTS, ENUMS, PORT_GATE, PORT_READ_MS, STEPS, DEBUG_SCHEMA, CONFIG, CONFIG_FILE, STORE, SAID_DIR,
+  MODES };

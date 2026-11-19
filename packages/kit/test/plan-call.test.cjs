@@ -16,9 +16,11 @@ const ALLOWED = [{ file: 'cli/contracts/modules.json', line: /^\s*"(what|loses)"
 const linesWith = (re) => loadPackages(ROOT).flatMap(({ name, dir }) => shippedOf(dir).flatMap((rel) => fs.readFileSync(path.join(dir, rel), 'utf8').split('\n')
   .map((text, i) => ({ file: `${name}/${rel}`, line: i + 1, text })).filter((l) => re.test(l.text))));
 
-// a new or add printed with its JSON as a single-quoted word breaks the shell on an apostrophe in a text
-test('no shipped text prints decisionbook new or add with its JSON as a quoted argument: the one form is the heredoc', () => {
+// a new or add printed with its JSON as a single-quoted word breaks the shell on an apostrophe in a text; a heredoc's brace with a quote is
+// held by the host as obfuscation, a prompt in its default permission mode
+test('no shipped text prints a new or add with its JSON as a quoted argument or a heredoc: the one form is the draft', () => {
   assert.deepEqual(linesWith(/atlasbound decisionbook (new|add)\b[^\n]*?['"]\$?[[{]/).map((l) => `${l.file}:${l.line}`), []);
+  assert.deepEqual(linesWith(/<<'JSON'/).map((l) => `${l.file}:${l.line}`), []);
 });
 
 test('no shipped text names the slash command as the way to plan; the person\'s module list and the command\'s own title may', () => {

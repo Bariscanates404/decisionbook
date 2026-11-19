@@ -61,7 +61,7 @@ async function rebuilt(io, session) {
  * the same text and the port says it once per context. */
 async function noteText(io, session) {
   const note = store.readNote(io, await io.git.branch());
-  return note && renderNote(note, { head: await io.git.head(), session });
+  return note && renderNote(note, { head: await io.git.head(), session: store.sessionOf(io, session) });
 }
 
 module.exports = { rebuilt, noteText };

@@ -5,9 +5,9 @@
 // debug who: for this process, kit's one answer to "who is acting" and why: its seat, and in a session the time of the person's last
 // prompt there (the rows DecisionBook's ear kept; a prompt's words are never shown); then the verbs here only a person may run, and the
 // last runs of them the trace holds: who the product took the sender for, why, and how each ended, so a way round is seen afterwards.
-const { trace: { TRACE_DIR }, debug: { render: { columns } } } = require('@atlasbound/kit');
+const { trace: { TRACE_DIR }, debug: { render: { columns } }, text: { lines: { filled } } } = require('@atlasbound/kit');
 const { DEBUG_SCHEMA } = require('../contracts/shapes.cjs');
-const { shortOf } = require('../contracts/codes.cjs');
+const { shortOf, WORDS: { who: W } } = require('../contracts/codes.cjs');
 const { personRows, namedBy } = require('../steps/person.cjs');
 const { rowsOf } = require('./trace.cjs');
 
@@ -23,7 +23,7 @@ function personVerb(rows, personOnly) {
 /** One run as an act only a person runs, or none: a refusal's own row, or a person's run of such a verb beside the root's actor row. */
 function actOf(rows, personOnly) {
   const refused = rows.find((row) => row.err && REFUSALS.includes(row.err.code));
-  const actor = { who: 'ai', why: 'a shell command of an AI session', above: null, ...(rows.find((row) => row.step === 'actor') || {}).ref };
+  const actor = { who: 'ai', why: W.aiShell, above: null, ...(rows.find((row) => row.step === 'actor') || {}).ref };
   const verb = personVerb(rows, personOnly);
   if (refused) return [{ at: rows[0].at, verb: refused.err.msg, ended: refused.err.code, ...actor }];
   return verb && actor.who === 'terminal' ? [{ at: rows[0].at, verb, ended: 'done', ...actor }] : [];
@@ -37,31 +37,29 @@ function personActs(io, personOnly) {
 }
 
 const actLine = (act) => [`    ${act.at}`, act.verb, act.ended, `${act.who}, ${act.why}${act.above ? `, above it: ${act.above}` : ''}`];
-const actLines = (acts) => (acts.length ? ['  the last runs of them here, newest first: when, what, how it ended, who the product took the sender for',
-  ...columns(acts.map(actLine))] : ['  no run of them is in the trace here']);
+const actLines = (acts) => (acts.length ? [W.lastRuns, ...columns(acts.map(actLine))] : [W.noRuns]);
 
 /** What stands beside the why: an AI's seat, or the program above a person's terminal that can type for them. */
 function besideWhy({ seat, wrapped }) {
-  if (seat) return `the process itself: ${seat}`;
-  return wrapped ? `${wrapped} at this terminal: an act that takes a protection away is refused here` : '';
+  if (seat) return filled(W.itself, { seat });
+  return wrapped ? filled(W.wrapped, { wrapped }) : '';
 }
 
 async function debugWho(_args, io) {
   const prompts = io.session ? await io.answer('prompts') : null;
   const { who, why, seat = null, at = null, wrapped = null } = io.actor(prompts);
-  const heard = prompts === null ? 'no session, or nothing here keeps its prompts' : `${prompts.length} of this session kept`;
+  const heard = prompts === null ? W.noPrompts : filled(W.kept, { n: prompts.length });
   const verbs = io.catalog.verbs.filter((row) => !row.pkg || io.packages.wired(row.pkg)); // a module off here offers none
   const personOnly = personRows(verbs);
   const acts = personActs(io, personOnly);
   const rows = [['who', who, shortOf(`actor-${who}`)], ['why', why, besideWhy({ seat, wrapped })],
-    ['session', io.session || 'none', `a person's prompts: ${heard}${at ? `, the last at ${at}` : ''}`]];
+    ['session', io.session || 'none', `a person's prompts: ${heard}${at ? filled(W.lastAt, { at }) : ''}`]];
   const grave = verbs.filter((row) => row.by === 'person' && row.phrase).map((row) => ({ words: row.words, phrase: row.phrase,
     flags: namedBy(row).flags, sent: namedBy(row).words }));
   const typed = grave.map((row) => `${row.words.join(' ')} (${row.phrase} ...)`).join(', ');
   const out = { schema: DEBUG_SCHEMA, verb: 'who', who, why, seat, at, wrapped, session: io.session || null, personOnly, grave, acts };
   return { out, n: { personOnly: personOnly.length, acts: acts.length }, codes: { [`actor-${who}`]: 1 },
-    text: `${columns(rows).join('\n')}\n  only a person runs: ${personOnly.join(', ')}\n  of them a person types a phrase for, at a plain terminal:`
-      + ` ${typed}\n${actLines(acts).join('\n')}\n` };
+    text: `${[...columns(rows), filled(W.personRuns, { verbs: personOnly.join(', ') }), filled(W.phrased, { typed }), ...actLines(acts)].join('\n')}\n` };
 }
 
 module.exports = { debugWho };

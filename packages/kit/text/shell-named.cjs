@@ -32,7 +32,11 @@ const narrowed = (words, from, row) => !row.when || row.when.some((flag) => word
 /** -> the first of `rows` ({ words, when? }) the text names after one of the product's `names` (a word, or the last part of a path),
  * or null. */
 function verbNamed(command, names, rows) {
-  const words = textWords(command);
+  const text = String(command ?? ''); // a backslash is bash's escape and a Windows folder's separator: both readings are read
+  return verbIn(textWords(text), names, rows) ?? verbIn(textWords(text.replace(/\\/g, '/')), names, rows);
+}
+
+function verbIn(words, names, rows) {
   const starts = words.flatMap((word, i) => (names.includes(lastPart(word)) ? [i + 1] : []));
   const named = (row) => starts.some((from) => verbEnd(words, from, row) !== -1 && narrowed(words, from, row));
   return rows.find(named) ?? null;

@@ -11,6 +11,7 @@ const { scopeOf } = require('./fold.cjs');
 const { unmet, levelRows } = require('./ready.cjs');
 const { anyOverlap } = require('../base/glob.cjs');
 const { times, item, theirs, answerTo, ai, person, planPaths } = require('../base/fill.cjs');
+const { refOf } = require('../contracts/shapes.cjs');
 
 // each row: (view, its floor, the plan ctx) -> { ai, person }; ctx: files (the paths to plan), checks (the check ids the plan will hold),
 // danger
@@ -18,7 +19,7 @@ const ROWS = {
   success: (v) => ai(v.success && v.kind ? [] : [{ t: 'amend', success: '', kind: '' }]),
   research: (v, n) => ai(times(n - v.research.length, () => ({ t: 'research', tool: '', asked: '', answer: '', source: '' }))),
   feature: (v) => ai(ofKind(v, 'feature').length ? [] : [item('feature')]),
-  plan: (v, n, ctx) => ai(scopeOf(v).length ? [] : planPaths(scopeOf(v), ctx.files).map((file) => ({ t: 'link', rel: 'plans', to: `file:${file}`, why: '' }))),
+  plan: (v, n, ctx) => ai(scopeOf(v).length ? [] : planPaths(scopeOf(v), ctx.files).map((file) => ({ t: 'link', rel: 'plans', to: refOf('file', file), why: '' }))),
   checks: (v, n, ctx) => ai(ctx.checks.slice(v.checks.length).map((id) => ({ t: 'check', id, text: '', command: '' }))),
   command: (v, n, ctx) => ai(ctx.commandOnly ? ctx.checks.slice(v.checks.length).map((id) => ({ t: 'check', id, text: '', command: '' })) : []),
   tasks: (v, n, ctx) => {
@@ -26,7 +27,7 @@ const ROWS = {
     return ai(uncovered.length ? [item('task', { covers: uncovered })] : []);
   },
   // one decision per open question, with its effect; a blocking one is handed here, the others by the answers row
-  questions: (v, n, ctx) => person(v.questions.filter((q) => q.blocking && !isAnswered(v, q)).map((q) => answerTo(q.q, ctx.checks[0]))),
+  questions: (v, n, ctx) => person(v.questions.filter((q) => q.blocking && !isAnswered(v, q)).map((q) => answerTo(q, ctx.checks[0]))),
   danger: (v, n, ctx) => person(
     [...scopeOf(v), ...ctx.files].filter((f) => anyOverlap([f], ctx.danger) && !v.decisions.some((d) => anyOverlap([f], d.files)))
     .map((f) => theirs({ files: [f] }))),
@@ -40,13 +41,14 @@ const ROWS = {
     const row = unmet(v, ctx.level, ctx.danger).find((u) => u.id === 'answers');
     if (!row) return ai([]);
     const asked = v.questions.filter((q) => q.decides && q.whyNotCode && !q.to && !isAnswered(v, q));
-    return person(asked.filter((q) => !q.blocking).map((q) => answerTo(q.q, ctx.checks[0])));
+    return person(asked.filter((q) => !q.blocking).map((q) => answerTo(q, ctx.checks[0])));
   },
   repro: (v) => ai(v.kind === 'bug' && !ofKind(v, 'repro').length ? [item('repro')] : []),
   precedent: (v, n, ctx) => ai([...scopeOf(v), ...ctx.files].some((f) => UI_PATHS.some((re) => re.test(f))) && !ofKind(v, 'precedent').length ? [item('precedent')] : []),
   risk: (v) => ai(ofKind(v, 'risk').length ? [] : [item('risk')]),
   rollback: (v) => ai(ofKind(v, 'rollback').length ? [] : [item('rollback')]),
-  confirm: () => person([{ t: 'confirm', by: '', said: '' }]),
+  // their yes once every question that names decisions has their answer (a keep is no yes)
+  confirm: (v) => person(v.questions.some((q) => q.supersedes.length && !isAnswered(v, q)) ? [] : [{ t: 'confirm', by: '', said: '' }]),
 };
 const WITH = { checks: 'tasks' }; // a row whose records need another's in the same call: a new check its task, where the level asks tasks
 /** The records `rows` (rubric ids) still need on `view` at `level`: { ai, person, rows } (rows: the ids that asked for any). `files`: the

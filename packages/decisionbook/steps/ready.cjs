@@ -47,7 +47,7 @@ function unreadyState(view) {
 /** Not READY. `before` (the rows a write found unmet, as they were said; none: a `new` or the `ready` verb): the reply says only
  * what the write changed; with none it says every row and the one add of everything the plan still lacks. */
 function missingAnswer(io, { view, n }, before = null) {
-  const said = before ? { before } : { next: nextAdd(view, store.dangerOf(io)) };
+  const said = before ? { before } : { next: nextAdd(view, store.dangerOf(io), io.session) };
   return { out: { ...unreadyState(view), ...said }, code: 'plan-not-ready', n };
 }
 

@@ -18,10 +18,10 @@ test('[I-13] debug handoff names the message each kept line comes from and wheth
   await keep(w, 's1', { kept: ['Use tabs [m1]', 'job: job one [m2]', 'job: job two [m2]'] });
   await handoff.handlers.touched(editedEvent('s1', '/fake/a.js'), w.io());
   const { text, out } = await handoff.debug.handoff(w.io('s1'));
-  assert.match(text, new RegExp(`^branch main, HEAD 0101010; store ~/${HERE}$`, 'm'));
+  assert.match(text, new RegExp(`^branch main, HEAD 01010101; store ~/${HERE}$`, 'm'));
   assert.match(text, /^ {2}k1 decision or constraint: kept 2026-11-12T01:00:00\.000Z, quoting m1 of session s1; still stored: m1$/m);
   assert.match(text, /^ {2}k3 job: kept .*, quoting m2 of session s1; still stored: m2$/m);
-  assert.match(text, /^session s1: 2 messages seen, 2 stored \(at most 60\), 2 at the last handoff, cited by kept lines: m1, m2; 1 file edited; began at HEAD 0101010$/m);
+  assert.match(text, /^session s1: 2 messages seen, 2 stored \(at most 60\), 2 at the last handoff, cited by kept lines: m1, m2; 1 file edited; began at HEAD 01010101$/m);
   assert.deepEqual(out.note.kept.map((k) => [k.k, k.job, k.cites, k.stored]), [[1, false, [1], [1]], [2, true, [2], [2]], [3, true, [2], [2]]]);
   assert.match((await handoff.debug.handoff(w.io('s2'))).text, /k1 .* quoting m1 of session s1; another session's messages are not/m);
 });
@@ -33,7 +33,7 @@ test('[I-13] debug handoff says why the note is stale, what was not measured and
   await handoff.handoff(w.io('s1'));
   w.git.commit('moved on');
   const { text } = await handoff.debug.handoff(w.io('s1'));
-  assert.match(text, /^note: built .* at HEAD 0101010; STALE, HEAD is now 0202020; last handoff never, 1 message since$/m);
+  assert.match(text, /^note: built .* at HEAD 01010101; STALE, HEAD is now 02020202; last handoff never, 1 message since$/m);
   assert.match(text, /^ {2}not measured: commits \(this session's start was not seen\)$/m);
   assert.match(text, /^ {2}context notice: 100000 tokens of 1000000 \(claude-sonnet-5-5: sonnet 5 and later\); not said: the context is below the notice point/m);
   assert.match(text, /^plans of DecisionBook: not handed$/m);

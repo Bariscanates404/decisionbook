@@ -246,6 +246,14 @@ test('[I-57] an assignment replaces only after statements read in full; after a 
   ]);
 });
 
+test('[I-57] a program is read in any case: a disk that folds case runs RM as rm, TEE as tee', () => {
+  against([
+    ["RM -f app/a.rb; /bin/RM app/b.rb; Sed -i '' 's/a/b/' app/c.rb", ['app/a.rb', 'app/b.rb', 'app/c.rb']],
+    ['echo x | TEE app/d.rb; BASH -c "echo hi > app/e.rb"; Python3 -c "open(\'app/f.rb\', \'w\')"', ['app/d.rb', 'app/e.rb', 'app/f.rb']],
+    ['LS app/a.rb; CAT app/b.rb', []],
+  ]);
+});
+
 test('[I-57] a trap\'s command is a command string; a changed mode or owner is a write of the files after its first word', () => {
   against([
     ["trap 'rm app/a.rb' EXIT", ['app/a.rb']],
@@ -385,6 +393,27 @@ test('[I-57] a script written from a heredoc is found where it lands, however th
     ["cat > notes.sh <<'EOF'\n#!/bin/bash\nrm app/a.rb\nEOF\n./other.sh", ['notes.sh']],
     ["cat > fix.py <<'EOF'\nopen('../app/a.rb', 'w')\nEOF\ncd spec && python3 fix.py", ['fix.py']],
   ]);
+});
+
+test('[I-57] git merge, rebase, cherry-pick, revert, am and pull write files their text does not show; fetch and log none', () => {
+  for (const command of ['git merge feature', 'git rebase main', 'git cherry-pick abc123', 'git revert HEAD', 'git am x.patch', 'git pull',
+    'git -C app pull --rebase']) assert.deepEqual(placing(command), [[], true], command);
+  assert.deepEqual(placing('git fetch origin; git log --oneline -3'), [[], false]);
+});
+
+test('[I-57] a shell given a script file reads the text the caller hands for it; a script no one hands is unplaced', () => {
+  const files = { 'run.sh': 'echo y > src/a.js\n', 'app/fix.sh': "sed -i '' 's/a/b/' ../src/b.js\n", 'tools/inner.sh': 'sh run.sh\n' };
+  const file = (cd, name) => files[[...cd, name].join('/')] ?? null;
+  const read = (command) => writtenBy(command, undefined, { file });
+  const placed = (command) => [read(command).writes.map(({ path, cd }) => [...cd, path].join(' > ')), read(command).unplaced];
+  assert.deepEqual(placed('sh run.sh'), [['src/a.js'], false]);
+  assert.deepEqual(placed('bash -e run.sh arg'), [['src/a.js'], false], 'an option before it and an argument after it');
+  assert.deepEqual(placed('cd app && sh fix.sh'), [['app > ../src/b.js'], false], 'read where the cd leaves it, its writes from there');
+  assert.deepEqual(placed('zsh tools/inner.sh'), [['src/a.js'], false], 'a script that runs a script');
+  assert.deepEqual(read('sh nope.sh').why, [{ code: 'shell-writes-unnamed', word: 'nope.sh' }]);
+  assert.deepEqual(placed('bash "$S"'), [[], true]);
+  assert.deepEqual(placing('sh run.sh'), [[], true], 'a caller that hands no file: unplaced, never passed');
+  assert.deepEqual(placed("cat > run.sh <<'EOF'\nrm app/x\nEOF\nsh run.sh"), [['run.sh', 'app/x'], false], 'a script written first is the text written');
 });
 
 test('[I-57] finding a written script is bounded: a cd past the path limit cuts the command short, never a silent miss', () => {

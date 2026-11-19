@@ -2,72 +2,54 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-// The address row as shipped: empty: no address is set. This file does NOT fill it. The net is a spy that fails the test if touched.
+// I-20: the address row as shipped is empty. Opted in, due and sent: nothing is dialled, the answer is no-endpoint, and the reports
+// are still made and shown. The same row filled (as an opening release fills it, as data) posts once. The net is a spy that fails if touched.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { io: kitIo, testing: { memoryFs, fixedClock }, trace: { tracePath } } = require('@atlasbound/kit');
 const telemetry = require('@atlasbound/telemetry');
-const { declaredHere, packageDataOf } = require('./declared.cjs');
+const { internals, kitTraceRow, spyPort, addressFilled, turnedOnWorld } = require('./world.cjs');
 
-const { send, optIn, status, debug, CONSENT_PATH, SENT_PATH, SCHEMA, INGEST_URL, codes } = telemetry;
-const ctx = { run: 'job-run', version: '1.2.3' };
-// Only a person at a terminal opts in.
-const asPerson = { ...ctx, ask: async () => assert.fail('opting in asks nothing') };
-const ON = JSON.stringify({ schema: SCHEMA.consent, on: true, at: '2026-11-03T00:00:00.000Z' });
-const ROW = {
-  v: 1, pkg: 'handoff', run: 'r1', seq: 1, step: 'start', at: '2026-11-02T05:00:00.000Z', ms: 10, ok: true, in: null, out: null,
-  n: { lines: 1 }, codes: {}, ref: null, err: null,
-};
+const { WIRE, PATHS } = internals;
+const { debug } = telemetry;
+const untouchable = { post: async () => assert.fail('dialled') };
+const opted = () => turnedOnWorld({ trace: [kitTraceRow({ at: '2026-11-17T09:00:00.000Z' }), kitTraceRow({ pkg: 'handoff', step: 'keep', at: '2026-11-17T09:30:00.000Z' })] });
 
-function world({ opted = true, env = {} } = {}) {
-  const clock = fixedClock();
-  const fs = memoryFs({ [tracePath('r1')]: `${JSON.stringify(ROW)}\n` });
-  const home = memoryFs(opted ? { [CONSENT_PATH]: ON } : {});
-  const trace = kitIo.createTrace({ fs, clock }).forPackage(telemetry.PKG, telemetry.vocabulary);
-  return { fs, clock, home, trace, env: { get: (name) => env[name] ?? null }, packageData: packageDataOf(declaredHere()) };
-}
-const untouchable = { post: async () => assert.fail('dialled'), get: async () => assert.fail('dialled') };
-
-test('[I-20] the address row ships empty, and that is a code people can read', () => {
-  assert.equal(INGEST_URL, null);
-  assert.ok(codes.isCode('no-endpoint'));
-  assert.match(codes.shortOf('no-endpoint'), /nothing was dialled/);
+test('[I-20] the address and the forget address ship empty, and that is a code people can read', () => {
+  assert.deepEqual([WIRE.url, WIRE.forget], ['', '']);
+  assert.match(telemetry.debug.render({ code: 'no-endpoint' }), /^telemetry: no-endpoint: .*nothing was dialled/);
 });
 
-test('[I-20] opted in with news to send: nothing dialled, no-endpoint, nothing recorded as sent', async () => {
-  const io = world();
-  const res = await send(io, { ...ctx, net: untouchable });
-  assert.deepEqual(res, { sent: false, code: 'no-endpoint' });
-  assert.equal(io.fs.store.has(SENT_PATH), false);
+test('[I-20] as shipped: opted in, due and send dial nothing and answer no-endpoint; next and history still show the reports', async () => {
+  const io = await opted();
+  assert.equal((await telemetry.due(io, { net: untouchable })).code, 'no-endpoint');
+  assert.equal((await telemetry.send(io, { net: untouchable })).code, 'no-endpoint');
+  const next = await telemetry.next(io, {});
+  assert.deepEqual(JSON.parse(next.body).reports.map((one) => one.module), ['db', 'handoff']);
+  assert.deepEqual((await telemetry.history(io, {})).reports.map((one) => one.state), ['prepared', 'prepared']);
+  const said = debug.render(next);
+  assert.match(said, /this build has no address: nothing is sent, whatever is chosen/);
+  assert.match(debug.render(await telemetry.send(io, { net: untouchable })), /^telemetry: no-endpoint: this build has no address; nothing was dialled/);
+  assert.equal((await telemetry.due(io, { net: untouchable })).code, 'telemetry-not-due', 'once a day');
 });
 
-test('[I-20] a closed door keeps its own reason: no-endpoint is said only to someone who opted in', async () => {
-  assert.equal((await send(world({ opted: false }), { ...ctx, net: untouchable })).code, 'telemetry-off');
-  assert.equal((await send(world({ env: { DO_NOT_TRACK: '1' } }), { ...ctx, net: untouchable })).code, 'telemetry-killed');
+test('[I-20] a forget with no address answers at once and dials nothing; status never names an address', async () => {
+  const io = await opted();
+  assert.equal((await telemetry.reset(io, { flags: { forget: true }, net: untouchable })).code, 'forget-none');
+  io.home.writeAtomic(PATHS.period, JSON.stringify({ schema: 'ab-period/1', id: 'a'.repeat(32), token: 'b'.repeat(64), at: '2026-11-17T00:00:00.000Z',
+    sent: true, past: [], forget: [], expired: 0 }));
+  assert.equal((await telemetry.reset(io, { flags: { forget: true }, net: untouchable })).code, 'forget-unreachable');
+  assert.doesNotMatch(debug.render(await telemetry.status(io, {})), /goes to:/);
 });
 
-test('[I-20] on and status say on and name no address, and the debug view says so beside the bytes', async () => {
-  const io = world({ opted: false });
-  const on = await optIn(io, asPerson);
-  assert.deepEqual([on.consent.on, on.url], [true, null]);
-  assert.equal((await status(io, ctx)).url, null);
-  const said = debug.render(on);
-  assert.match(said, /no-endpoint/);
-  assert.doesNotMatch(said, /counts would go to|null/);
-  const view = await debug.telemetry(world(), ctx);
-  assert.match(debug.render(view), /no-endpoint: /);
-});
-
-test('debug telemetry says what all sends add up to, and an unchanged state, only where an installed package declares them', async () => {
-  const over = (rows) => ({ ...world(), packageData: packageDataOf(rows) });
-  const view = await debug.telemetry(over(declaredHere({ shipped: true })), ctx);
-  assert.deepEqual([view.whole.taken, view.whole.says, view.local.unchanged, view.local.state], [null, null, null, null],
-    'nothing here counts them: not measured, never 0');
-  assert.doesNotMatch(debug.render(view), /all sends together|unchanged since/);
-  const events = { toy_run: { form: 'run', whole: { step: 'tick', sum: 'items', scale: 100, says: ['ticks', 'items stated', 'none stated'] } },
-    toy_state: { form: 'state', says: 'the toy state', bands: ['things'] } };
-  const toy = { name: 'toy', text: JSON.stringify({ steps: { tick: 'toy_run', look: 'toy_state' }, codes: [], events }) };
-  const said = debug.render(await debug.telemetry(over([...declaredHere({ shipped: true }), toy]), ctx));
-  assert.match(said, /^all sends together: 0 ticks, none stated$/m);
-  assert.match(said, /^ {2}the toy state, unchanged since this repository's last send: 0 events$/m);
+test('[I-20] the same row filled: one post, to that address alone', async () => {
+  addressFilled('https://telemetry.example/v1/reports', '');
+  try {
+    const io = await opted();
+    const net = spyPort();
+    assert.equal((await telemetry.due(io, { net })).code, 'telemetry-sent');
+    assert.deepEqual(net.calls.map((call) => call.url), ['https://telemetry.example/v1/reports']);
+    assert.match(debug.render(await telemetry.status(io, {})), /^goes to: https:\/\/telemetry\.example\/v1\/reports, once a day/m);
+  } finally {
+    addressFilled('', '');
+  }
 });

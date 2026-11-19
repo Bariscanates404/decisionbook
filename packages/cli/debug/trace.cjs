@@ -4,8 +4,9 @@
 'use strict';
 // debug trace: every package's records in order, judged only by the shared row shape; a torn line is counted, not fatal (it must survive
 // what went wrong).
-const { errors: { fail }, trace: { TRACE_DIR }, debug: { render: { columns, tally } } } = require('@atlasbound/kit');
+const { errors: { fail }, trace: { TRACE_DIR }, debug: { render: { columns, tally } }, text: { lines: { filled } } } = require('@atlasbound/kit');
 const { DEBUG_SCHEMA } = require('../contracts/shapes.cjs');
+const { WORDS: { trace: W } } = require('../contracts/codes.cjs');
 const validate = require('../contracts/validate.cjs');
 const { talliesOf, tallyLine } = require('./tally.cjs');
 
@@ -20,7 +21,7 @@ function rowsOf(io) {
       else state.rows.push(value);
     } catch (err) {
       state.unreadable += 1;
-      io.trace.event(io.run, 'debug.trace', { code: err.code, msg: 'a torn trace line' });
+      io.trace.event(io.run, 'debug.trace', { code: err.code, msg: W.torn });
     }
   };
   names.forEach((name) => (io.fs.readText(`${TRACE_DIR}/${name}`) || '').split('\n').filter((l) => l.trim()).forEach(take));
@@ -45,7 +46,7 @@ const isWork = ({ route, verbs }) => (records) => {
 function lastRuns(rows, table) {
   const runs = [...Map.groupBy(rows, (r) => r.run).values()];
   const work = runs.filter(isWork(table)).flat();
-  if (!work.length) throw fail('store-empty', 'no work run yet: only runs that looked');
+  if (!work.length) throw fail('store-empty', W.onlyLooked);
   const last = newest(work);
   const looks = (records) => verbsOf(records).some((verb) => table.route(verb.split(' '))?.looks);
   const looked = runs.filter((records) => newest(records).at > last.at && looks(records)).map(newest);
@@ -62,7 +63,7 @@ function selected(rows, { rest, flags }, table) {
   return { found: rows.filter((r) => r.run === run), looked: looked
     && { run: looked.run, verb: verbsOf(rows.filter((r) => r.run === looked.run))[0], at: looked.at } };
 }
-const lookedLine = ({ run, verb, at }) => `  a newer run only looked: ${verb} at ${at.slice(11, 19)}Z; atlasbound debug trace ${run} shows it`;
+const lookedLine = ({ run, verb, at }) => filled(W.newerLooked, { verb, at: at.slice(11, 19), run });
 
 const inOrder = (a, b) => a.at.localeCompare(b.at) || a.seq - b.seq;
 const rowResult = ({ ok, err }) => (ok ? 'ok' : `${err?.code || 'failed'}  ${err?.msg || ''}`.trim()); // its first error line
@@ -96,7 +97,7 @@ async function debugRuns(args, io) {
   const { rows, unreadable } = rowsOf(io);
   const { found: chosen, looked } = selected(rows, args, io.catalog);
   const records = chosen.filter((r) => !args.flags.pkg || r.pkg === args.flags.pkg).sort(inOrder);
-  const none = records.length ? [] : [`  no record of package ${args.flags.pkg} here; the records are of ${[...new Set(chosen.map((r) => r.pkg))].sort().join(', ')}`]; // never a blank answer
+  const none = records.length ? [] : [filled(W.noPackage, { pkg: args.flags.pkg, pkgs: [...new Set(chosen.map((r) => r.pkg))].sort().join(', ') })]; // never a blank answer
   const decl = declOf(io);
   const tallies = args.flags.tally ? talliesOf(records, (r) => facetOf(r, decl(r.pkg))) : null; // counted per package, step and facet
   const view = { schema: DEBUG_SCHEMA, verb: 'trace', unreadable, records, looked, ...(tallies ? { tallies } : {}) };

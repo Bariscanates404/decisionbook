@@ -1,14 +1,22 @@
 {
-  "$comment": "The telemetry words of handoff: what its trace rows may leave as. Telemetry reads them where handoff is installed; any other word leaves as other.",
+  "$comment": "Handoff's namespace: notes written, loaded and resumed, as counts, codes and ranges. A new metric, dimension, bucket set or count read raises policy; a new step or code word raises schema.",
+  "namespace": "handoff",
+  "schema": 1, "policy": 1,
+  "lock": {"1": "0cad2def12d47870b21cefdeff22924a889da8486a88d044b0497874bf4f05c2"},
+  "says": "Handoff: notes",
   "steps": {
-    "start": "step_summary", "prompt": "step_summary", "touched": "step_summary", "compact": "step_summary", "stop": "step_summary", "handoff": "step_summary",
-    "keep": "step_summary", "show": "step_summary", "drop": "step_summary", "debug": "step_summary"
+    "start": "measured", "prompt": "measured", "touched": "measured", "compact": "measured", "stop": "measured", "handoff": "measured",
+    "keep": "measured", "show": "measured", "drop": "measured", "debug": "measured"
   },
   "codes": [
     "context-below", "context-notice", "context-noticed", "context-unread", "done-unproven", "drop-unknown", "drop-unsourced",
     "file-outside", "file-touched", "handoff-no-home", "handoff-no-session", "head-none", "job-drop-unsourced", "kept-cites-unknown",
-    "kept-not-quoted", "kept-over-cap", "kept-too-many", "kept-uncited", "line-dropped", "line-edited", "message-kept",
-    "message-passed", "note-built", "note-kept", "note-none", "note-refreshed", "note-said", "note-shown", "plans-absent", "reply-invalid",
-    "reply-refused", "resume-said", "session-head-gone", "session-unseen"
-  ]
+    "kept-not-quoted", "kept-over-cap", "kept-too-many", "kept-uncited", "line-dropped", "line-edited", "message-kept", "message-passed",
+    "note-built", "note-kept", "note-none", "note-refreshed", "note-said", "note-shown", "reply-invalid", "reply-refused",
+    "resume-said", "session-head-gone", "session-unseen"
+  ],
+  "metrics": {
+    "note_kept": {"step": "handoff", "n": "kept", "buckets": [0, 1, 5, 20, 50]},
+    "note_messages": {"step": "handoff", "n": "messages", "buckets": [0, 1, 5, 20, 50]}
+  }
 }

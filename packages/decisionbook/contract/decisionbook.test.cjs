@@ -6,7 +6,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const decisionbook = require('@atlasbound/decisionbook');
-const { bookWorld: world, begin, added, logFile, planRecords, recordsFor, readyOne, unmetOf, editEvent, writeConfig, tracedSteps, wire,
+const { bookWorld: world, begin, added, logFile, planRecords, recordsFor, readyOne, leavesOthers, unmetOf, editEvent, writeConfig, tracedSteps, wire,
   textOf } = require('./world.cjs');
 
 const { verbs, handlers } = decisionbook;
@@ -42,8 +42,9 @@ test('[I-2] READY is a yes or no list of the rubric\'s rows at the level code de
     'normal work adds its checks, a command and the questions asked; the whole form is critical work\'s');
   const critical = await begin(io, { title: 'Critical one', level: 'critical' });
   for (const record of recordsFor('normal', ['src/report/export.js'], '.critical')) await added(io, critical, record);
+  await leavesOthers(io, critical); // the small fix's decisions on the same file
   assert.deepEqual(await unmetOf(io, critical), ['ready-research', 'ready-edges', 'ready-answers', 'ready-no-risk', 'ready-no-rollback']);
-  assert.match((await verbs.ready(io, { rest: [critical] })).text, /not READY as critical work: 14 of 19 rows met\n {2}ready-research: research is your own reading/);
+  assert.match((await verbs.ready(io, { rest: [critical] })).text, /not READY as critical work: 15 of 20 rows met\n {2}ready-research: research is your own reading/);
   for (const t of ['ready', 'closed', 'plan']) await assert.rejects(added(io, small, { t, head: 'h9', scope: [] }), { code: 'record-verb-only' });
 });
 
@@ -79,8 +80,10 @@ test('[I-11] the AI proposes the level and code decides: danger or schema forces
 test('[I-12] research is recorded first: what was asked, what it answered, where; a question before any research is refused', async () => {
   const io = world();
   const id = await begin(io);
+  // the refusal shows the record it lacks: an AI that asks before any research otherwise guesses that record's shape
   await assert.rejects(added(io, id, { t: 'question', q: 'Q1', text: 'which limit?', decides: 'report.limit', whyNotCode: 'a product rule', blocking: true }),
-    { code: 'research-first' });
+    (err) => err.code === 'research-first' && /a research record before the first question, in the same call$/.test(err.message)
+      && err.routes.includes('a research record: {"t":"research","tool":"<word>","asked":"<text>","answer":"<text>"} (optional: source, settles)'));
   await assert.rejects(added(io, id, { t: 'research', tool: 'grep', asked: 'limit' }), { code: 'record-invalid' });
   await added(io, id, { t: 'research', tool: 'importers', asked: 'src/report/export.js', answer: '3 importers', source: 'src/report/export.js:1' });
   await added(io, id, { t: 'question', q: 'Q1', text: 'which limit?', decides: 'report.limit', whyNotCode: 'a product rule', blocking: true });
@@ -95,23 +98,25 @@ test('[I-3] a decision lives in one record, valid by scope and supersedes, never
   const { id } = await readyOne(io);
   const idle = (over) => ({ t: 'decision', key: 'report.export.timeout', why: 'w', by: 'Ayse', ...over });
   await added(io, id, idle({ value: '30 s' }));
-  await added(io, id, idle({ value: '45 s' }));
+  await added(io, id, idle({ value: '45 s', supersedes: [`${id}/report.export.timeout`] })); // the documented change
   const states = async () => (await verbs.show(io, { rest: ['decision:report.export.timeout'] })).out.decisions.map((d) => [d.plan === id ? 'A' : 'B',
     d.value, d.scope, d.state, d.conflicts.length]);
   assert.deepEqual(await states(), [['A', '30 s', null, 'revised', 0], ['A', '45 s', null, 'active', 0]], 'the same plan revises its own');
   const mobile = await begin(io, { title: 'Tablet and mobile export' }); // its file sorts after the first: the list is in file order
   await added(io, mobile, idle({ value: '5 s', scope: 'mobile' }));
-  await added(io, mobile, idle({ value: '1 s', proposed: true, supersedes: [`${id}/report.export.timeout`] }));
+  await added(io, mobile, idle({ value: '1 s', proposed: true }));
   assert.deepEqual((await states()).slice(1), [['A', '45 s', null, 'active', 0], ['B', '5 s', 'mobile', 'active', 0], ['B', '1 s', null, 'proposed', 0]],
     'another scope; a proposal binds nothing');
   await added(io, mobile, idle({ value: '60 s', supersedes: [`${id}/report.export.timeout`] }));
   assert.equal((await states())[1][3], 'active', 'a draft voids nothing');
+  assert.deepEqual((await states()).filter(([, , , s]) => s === 'active').map((row) => row[4]), [0, 0, 0], 'it replaces it once READY: no conflict');
+  assert.match((await verbs.show(io, { rest: ['decision:report.export.timeout'] })).text, new RegExp(`= 60 s \\(w; by the person\\) active, replaces ${id}/report\\.export\\.timeout \\(pending until READY\\)`));
+  await added(io, mobile, idle({ value: '60 s' })); // the same decision, naming none it replaces
   assert.deepEqual((await states()).filter(([, , , s]) => s === 'active').map(([w, v, , , c]) => [w, v, c]),
     [['A', '45 s', 1], ['B', '5 s', 0], ['B', '60 s', 1]], 'a conflict, shown');
-  assert.match((await verbs.resume(io, { rest: [] })).text, /\n- report\.export\.timeout = 45 s \(w; by the person\), CONFLICT with 2026-11-02-tablet-and-mobile-export\/report\.export\.timeout\n/,
-    'the start: what is settled, and a conflict is said there too');
-  assert.match((await verbs.show(io, { rest: [id, 'decisions'] })).text,
-    new RegExp(`report\\.export\\.timeout = 45 s \\(w; by the person\\) active, CONFLICT with ${mobile}/report\\.export\\.timeout`));
+  const across = `- report.export.timeout CONFLICT (2 person decisions of this key across plans, none replacing another; none holds until the person says which)`;
+  assert.ok((await verbs.resume(io, { rest: [] })).text.includes(across), 'the start says the conflict, never a value as settled');
+  assert.ok((await verbs.show(io, { rest: [id, 'decisions'] })).text.includes(across.replace('- ', '')));
   await added(io, id, { t: 'decision', key: 'report.export.limit', value: '10000', why: 'w', by: 'ai', files: ['src/report/export.js'] });
   io.state.commits = [{ after: 'h0', sha: 'c1', subject: 'x', body: '', files: ['src/report/export.js'] },
     { after: 'h0', sha: 'c2', subject: 'y', body: '', files: ['docs/a.md'] }];
@@ -145,7 +150,7 @@ test('[I-4] links are typed, sourced and read both ways; a glob plan reaches a f
   await assert.rejects(verbs.show(io, { rest: ['nothing'] }), { code: 'plan-unknown' });
 });
 
-test('[I-5] the gate: unprotected or inside allows, no READY denies, outside joins, a danger path asks; each names its code',
+test('[I-5] the gate: unprotected or inside allows, no READY denies, outside asks, a danger path asks; each names its code',
   async () => {
   const io = world({ files: { 'src/report/a.js': 'a\n' } });
   assert.equal((await handlers.preEdit(editEvent('src/report/a.js'), io)).code, 'gate-off');
@@ -157,13 +162,9 @@ test('[I-5] the gate: unprotected or inside allows, no READY denies, outside joi
   const { id } = await readyOne(io);
   assert.deepEqual(await handlers.preEdit(editEvent('src/report/a.js', 'Write'), io),
     { verdict: 'allow', code: 'gate-in-scope', file: 'src/report/a.js', plan: id });
-  const grown = await handlers.preEdit(editEvent('src/billing/b.js'), io); // READY is the freeze: the plan takes the file in and says so
-  assert.deepEqual(grown, { verdict: 'allow', code: 'plan-grown', file: 'src/billing/b.js', plan: id,
-    context: `DecisionBook: src/billing/b.js was outside plan ${id}; the plan is frozen and took it in (one line added to it). Nothing to do.` });
-  const { at, ...link } = planRecords(io, id).at(-1);
-  assert.deepEqual(link, { t: 'link', rel: 'plans', to: 'file:src/billing/b.js', source: 'the gate: written under the READY plan' });
-  assert.deepEqual(await handlers.preEdit(editEvent('src/billing/b.js'), io), { verdict: 'allow', code: 'gate-in-scope', file: 'src/billing/b.js', plan: id },
-    'inside the plan from then on, in silence');
+  const at = planRecords(io, id).at(-1).at;
+  const outside = await handlers.preEdit(editEvent('src/billing/b.js'), io); // READY is the freeze: a file outside it is the person's
+  assert.deepEqual([outside.verdict, outside.code, outside.plan, 'context' in outside], ['ask', 'plan-outside', id, false]);
   const held = planRecords(io, id).length;
   const out = await handlers.preEdit(editEvent('src/db/schema.sql'), io); // a danger path outside the plan is the person's
   assert.deepEqual([out.verdict, out.code, out.plan, 'context' in out], ['ask', 'plan-out-of-scope', id, false]);
@@ -209,16 +210,19 @@ test('[I-7] closeout counts only the plan\'s own commits: its id, its issue or a
   io.state.commits = [
     { after: 'h0', sha: 'c4', subject: 'unrelated docs', body: '', files: ['docs/a.md'] },
     { after: 'h0', sha: 'c3', subject: 'fix export (#42)', body: '', files: ['test/export.test.js'] },
-    { after: 'h0', sha: 'c2', subject: 'refactor', body: '', files: ['src/report/export.js'] },
+    { after: 'h0', sha: 'c2', subject: 'refactor', body: '', files: ['src/report/export.js', 'CLAUDE.md'] },
     { after: 'h0', sha: 'c1', subject: 'wip', body: `DecisionBook: ${id}`, files: ['lib/x.py'] },
   ];
   io.state.head = 'c4';
   const res = await verbs.close(io, { rest: [id] });
   assert.deepEqual([res.out.code, res.out.own.map((c) => c.sha), res.out.other], ['plan-closed', ['c3', 'c2', 'c1'], 1]);
-  assert.deepEqual(res.out.files, ['lib/x.py', 'src/report/export.js', 'test/export.test.js']);
+  assert.deepEqual([res.out.files, res.out.unplanned], [['lib/x.py', 'src/report/export.js', 'test/export.test.js'], 1],
+    'a commit that names the plan is its work whole; one owned by a planned file gives its planned files and tests, CLAUDE.md is a number');
   assert.deepEqual(res.out.tests, ['test/export.test.js']);
-  assert.deepEqual((await verbs.show(io, { rest: ['file:lib/x.py'] })).out.links.map((l) => [l.from, l.rel, l.to]),
-    [['file:lib/x.py', 'changed-in', `plan:${id}`]]);
+  assert.match(res.text, new RegExp(`1 files outside the plan not linked; commit this record: git add \\.decisionbook/${id}\\.jsonl, then git commit -m "DecisionBook: close ${id}" \\.decisionbook/${id}\\.jsonl`));
+  assert.deepEqual((await verbs.show(io, { rest: ['file:src/report/export.js'] })).out.links.map((l) => [l.from, l.rel, l.to]),
+    [['file:src/report/export.js', 'planned-in', `plan:${id}`], ['file:src/report/export.js', 'changed-in', `plan:${id}`]]);
+  assert.deepEqual((await verbs.show(io, { rest: ['file:CLAUDE.md'] })).out.links, [], 'a file outside the plan is no link of it');
   assert.equal((await verbs.show(io, { rest: [id] })).out.state, 'closed');
 });
 
@@ -234,8 +238,16 @@ test('close with no own commit says nothing to record yet and records nothing; a
   assert.deepEqual([records(), (await verbs.show(io, { rest: [id] })).out.state], [before, 'ready'], 'no closed record');
   io.state.commits = [{ after: 'h0', sha: 'c2', subject: 'wip', body: `DecisionBook: ${id}`, files: ['lib/x.py'] }, ...io.state.commits];
   io.state.head = 'c2';
-  assert.deepEqual((await verbs.close(io, { rest: [id] })).text, `${id} closed: 1 own commits, 1 files, 0 tests; 1 other commits not attributed\n`);
+  assert.deepEqual((await verbs.close(io, { rest: [id] })).text, `${id} closed: 1 own commits, 1 files, 0 tests; 1 other commits not attributed; `
+    + `commit this record: git add .decisionbook/${id}.jsonl, then git commit -m "DecisionBook: close ${id}" .decisionbook/${id}.jsonl\n`);
   assert.equal((await verbs.show(io, { rest: [id] })).out.state, 'closed');
+});
+
+test('a detached HEAD is said as one, never as null', async () => {
+  const io = world({ branch: null });
+  assert.equal((await verbs.inbox(io, { rest: [] })).text, 'Nothing waits for you on a detached HEAD.\n');
+  const id = await begin(io);
+  assert.match((await verbs.show(io, { rest: [id] })).text, new RegExp(`^${id} draft on a detached HEAD: `));
 });
 
 test('[I-8] one READY per branch: the newest wins and names the one it parked', async () => {
@@ -265,7 +277,11 @@ test('[I-9] decisionbook-record/1 is pinned; an unknown major is refused; a torn
   assert.deepEqual(decisionbook.SHAPES.Gap, { t: 't', kind: 'itemKind', gap: 'gap', status: 'gapStatus', text: 'str', source: 'ref?', run: 'str?', q: 'word?' });
   // + settles, optional (a reader of /1 ignores it)
   assert.deepEqual(decisionbook.SHAPES.research, { t: 't', tool: 'word', asked: 'str', answer: 'str', source: 'str?', settles: 'word?' });
-  assert.deepEqual(decisionbook.SHAPES.link, { t: 't', rel: 'rel', to: 'str', why: 'str?', source: 'str?' });
+  // + by on a link and saidBy on a decision, optional: the two fields the product sets itself are in the published table; + keeps,
+  // optional: what a person's answer keeps (a reader of /1 ignores it and reads a second decision of the key)
+  assert.deepEqual(decisionbook.SHAPES.link, { t: 't', rel: 'rel', to: 'str', why: 'str?', source: 'str?', by: 'str?' });
+  assert.deepEqual(Object.keys(decisionbook.SHAPES.decision).filter((field) => ['said', 'saidBy', 'keeps'].includes(field)), ['keeps', 'said', 'saidBy']);
+  await assert.rejects(added(io, id, { t: 'link', rel: 'relates', to: `plan:${id}`, by: 7 }), { code: 'record-invalid' });
 });
 
 test('[I-10] every verb and handler is one traced step with its code; find and debug decisionbook look and write nothing', async () => {
@@ -295,7 +311,7 @@ test('[I-10] the gate\'s and the shell\'s trace rows name the file and the plan 
   const rows = io.fs.readText('.atlasbound/trace/r1.ndjson').trim().split('\n').map((line) => JSON.parse(line));
   const refs = rows.filter((r) => r.step === 'decisionbook.gate' || r.step === 'decisionbook.shell').map((r) => [r.step, Object.keys(r.codes)[0], r.ref]);
   assert.deepEqual(refs, [['decisionbook.gate', 'gate-in-scope', { session: 's1', file: 'src/report/export.js', plan: id }],
-    ['decisionbook.gate', 'plan-grown', { session: 's1', file: 'src/other/x.js', plan: id }], // the file the frozen plan took in
+    ['decisionbook.gate', 'plan-outside', { session: 's1', file: 'src/other/x.js', plan: id }], // a file outside the frozen plan, asked
     ['decisionbook.gate', 'plan-out-of-scope', { session: 's1', file: 'src/db/x.sql', plan: id }],
     ['decisionbook.shell', 'plan-out-of-scope', { session: 's1', file: 'src/db/y.sql', plan: id }]]);
   const first = rows.filter((r) => r.step === 'plan.phase' && r.codes['phase-first-write']);
@@ -315,7 +331,8 @@ test('[I-3] a refusal\'s words are data: what add, close, protect and the gate s
   const question = { t: 'question', q: 'Q1', text: 'which rule?', decides: 'report.rule', whyNotCode: 'a product rule', blocking: true };
   await assert.rejects(added(io, id, question), { message: `research-first: ${WORDS.noneWritten}: ${fill(WORDS.researchFirst, { id })}` });
   const said = await handlers.preEdit(editEvent('src/report/export.js'), io);
-  assert.ok(said.reason.startsWith(`${WORDS.gatePrefix} plan-draft-here: src/report/export.js: `), said.reason); // the branch's draft is named
+  assert.ok(said.reason.startsWith(`${WORDS.gatePrefix} plan-none: src/report/export.js: `), said.reason); // a draft naming no file holds none
+  assert.ok(said.reason.includes(fill(WORDS.draftElsewhere, { id })), 'and the branch\'s draft is named');
   const shown = await verbs.protect(world({ tracked: [] }), { rest: [] });
   assert.equal(shown.text, `${[fill(WORDS.protectedNow, { globs: WORDS.noneChosen }), WORDS.protectCould, WORDS.protectNoFolder, WORDS.protectChoose].join('\n')}\n`);
   const done = world();

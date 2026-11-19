@@ -6,23 +6,16 @@
 // and words that settle it. Fragments of a clause are the first cases.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { said: { clausesOf, notTheirs, isAbout, sharedWith, names, notHeld, notSettling, askedIn, heldItems, asksAside } } = require('@atlasbound/kit');
+const { said: { clausesOf, notTheirs, isAbout, intends } } = require('@atlasbound/kit');
 
 // an answer given as a list item is that whole item; the question it quotes back is the asker's sentence, not theirs
-test('a list item is the person\'s whole; its quoted opening may be left out; a question that sets work aside', () => {
+test('a list item is the person\'s whole; its quoted opening may be left out', () => {
   const LIST = 'Answers:\n- About "Keep the old rows, or not?": Hide them everywhere. They are NOT deleted.\n- About "Which key?": Use y.\nThanks';
   const said = clausesOf(LIST);
   assert.deepEqual(said.map(({ key, sentence, item = 0, lead }) => `${sentence} ${lead ? -item : item} ${key}`), ['0 0 answers', '1 -1 about "keep the old rows',
     '1 -1 not', '2 1 hide them everywhere', '3 1 they are not deleted', '5 -2 about "which key', '6 2 use y', '7 0 thanks']);
-  assert.deepEqual(askedIn(LIST), [{ item: 1, asked: 'About "Keep the old rows, or not?": ', said: 'Hide them everywhere. They are NOT deleted.' },
-    { item: 2, asked: 'About "Which key?": ', said: 'Use y.' }], 'each quoting item with its own words after the quote, as the person wrote them');
   assert.equal(notTheirs('Hide them everywhere. They are NOT deleted.', said), null, 'the negation in the quoted question is not their sentence\'s');
-  assert.deepEqual(heldItems('They are NOT deleted.', said), [{ item: 1, whole: false }], 'a side sentence of the item');
-  assert.deepEqual(heldItems('Hide them everywhere. They are NOT deleted.', said), [{ item: 1, whole: true }]);
-  assert.deepEqual(heldItems('Hide them everywhere. They are NOT deleted.\nUse y.', said), [{ item: 1, whole: true }, { item: 2, whole: true }], 'two items, the opening between left out');
-  assert.deepEqual([heldItems('Thanks', said), heldItems('never said', said)], [[], []]);
-  assert.deepEqual(['Plan p1 is still open. Is it set aside for now?', 'Plan p1: **set it aside?**', 'Plan p1 goes on. Shall I change the name?', 'I set plan p1 aside.',
-    'p1 planını kenara koyayım mı?'].map(asksAside), [true, true, false, false, true]);
+  assert.equal(notTheirs('Hide them everywhere. They are NOT deleted.\nUse y.', said), null, 'two items, the opening between left out');
 });
 
 const RULE = 'Do not delete tests, and never force-push to main.';
@@ -54,6 +47,12 @@ test('a sentence that holds a negation is quoted whole: a part of it, a list ite
     ['mainにpushする', 'テストを削除しない、mainにpushする']];
   for (const [words, message] of parts) assert.equal(theirs(words, message), 'negation', words);
   assert.equal(theirs('Never do these: delete tests, force-push to main', 'Never do these:\n- delete tests.\n- force-push to main.'), null, 'the whole list');
+});
+
+test('a quote opened after a colon is a sentence of its own: whole it is theirs, though the one before holds a negation', () => {
+  const message = 'The open answer is not settled, so here is mine: "Escape speed is the least speed to leave the pull." Record it; do not write code.';
+  assert.equal(theirs('Escape speed is the least speed to leave the pull.', message), null);
+  assert.equal(theirs('so here is mine', message), 'negation', 'the sentence before the quote is still whole only');
 });
 
 test('the clauses of a message: its sentences, list items, its own commas and joining words; a long one is read whole', () => {
@@ -95,36 +94,35 @@ test('words are about a decision when they hold it or share enough of its conten
   assert.equal(isAbout('anything at all', ''), false, 'no subject');
 });
 
-test('a value is what an answer decides when its words are the answer\'s own, with the answer\'s negation', () => {
-  const Q = 'Warn once (proposed) or on every occurrence?';
-  const held = [['once per process', 'once per process', Q], ['once', 'yes, the first one', Q], ['2', '2', Q], ['warn once', 'Yes.', Q], ['once', 'evet', Q],
-    ['every time', 'No, every time.', Q], ['1000', 'Write 1,000 rows per batch.', 'Rows per write?'], ['no', 'No.', 'Also warn for the environment?'],
-    ['warn only for command-line use; env, default, preset give no warning',
-      'Only when the person typed the option on the command line. A value from its environment variable (Option.env), a default or a preset gives no warning.', Q]];
-  for (const [value, answer, question] of held) assert.equal(notHeld(value, answer, question), null, `${value} <- ${answer}`);
-  const foreign = [['once', 'every occurrence', Q], ['also warn for the environment', 'No.', 'Also warn for the environment?'], ['once per process', 'what time is it in Tokyo?', Q],
-    ['once per process', 'About "warn once per process or on every occurrence?": every occurrence.', 'Warn once per process (proposed) or on every occurrence?'],
-    ['warn every time, skip the tests', 'warn every time', Q], ['2 retries', '5', 'How many retries, 2 or 5?'], ['', 'yes', Q]];
-  for (const [value, answer, question] of foreign) assert.equal(notHeld(value, answer, question), 'foreign', `${value} <- ${answer}`);
-  const flipped = [['warn for the environment variable', 'Do not warn for the environment variable.', Q], ['warn once', 'warn on every occurrence, never once', Q],
-    ['never warn on env', 'warn on env', Q], ['never warn', 'yes', 'Warn on every use?']];
-  for (const [value, answer, question] of flipped) assert.equal(notHeld(value, answer, question), 'flipped', `${value} <- ${answer}`);
-  assert.equal(sharedWith('One warning per parse, however many times the option is given.', 'If the option is passed several times, warn once?'), 3);
-  assert.deepEqual([names('Q1: every occurrence.', 'Q1'), names('Q11: x', 'Q1')], [true, false]);
+test('words are about a kept line, or not, and say done, drop, cancel or change, or not (handoff settles a line on both)', () => {
+  const about = [['You can drop the rule about tests and force-push, it is done.', RULE], ['forget the rename', 'rename Invoice to Bill'],
+    ['drop the first two steps', 'go on with step 5'], ['drop this: "use tabs"', 'Use tabs'],
+    ['testler ve force-push kuralını iptal et', 'testler silinmez, force-push yok']];
+  assert.deepEqual(about.map(([words, line]) => [isAbout(words, line), intends(words)]), about.map(() => [true, true]), 'steps and step are one word');
+  assert.deepEqual(['what time is it in Tokyo?', 'i', 'drop what we said, never do that with the rule', 'change how you run the tests']
+    .map((words) => isAbout(words, RULE)), [false, false, false, false], 'a negation and common words are no content; one of five words is under the share');
+  assert.deepEqual([isAbout('the tests and the force-push matter a lot', RULE), intends('the tests and the force-push matter a lot')], [true, false]);
 });
 
-test('words settle a kept line when they are about it, or name its number, and say done, drop, cancel or change', () => {
-  assert.equal(notSettling('You can drop the rule about tests and force-push, it is done.', RULE, 5), null);
-  assert.equal(notSettling('drop k5, it is old', RULE, 5), null, 'its number');
-  assert.equal(notSettling('forget the rename', 'rename Invoice to Bill', 3), null);
-  assert.equal(notSettling('drop the first two steps', 'go on with step 5', 1), null, 'steps and step are one word');
-  assert.equal(notSettling('drop this: "use tabs"', 'Use tabs', 2), null, 'the line itself is held');
-  assert.equal(notSettling('testler ve force-push kuralını iptal et', 'testler silinmez, force-push yok', 2), null, 'a word of intent of another language');
-  assert.equal(notSettling('what time is it in Tokyo?', RULE, 5), 'unrelated');
-  assert.equal(notSettling('i', RULE, 5), 'unrelated');
-  assert.equal(notSettling('drop k4, it is old', RULE, 5), 'unrelated', 'another line\'s number');
-  assert.equal(notSettling('drop k5, it is old', RULE, null), 'unrelated', 'a number that names the line no more');
-  assert.equal(notSettling('drop what we said, never do that with the rule', RULE, 5), 'unrelated', 'a negation and common words are no content');
-  assert.equal(notSettling('change how you run the tests', RULE, 5), 'unrelated', 'one of five content words is under the share');
-  assert.equal(notSettling('the tests and the force-push matter a lot', RULE, 5), 'no-intent');
+// Sentences as people type them (and the same in Turkish): three numbered answers on one line and on three.
+const T1 = ['1. A second positional argument is fine: a percent from 0 to 100, default 0.',
+  '2. Outside 0 to 100 throw a RangeError, and a TypeError when it is not a number.', '3. No rounding in total(), leave formatting to format.js.'];
+const T1_TR = ['1. İkinci konumsal argüman olsun: 0 ile 100 arası yüzde, varsayılan 0.', '2. 0 ile 100 dışında RangeError fırlat, sayı değilse TypeError.',
+  '3. total() içinde yuvarlama yok, biçimlendirme format.js\'e kalsın.'];
+const ROUNDED = 'Should the discounted result be rounded (e.g. to 2 decimals / cents)?';
+
+test('a numbered list on one line is the same items as on three', () => {
+  for (const list of [T1, T1_TR]) assert.deepEqual(clausesOf(list.join(' ')), clausesOf(list.join('\n')), list[0]);
+  assert.deepEqual(clausesOf(T1.join(' ')).map((clause) => clause.item), [1, 1, 1, 2, 2, 3, 3]);
+  assert.deepEqual(clausesOf('1. Round to 2. 2. Throw.').map((clause) => `${clause.item} ${clause.key}`), ['1 round to 2', '2 throw'], 'a number in an item is no mark');
+  for (const plain of ['Use version 2. It is faster.', 'Set it to 1. 2 is too many.', 'Jobs: fix 1. and 3. only', '1. Keep 0. 3. is too many.']) {
+    assert.equal(new Set(clausesOf(plain).map((clause) => clause.item)).size, 1, `no list on one line: ${plain}`);
+  }
 });
+
+test('two forms of one word are one word: an ending aside, in English and in Turkish; other words stay apart', () => {
+  assert.deepEqual([T1[2], 'The discounted result should not be rounded.'].map((said) => isAbout(said, ROUNDED)), [false, true]);
+  assert.equal(isAbout('adet 0 olursa ürün sepetten çıkarılsın', 'Ürünü sepetinden çıkarsın mı?'), true);
+  assert.deepEqual([isAbout('discount', 'discover'), isAbout('format', 'formal'), isAbout('İkinci soru', 'ikinci')], [false, false, true]);
+});
+

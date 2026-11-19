@@ -3,11 +3,13 @@
 One note per branch that lets a fresh AI session continue where the last one stopped.
 
 **What it keeps, and where.** The product keeps the head of each message you type (at most 1,200 characters, secrets screened, at most
-60 per session) in your home folder, `~/.atlasbound/handoff-here/<hash of this repository>/`, so that a handoff can show them to your
+60 per session; a message that is only a path or a bare slash command, such as the `C:/Program Files/Git/handoff` Git Bash makes of
+`/handoff`, asks nothing and is not kept) in your home folder, `~/.atlasbound/handoff-here/<hash of this repository>/`, so that a handoff can show them to your
 AI again. The note is stored there too, and it is kept current without you: at every message and at the end of every turn it is
 rebuilt from that journal and fresh facts (no model), so a session that ends any way at all (a closed terminal, a crash, `/clear`)
 leaves the next one your last messages as you wrote them (whichever session heard them), the plan's state, your decisions with your sentences, and what
-is still asked of you. Nothing of it is in the repository. Nothing is sent anywhere. The product calls no model; the only
+is still asked of you. A session reading the note sees its own messages first, then other sessions' under their own heading; what
+a session running beside it sent after it began is that session's and left out. Nothing of it is in the repository. Nothing is sent anywhere. The product calls no model; the only
 program it runs is git: the only AI is your own session. `atlasbound uninstall --purge` removes the folder. A session not seen for 14
 days leaves it by itself: its message heads and its list of edited files. What a branch's note already quotes of them (its kept lines,
 your last messages) stays in that note, and in its one backup, until the note no longer carries it or the folder is removed.

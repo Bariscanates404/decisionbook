@@ -41,8 +41,8 @@ function tableWorld(policy) {
   return { repo, env, said };
 }
 
-/** One row as the host sends it: the command with the world's folder this repository, the shell's folder its cwd. */
-const shellEvent = (repo, row) => ({ session_id: 's1', cwd: path.join(repo, row.cwd), hook_event_name: 'PreToolUse', tool_name: 'Bash',
+/** One row as the host sends it: the command with the world's folder this repository, the shell's folder its cwd, its shell tool (Bash unless named). */
+const shellEvent = (repo, row) => ({ session_id: 's1', cwd: path.join(repo, row.cwd), hook_event_name: 'PreToolUse', tool_name: row.tool || 'Bash',
   tool_input: { command: row.command.replaceAll(WORLD_DIR, repo) } });
 
 // The words a person reads, copied by hand from the product's texts: no suite asks the product how it would say them.
@@ -61,9 +61,18 @@ const lostReply = (note) => ({ hookSpecificOutput: { hookEventName: 'PreToolUse'
 const sealedReply = (file) => ({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'STORE_SEALED: only '
   + `AtlasBound itself writes here: its state and what a person said — ${file}. Leave it as it is; if something in it looks wrong, `
   + 'say so to the person.' } });
-const unplacedReason = (human) => (human.unread ? UNREAD : human.file ? folderReason(human.file) : UNPLACED);
+// git's own writes it never names (merge, stash, apply, clean, ...: `human.git`) ask in git's words, not "use Edit"
+const GIT = 'DecisionBook gate: shell-unplaced: git: a git command that changes files it does not name (a merge, rebase, pull, cherry-pick, revert, '
+  + 'am, stash, apply or clean), protected ones among them: allow it only if you asked for it, or run it yourself';
+const unplacedReason = (human) => (human.unread ? UNREAD : human.git ? GIT : human.file ? folderReason(human.file) : UNPLACED);
+// a write of the product's own files (`human.own`) is the port's seal's ask too, said after the gate's own reason
+const ownReason = (file) => `atlasbound: own-file: ${file}: AtlasBound's own file, or a host settings file that can switch its hooks off. `
+  + 'It holds hook rows, allow rules, the .gitignore block, a slash command or records, which only AtlasBound\'s own commands change '
+  + '(setup, protect, decisionbook), or it is the AI host\'s settings, where one line turns every hook off; allow this only if you '
+  + 'asked for this very change.';
+const gateReason = (human) => (human.unplaced ? unplacedReason(human) : human.file ? askReason(human.file) : null);
 const ruled = (human) => ({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask',
-  permissionDecisionReason: human.unplaced ? unplacedReason(human) : askReason(human.file) } });
+  permissionDecisionReason: [gateReason(human), human.own && ownReason(human.own)].filter(Boolean).join(' ; ') } });
 
 /** What the host should receive for a row, by its human verdict: nothing at all, the ask naming the file, or (human.unplaced) the ask that says it cannot
  * place one, naming the folder where the write is a whole folder, or (human.unread) that the command was too long to read in time, or

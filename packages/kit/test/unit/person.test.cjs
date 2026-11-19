@@ -14,12 +14,12 @@ const [MARK] = RULES.aiSessionEnv;
 
 /** The actor of a faked process and what it did: `walks` the listings of the machine's processes, `said` each answer it told. `leads`:
  * the place in `above` of the terminal's session leader (as a terminal starts `login`), -1 this process itself, null none seen. */
-function processOf({ tty = true, marks = [], above = PERSON, leads = above && above.findIndex((words) => words[0] === 'login') } = {}) {
+function processOf({ tty = true, marks = [], above = PERSON, leads = above && above.findIndex((words) => words[0] === 'login'), windows = false } = {}) {
   const seen = { walks: 0, levels: null, said: [] };
   const proc = { ancestry(levels) {
     seen.walks += 1;
     seen.levels = levels;
-    return above && { chain: above, leader: leads };
+    return above && (windows ? { chain: above, leader: null, sessions: false } : { chain: above, leader: leads });
   } };
   const env = { get: (name) => (marks.includes(name) ? '1' : null) };
   const actor = createActor({ env, proc, input: { isTTY: tty }, said: (answer) => seen.said.push(answer) });
@@ -75,6 +75,40 @@ test('a terminal with no shell a person types into, from this process up to its 
   assert.deepEqual(seat([['make', 'off'], ['sh', '-c', 'make off'], ...PERSON], 3), THEIRS, 'a person\'s login shell further up: theirs');
   for (const shell of [['-zsh'], ['bash'], ['/bin/zsh', '-il'], ['fish', '--login']]) assert.deepEqual(seat([shell, ...opener], 0), THEIRS, shell.join(' '));
   assert.deepEqual(seat([['zsh', '-i'], ...opener], 0), THEIRS, 'the named limit: a typing shell another program opened and typed into');
+});
+
+// Windows keeps no terminal sessions: the walk says so, and a terminal's side ends at the farthest shell; the words as io/proc hands them
+const POWERSHELL = ['c:/windows/system32/windowspowershell/v1.0/powershell'];
+const DESKTOP = [['c:/program files/windowsapps/microsoft.windowsterminal_1.21.3231.0_x64__8wekyb3d8bbwe/windowsterminal'], ['c:/windows/explorer']];
+const seatOnWindows = (chain) => processOf({ above: chain, windows: true }).actor();
+
+test('on Windows a person in plain PowerShell, cmd.exe or Git Bash is at their own terminal, npm\'s cmd shim between included', () => {
+  const THEIRS = { who: 'terminal', why: 'own-terminal' };
+  const shim = ['c:/windows/system32/cmd', '/d', '/s', '/c', '"C:/Users/ana/AppData/Roaming/npm/atlasbound.cmd" uninstall'];
+  for (const shell of [POWERSHELL, ['c:/windows/system32/cmd'], ['c:/program files/powershell/7/pwsh', '-NoLogo'],
+    ['c:/program files/git/bin/bash', '-i', '-l'], ['c:/windows/system32/cmd', '/d', '/q']]) {
+    assert.deepEqual(seatOnWindows([shell, ...DESKTOP]), THEIRS, shell.join(' '));
+  }
+  assert.deepEqual(seatOnWindows([shim, POWERSHELL, ...DESKTOP]), THEIRS, 'the .cmd shim a shell starts for the person\'s command');
+});
+
+test('on Windows an AI host above, a shell handed a command, or no shell at all is no person; an unread walk stays no person', () => {
+  const NONE = { who: 'ai', why: 'no-typing-shell' };
+  const AI = { who: 'ai', why: 'ai-host-above' };
+  assert.deepEqual(seatOnWindows([['c:/program files/git/usr/bin/bash', '-c', 'x'], ['c:/users/ana/.local/bin/claude'], POWERSHELL, ...DESKTOP]), AI);
+  assert.deepEqual(seatOnWindows([['c:/program files/nodejs/node', 'c:/users/ana/appdata/roaming/npm/node_modules/@anthropic-ai/claude-code/cli.js'],
+    POWERSHELL, ...DESKTOP]), AI, 'an npm install runs as node');
+  assert.deepEqual(seatOnWindows(DESKTOP), NONE, 'the terminal program and the desktop are no shell a person types into');
+  assert.deepEqual(seatOnWindows([]), NONE, 'a parent gone: nothing seen');
+  const handed = [['-Command', 'x'], ['-c', 'x'], ['-NoExit', '-Command', 'x'], ['-EncodedCommand', 'eA=='], ['-enc', 'eA=='], ['-ec', 'eA=='],
+    ['-File', 'a.ps1'], ['-f', 'a.ps1'], ['/Command', 'x'], ['--command', 'x'], ['-co', 'x'], ['-Command:x'], ['-'], ['-ExecutionPolicy', 'Bypass'], ['a.ps1'],
+    ['(unread)']];
+  for (const args of handed) assert.deepEqual(seatOnWindows([[POWERSHELL[0], ...args], ...DESKTOP]), NONE, `powershell ${args.join(' ')}`);
+  for (const args of [['/c', 'x'], ['/C', 'x'], ['/k', 'x'], ['/r', 'x'], ['/cdir'], ['/d', '/s', '/c', 'x'], ['x'], ['/q/k'], ['/d/s/r']]) {
+    assert.deepEqual(seatOnWindows([['c:/windows/system32/cmd', ...args], ...DESKTOP]), NONE, `cmd ${args.join(' ')}`);
+  }
+  assert.deepEqual(seatOnWindows([['c:/program files/powershell/7/pwsh', '-c', 'x'], ...DESKTOP]), NONE);
+  assert.deepEqual(processOf({ above: null, windows: true }).actor(), { who: 'ai', why: 'ancestry-unknown' }, 'could not tell is never a person');
 });
 
 test('in an AI session the last prompt row stands behind the AI with its time and words; with no row it is the AI alone', () => {

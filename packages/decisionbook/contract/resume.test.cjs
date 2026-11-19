@@ -66,7 +66,7 @@ test('a resume record is kept from any seat and opens nothing: a draft covers no
   const draft = await begin(io);
   await handlers.start(starting('s2'), io);
   assert.equal((await added(io, draft, RESUME)).out.state.ready, false);
-  assert.deepEqual(ruling(await handlers.preEdit(editAs('s2'), io)), ['deny', 'plan-draft-here'], 'a resume of a draft makes nothing READY');
+  assert.deepEqual(ruling(await handlers.preEdit(editAs('s2'), io)), ['deny', 'plan-none'], 'a resume of a draft makes nothing READY');
   const homeless = await laterSession('s7', { home: null }); // no home: no yes of a person is kept here
   assert.deepEqual(ruling(await handlers.preEdit(editAs('s7'), homeless.io)), ['ask', 'plan-not-here']);
   assert.equal(await homeless.resume(), 'plan-recorded');

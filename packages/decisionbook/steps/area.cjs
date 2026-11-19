@@ -5,7 +5,7 @@
 // The work's area (files a text names, files the branch changed, one import step of each) and core/recall's cards cut to the hook's bound.
 const { errors: { isFail }, paths: { repoRel, join } } = require('@atlasbound/kit');
 const { DIR } = require('../contracts/shapes.cjs');
-const { byTime } = require('../base/text.cjs');
+const { byTime, promptWords } = require('../base/text.cjs');
 const { relatedOf } = require('../core/recall.cjs');
 const { sinceHead, builtOf } = require('../core/close.cjs');
 const { recallSay, RECALL_CARDS, RELATED_CARDS } = require('../core/text/recall.cjs');
@@ -62,16 +62,18 @@ async function withBuilt(io, web, { cards, room, branch }) {
   return [...built, ...cards.slice(room)];
 }
 
-/** The area of the work: core/recall's walk from its files (or words) and their import step, each card with what it built within `room`. */
-async function areaOf(io, web, { files, words = [], branch }, room) {
+/** The area of the work: core/recall's walk from its files, their import step and the words of its `text` (a file it names is walked as
+ * a file, never as words), each card with what it built within `room`; `whole` (a verb asked it): the branch's READY plan is a card too. */
+async function areaOf(io, web, { files, text = '', branch, whole = false }, room) {
   const { near, n } = await importStep(io, files);
-  const walked = relatedOf(web, { files: files.map((file) => ({ file, how: file })), near, words, branch });
+  const words = promptWords(String(text).split(/\s+/).filter((word) => !namedFiles(io, word).length).join(' '));
+  const walked = relatedOf(web, { files: files.map((file) => ({ file, how: file })), near, words, branch, whole });
   return { cards: await withBuilt(io, web, { cards: walked, room, branch }), n: { seeds: files.length, ...n, found: walked.length } };
 }
 
 // a pushed card does not say again a decision `said` names (the pack's, steps/here saidByPack); a verb passes none and answers whole
-async function cardsFor(io, web, { files, words, branch, session, said = new Set() }, max = null) {
-  const { cards: walked, n } = await areaOf(io, web, { files, words, branch }, max ? RECALL_CARDS : RELATED_CARDS);
+async function cardsFor(io, web, { files, text, branch, session, said = new Set() }, max = null) {
+  const { cards: walked, n } = await areaOf(io, web, { files, text, branch, whole: !max }, max ? RECALL_CARDS : RELATED_CARDS);
   const cards = walked.map((card) => ({ ...card, decisions: card.decisions.filter((d) => !said.has(`${card.id}/${d.key}`)) }));
   const say = max && cards.length ? recallSay(cards, max) : [];
   const shown = cards.slice(0, max ? Math.max(say.length - 1, 0) : RELATED_CARDS);
@@ -80,4 +82,4 @@ async function cardsFor(io, web, { files, words, branch, session, said = new Set
   return { cards, say, n: { ...n, cards: Math.max(say.length - 1, 0), ...built } };
 }
 
-module.exports = { SEEDS, namedFiles, branchFiles, workFiles, areaOf, cardsFor };
+module.exports = { SEEDS, namedFiles, workFiles, areaOf, cardsFor };

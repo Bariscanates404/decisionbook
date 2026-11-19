@@ -2,61 +2,55 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-// `debug telemetry`: the exact bytes that would leave and what stayed local. A local name reaches an agent, so it shows only as a short
-// plain non-secret word.
-const { text: { secrets }, debug: { render: { capped } } } = require('@atlasbound/kit');
-const { shortOf } = require('../contracts/codes.cjs');
-const { INGEST_URL } = require('../contracts/shapes.cjs');
+// What a person reads: on or off per namespace and the rule that decided, where reports go (or that this build sends nothing), what waits
+// here, the exact request the next attempt would post, every report kept here with its state, and each verb's answer in its code's words.
+const { text: { lines: { dayOf } } } = require('@atlasbound/kit');
+const { shortOf, TEXT, sentence } = require('../contracts/codes.cjs');
+const { WIRE } = require('../contracts/shapes.cjs');
 
-const PLAIN_NAME = /^[\w.-]{1,48}$/;
-const shown = (name) => (PLAIN_NAME.test(name) && secrets.find(name).length === 0 ? name : 'withheld');
-const clean = (names) => names.map(shown);
-const reasoned = (state) => ({ on: state.on, code: state.code, why: shortOf(state.code) });
-const NO_ENDPOINT = `no-endpoint: ${shortOf('no-endpoint')}`;
-const consentLine = (consent) => `telemetry: ${consent.on ? 'ON' : 'OFF'} (${consent.code}: ${consent.why})`;
+const spaceName = ({ space }) => (space.packages.length === 1 && space.packages[0] !== space.ns ? `${space.ns} (${space.packages[0]})` : space.ns);
+const WHEN = { 'telemetry-on': (state) => `, ${dayOf(state.since)}`, 'telemetry-default': () => ` until ${WIRE.betaUntil}` };
+const whyOf = (state, killed) => (state.code === 'telemetry-killed' ? `${killed} is set in this process`
+  : `${shortOf(state.code)}${WHEN[state.code]?.(state) ?? ''}`);
 
-// What all sends add up to and the state, in the words of the package that declares them; null where no installed package does.
-const sumWords = ({ says: [, stated, none], scale }, sum) => (sum === null ? none : `${(sum / scale).toFixed(2)} ${stated}`);
-const wholeSays = ({ WHOLE }, whole) => WHOLE && `all sends together: ${whole.taken} ${WHOLE.says[0]}, ${sumWords(WHOLE, whole.sum)}`;
-
-function viewOf(state, found) {
-  const { events, due, body, rules } = found;
-  const local = { unruled: clean(found.unruled), dropped: clean(found.dropped), localOnly: found.localOnly, torn: clean(found.torn),
-    waiting: found.waiting, unchanged: rules.STATE_SAYS && found.unchanged, state: rules.STATE_SAYS, wordsFrom: rules.from,
-    wordsUnread: rules.unread };
-  const whole = { ...found.whole, says: wholeSays(rules, found.whole) };
-  return { schema: 'ab-debug/1', verb: 'telemetry', consent: reasoned(state), events, due, body, bytes: Buffer.byteLength(body, 'utf8'), whole, local };
+/** One line per rule that holds: ON for the namespaces on, OFF for the rest, each with why. */
+function stateLines({ states, killed }) {
+  const groups = new Map();
+  states.forEach((state) => {
+    const key = `${state.on ? 'ON' : 'OFF'} for |(${whyOf(state, killed)})`;
+    groups.set(key, [...(groups.get(key) ?? []), spaceName(state)]);
+  });
+  if (!states.length) return [TEXT.noModule];
+  return [...groups.entries()].map(([key, names]) => `telemetry: ${key.replace('|', `${names.join(', ')} `)}`);
 }
 
-function wholeLines({ whole, local }) {
-  const taken = whole.rows - local.waiting;
-  const bounded = `this send holds ${taken} of ${whole.rows} rows: one body is bounded, so the events above are a part; ${local.waiting} wait for later sends`;
-  return [...(local.waiting ? [bounded] : []), ...(whole.says === null ? [] : [whole.says])];
+function hereLines({ here }) {
+  const last = here.last ? `; last attempt ${dayOf(here.last.at)}: ${here.last.code}` : '';
+  return [`here: ${here.waiting} reports wait, ${here.received} were received${last}`,
+    ...(here.forget ? [sentence('forgetWaits', { n: here.forget })] : []),
+    ...(here.expired ? [shortOf('forget-expired')] : [])];
 }
 
-function previewLines(view) {
-  const { consent, local } = view;
-  return [
-    `${consentLine(consent)}; nothing was sent by this command`,
-    `${view.due ? 'would leave' : 'held, no news to dial for'}: ${view.events.length} events, ${view.bytes} bytes, exactly:`,
-    view.body,
-    ...wholeLines(view),
-    ...(INGEST_URL ? [] : [NO_ENDPOINT]),
-    'stays on this machine:',
-    `  local-only trace rows: ${local.localOnly}`,
-    `  rows waiting for a later send: ${local.waiting}`,
-    ...(local.state === null ? [] : [`  ${local.state}, unchanged since this repository's last send: ${local.unchanged} events`]),
-    `  steps with no rule ${capped(local.unruled)}`,
-    `  words in force: those the installed packages declare ${capped(local.wordsFrom)}; unreadable ${capped(local.wordsUnread)}`,
-    `  fields dropped by name ${capped(local.dropped)}`,
-    `  trace files with a torn line left out ${capped(local.torn)}`,
-  ];
+const statusLines = (view) => [...stateLines(view), view.address ? sentence('goes', { url: WIRE.url }) : TEXT.noAddress, ...hereLines(view), TEXT.see];
+
+const nextLines = (view) => [...statusLines(view), ...(view.body ? [sentence('wouldPost', { bytes: Buffer.byteLength(view.body, 'utf8') }), view.body]
+  : [TEXT.noneWaits]), TEXT.staysHere];
+
+const historyLines = ({ reports }) => (reports.length
+  ? reports.flatMap((one) => [`${one.day} ${one.ns} ${one.state}, attempts ${one.attempts}:`, one.line]) : [TEXT.noHistory]);
+
+const resetLines = ({ code, deleted, forget }) => [`${forget ? 'telemetry is off; ' : ''}${deleted} waiting reports deleted here; ${shortOf(code)}`];
+
+/** The view of any telemetry verb, as lines. */
+function renderTelemetry(view) {
+  if (view.reports) return historyLines(view).join('\n');
+  if (view.body !== undefined) return nextLines(view).join('\n');
+  if (view.states) return statusLines(view).join('\n');
+  if (view.deleted !== undefined) return resetLines(view).join('\n');
+  return `telemetry: ${view.code}: ${shortOf(view.code) ?? 'failed'}`;
 }
 
-const consentLines = ({ consent, url }) => [consentLine(consent), ...(consent.on ? [shortOf('telemetry-what-leaves')] : []), url ? `counts would go to: ${url}` : NO_ENDPOINT, 'see exactly what would leave: atlasbound debug telemetry'];
-const sentLines = ({ code }) => [`telemetry send: ${code}: ${shortOf(code) || 'failed'}`];
+/** doctor's line: the state; a stored choice that cannot be read is a problem (the person chose, and it no longer holds). */
+const doctorOf = (view) => ({ ok: !view.states.some((state) => state.code === 'telemetry-consent-unreadable'), says: stateLines(view).join('; ') });
 
-const stateView = ({ consent: state }, url = state.url) => ({ schema: 'ab-debug/1', verb: 'telemetry-status', consent: reasoned(state), url });
-const renderView = (view) => (view.body !== undefined ? previewLines(view) : view.consent ? consentLines(view) : sentLines(view)).join('\n');
-
-module.exports = { viewOf, stateView, render: renderView };
+module.exports = { renderTelemetry, doctorOf };

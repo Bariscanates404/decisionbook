@@ -22,6 +22,10 @@ const folderOf = (glob) => dirOf(stemOf(glob));
 const liesUnder = (x, y) => isWild(y) && stemOf(x).startsWith(stemOf(y));
 const globsOverlap = (a, b) => globCovers(a, b) || globCovers(b, a) || liesUnder(a, b) || liesUnder(b, a);
 const anyOverlap = (as, bs) => as.some((a) => bs.some((b) => globsOverlap(a, b)));
+// two plans' decisions of one key meet where the key names its area (`auth.session-ttl`) or what they are about (`as`, `bs`: the plan's
+// files and the decision's own) overlaps; a side naming no file cannot tell, so it meets: a bare `layout` in plans of other files is two
+const filesMeet = (as, bs) => !as.length || !bs.length || anyOverlap(as, bs);
+const keyMeets = (key, as, bs) => key.includes('.') || filesMeet(as, bs);
 
 const tooBroad = (glob) => isWild(glob) && stemOf(glob).split('/').filter(Boolean).length < 2; // fewer than two literal segments before its first wildcard
 const isGlob = (path) => isWild(path) || path.endsWith('/');
@@ -37,4 +41,4 @@ function wordGlob(word, tracked) {
   return folder ? [path.replace(/\/+$/, ''), '**'].filter(Boolean).join('/') : path;
 }
 
-module.exports = { globCovers, covering, folderOf, globsOverlap, anyOverlap, tooBroad, isGlob, bareWord, wordGlob };
+module.exports = { globCovers, covering, folderOf, globsOverlap, anyOverlap, keyMeets, tooBroad, isGlob, bareWord, wordGlob };

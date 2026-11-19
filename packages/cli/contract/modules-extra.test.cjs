@@ -24,7 +24,7 @@ test('a toy module is listed, routed and wired from the row its own package brin
   const world = makeWorld({ own: true });
   writeFake(world.dir, 'toy', TOY);
   const repo = makeRepo();
-  assert.match(run(world.bin, ['help']).out, /atlasbound toy +say hello from the toy module/);
+  assert.match(run(world.bin, ['help', '--all']).out, /atlasbound toy +say hello from the toy module/);
   const plain = run(world.bin, ['setup', '--target', repo], { plain: true });
   assert.equal(plain.code, 0, plain.err);
   assert.match(plain.out, /^ {2}toy is installed and not wired: a plain setup leaves it off; atlasbound setup --with toy wires it$/m);
@@ -46,9 +46,9 @@ test('a toy module is listed, routed and wired from the row its own package brin
   fs.rmSync(path.join(world.dir, 'node_modules', '@atlasbound', 'toy'), { recursive: true });
   assert.match(run(world.bin, ['toy', '--target', repo]).err, /^atlasbound: verb-unknown: toy /);
   assert.match(run(world.bin, ['second', '--target', repo]).err, /^atlasbound: verb-unknown: second /);
-  assert.doesNotMatch(run(world.bin, ['help']).out, /atlasbound toy/);
+  assert.doesNotMatch(run(world.bin, ['help', '--all']).out, /atlasbound toy/);
   assert.doesNotMatch(run(world.bin, ['modules', '--target', repo]).out, /toy/);
-  assert.match(run(world.bin, ['setup', '--with', 'toy', '--target', repo]).err, /^atlasbound: module-refused: no module is called toy; the modules are handoff, decisionbook or db /);
+  assert.match(run(world.bin, ['setup', '--with', 'toy', '--target', repo]).err, /^atlasbound: module-refused: no module is called toy; the modules are handoff or decisionbook /);
 });
 
 test('a row that takes a name the open data holds, or does not read, is left out and doctor names the package that brought it', () => {

@@ -45,8 +45,8 @@ async function askedWorld({ home, level = 'micro' } = {}) {
   return { io, say, create, created, add, planned, amended };
 }
 const notAsked = (id, why) => ['confirm-not-asked', `confirm-not-asked: nothing written: ${id}: ${why}`];
-const NOT_ASKED = 'a confirm is the person\'s yes, and no person\'s message came in this session after this plan was first written: show the person the plan and '
-  + 'ask; their next message lets you record the yes with this same add (a new sends its plan without the confirm)';
+const NOT_ASKED = 'a confirm is the person\'s yes, and no person\'s message came in this session after this plan was first written: send this call\'s other records '
+  + 'again now without the confirm (their words stay on them), then show the person the plan and ask; their next message lets you record the yes (a new sends its plan without the confirm)';
 const grew = (what) => `the plan grew past what the person saw (${what}): show them the change; their next message lets you record the yes`;
 
 test('a confirm sent in the turn that planned is refused; after the person\'s next prompt the same add is READY', async () => {
@@ -101,7 +101,7 @@ test('a goal, a check or a task changed after the person\'s message refuses the 
   for (const one of late) assert.equal((await w.add(id, [one, YES]))[0], 'confirm-not-asked', `${one.t} alone in the same call`);
   assert.equal(await w.add(id, late), 'ready-no-confirm', 'the change alone is stored');
   assert.equal((await w.add(id, [YES]))[0], 'confirm-not-asked', 'sent in an earlier call, still after the person\'s last message');
-  await w.say('the new goal is right, go');
+  await w.say('the new goal is right, yes, go ahead');
   assert.equal(await w.add(id, [YES]), 'READY');
   assert.deepEqual(w.amended(id), [], 'the person saw the plan they said yes to');
   await w.add(id, [{ t: 'item', kind: 'task', text: 'one more task', covers: ['AC-9'] }]);
@@ -131,64 +131,60 @@ const mine = { t: 'decision', key: KEY, value: 'stream', why: 'large exports', b
 const decidedBy = (io, id) => planRecords(io, id).filter((r) => r.t === 'decision').map((r) => [r.value, r.by]);
 
 // a later message such as "thanks, also what is 2+2?" is no assent: it makes nothing the sender signed with a person's name theirs.
-test('a decision is the person\'s only on their own whole sentence about it: not on a name, a later message, or a piece', async () => {
+test('a decision is the person\'s only on whole clauses they typed: a name, a later message or a piece of a negation is refused', async () => {
   const w = await askedWorld();
   await w.say(TASK);
   const a = await w.created(draftOf('micro', [EXPORT]));
-  const stored = async (record) => {
-    await w.add(a, [record]);
-    return decidedBy(w.io, a).at(-1);
-  };
-  assert.deepEqual(await stored(mine), ['stream', 'ai'], 'no message of the person since the plan began: a name the sender writes is no person');
-  const told = await verbs.add(w.io, { rest: [a, wire([mine])] });
-  assert.match(told.text, new RegExp(`^stored as the AI's, not the person's:\\n  ${KEY}: "said" is no whole sentence, list item or clause of a message the person sent`, 'm'),
-    'the reply says whose it was stored as, and why');
-  assert.deepEqual(told.out.asAi, [{ key: KEY, q: null, why: 'unsaid' }]);
+  const refused = async (record) => (await w.add(a, [record]))[0];
+  assert.equal(await refused(mine), 'said-not-theirs', 'words they never typed: a name the sender writes is no person');
   await w.say('thanks, also what is 2+2?');
   const { said, ...unsaid } = mine;
-  assert.deepEqual(await stored(unsaid), ['stream', 'ai'], 'a later message alone is no assent');
-  assert.deepEqual(await stored({ ...mine, said: 'thanks' }), ['stream', 'ai'], 'their words, on another subject');
-  assert.deepEqual(await stored(mine), ['stream', 'ai'], `${said}: words they never said`);
+  assert.equal(await refused(unsaid), 'said-not-theirs', `a later message alone is no assent, and ${said} is not in it`);
   await w.say('Stream the rows, do not buffer them.');
-  assert.deepEqual(await stored({ ...mine, said: 'the rows' }), ['stream', 'ai'], 'a piece of their sentence');
-  assert.deepEqual(await stored(mine), ['stream', 'ai'], 'a part of a sentence that holds a negation');
-  assert.deepEqual(await stored({ ...mine, said: 'Stream the rows, do not buffer them.' }), ['stream', 'the person'], 'their whole sentence about it');
+  const why = async (record) => (await w.add(a, [record]))[1].split('. ').at(-1); // each message of theirs, in the order typed, and why
+  assert.equal(await why({ ...mine, said: 'the rows' }), 'Their messages here, in the order typed: 1, 2, 3: no whole clause of it', 'a piece');
+  assert.equal(await why({ ...mine, said: 'Stream the rows' }), 'Their messages here, in the order typed: 1, 2: no whole clause of it; '
+    + '3: inside a sentence with a negation, so quote that sentence whole', 'a part of a sentence that holds a negation');
+  await w.add(a, [{ ...mine, said: 'Stream the rows, do not buffer them.' }]);
+  assert.deepEqual(decidedBy(w.io, a).at(-1), ['stream', 'the person'], 'their whole sentence, the value as the AI read it');
   assert.equal(planRecords(w.io, a).at(-1).said, 'Stream the rows, do not buffer them.', 'the record keeps the words it stands on');
-  assert.deepEqual(await stored({ ...mine, by: 'ai', said: 'Stream the rows, do not buffer them.' }), ['stream', 'ai'], 'the AI\'s own stays the AI\'s');
+  await w.add(a, [{ ...mine, by: 'ai', said: 'Stream the rows, do not buffer them.', proposed: true }]);
+  assert.deepEqual(decidedBy(w.io, a).at(-1), ['stream', 'ai'], 'the AI\'s own stays the AI\'s');
 });
 
-test('a decision that replaces the person\'s needs their own sentence about it after its proposal; none replaces itself', async () => {
+test('a person\'s decision naming theirs in supersedes replaces it on their own words, its own plan\'s too; never the AI\'s', async () => {
   const w = await askedWorld();
   await w.say(TASK);
   const a = await w.created(draftOf('micro', [EXPORT]));
   await w.say('stream the rows');
   await w.add(a, [mine]);
   assert.deepEqual(decidedBy(w.io, a), [['stream', 'the person']], 'by is the product\'s word, never the sender\'s');
-  const self = await w.add(a, [{ ...mine, value: 'x', supersedes: [`${a}/${KEY}`] }]);
-  assert.deepEqual(self[0], 'supersede-self');
+  await w.add(a, [{ ...mine, value: 'x', supersedes: [`${a}/${KEY}`] }]); // the documented change of this plan's own decision
+  assert.deepEqual(decidedBy(w.io, a), [['stream', 'the person'], ['x', 'the person']], 'their words, the key written again naming itself');
   const b = await w.created(draftOf('micro', [EXPORT]));
+  await w.say('yes, buffer them');
   const answer = { ...mine, value: 'buffer', why: 'shorter', by: 'Claude', said: 'yes, buffer them', supersedes: [`${a}/${KEY}`] };
-  const refused = async (record, words, plan = b) => {
-    const [code, text] = await w.add(plan, [record]);
-    assert.deepEqual([code, words.test(text)], ['supersede-not-asked', true], text);
-  };
-  await refused(answer, /send the proposal first/);
-  const c = await w.created(draftOf('micro', [EXPORT])); // their sentence about it, but no proposal in this plan
-  await w.say('yes, buffer them');
-  await refused(answer, /send the proposal first/, c);
-  assert.deepEqual(decidedBy(w.io, c), [], 'nothing replaced theirs: a replacement answers a proposal of its own plan');
-  assert.equal(typeof await w.add(b, [{ ...answer, by: 'ai', proposed: true }]), 'string', 'the proposal is recorded and binds nothing');
-  const NONE = /no whole sentence of the person about this decision came after the proposal/;
-  await refused(answer, NONE);
-  await w.say('ok, what else is open?');
-  await refused({ ...answer, said: 'ok' }, NONE); // a message after the proposal, on something else
-  await refused({ ...answer, said: 'stream the rows' }, NONE); // their words about it, from before the proposal
-  await w.say('yes, buffer them');
-  await refused({ ...answer, said: 'buffer' }, NONE); // a piece of their answer
-  assert.equal(typeof await w.add(b, [answer]), 'string', 'the person answered the proposal: their decision replaces theirs');
-  assert.deepEqual(decidedBy(w.io, b).at(-1), ['buffer', 'the person']);
+  assert.equal((await w.add(b, [{ ...answer, by: 'ai' }]))[0], 'supersede-theirs', 'only the person replaces a person\'s decision');
+  assert.equal(await w.add(b, [answer]), 'ready-no-confirm', 'their words replace it, no question asked; the plan waits for their yes');
+  assert.deepEqual([decidedBy(w.io, b), planRecords(w.io, b).at(-1).supersedes], [[['buffer', 'the person']], [`${a}/${KEY}`]]);
+  await w.say('yes, go ahead');
+  assert.equal(await w.add(b, [YES]), 'READY');
   const states = (await verbs.show(w.io, { rest: [`decision:${KEY}`] })).out.decisions.map((d) => [d.value, d.state]);
-  assert.ok(states.some(([value, state]) => value === 'buffer' && state === 'active'), JSON.stringify(states)); // it binds once b is READY
+  assert.deepEqual(states.sort(), [['buffer', 'active'], ['stream', 'revised'], ['x', 'superseded']]);
+});
+
+test('an AI decision over a key the person decided is refused and their line holds; the AI\'s proposal is kept as a proposal', async () => {
+  const w = await askedWorld();
+  await w.say(TASK);
+  const a = await w.created(draftOf('micro', [EXPORT]));
+  await w.say('stream the rows');
+  await w.add(a, [mine]);
+  const over = await w.add(a, [{ ...mine, value: 'buffer', by: 'ai', said: undefined }]);
+  assert.equal(over[0], 'decision-theirs', 'a plain rewrite of their key by the AI');
+  assert.match(over[1], /only the person changes their decision: ask them/);
+  await w.add(a, [{ ...mine, value: 'buffer', by: 'ai', said: undefined, proposed: true }]);
+  const states = (await verbs.show(w.io, { rest: [`decision:${KEY}`] })).out.decisions.map((d) => [d.value, d.by, d.state]);
+  assert.deepEqual(states, [['stream', 'the person', 'active'], ['buffer', 'ai', 'proposed']]);
 });
 
 test('a small fix that grew into normal work after the person\'s prompt is refused: they saw a smaller plan',
@@ -252,7 +248,7 @@ test('a raising signal added after the person\'s prompt is refused though the fi
     + `record 2 of 2: ${id}: ${grew('critical work, was normal work; a risk word (payment)')}`]);
   assert.equal(await w.add(id, [glob]), 'ready-no-confirm', 'the change alone is stored');
   assert.deepEqual(await w.add(id, [YES]), notAsked(id,grew('a glob (src/report/**)')), 'still the turn the person has not seen it in');
-  await w.say('yes, the whole folder');
+  await w.say('yes, go ahead, the whole folder');
   assert.equal(await w.add(id, [YES]), 'READY');
   assert.deepEqual(w.amended(id), [], 'the person saw this plan');
 });

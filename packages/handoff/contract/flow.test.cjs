@@ -24,7 +24,7 @@ test('a session cut in its first turn, and one cut after the answers, each leave
   assert.equal(await saidAtStart(w, 's1'), '', 'the first session of the repository has nothing to be told');
   await say(w, 's1', [ISSUE]); // cut by the boundary in this turn: no turn's end, no /handoff, no compaction
   const second = await saidAtStart(w, 's2');
-  assert.match(second, /^ {2}the person's last messages here, as they wrote them \(oldest first\):\n {4}- # Deprecated options/m);
+  assert.match(second, /^ {2}the person's last messages here, of other sessions, as they wrote them \(oldest first\):\n {4}- # Deprecated options/m);
   await say(w, 's2', ['Continue the work on the issue.', ANSWERS]); // cut again, after the person answered
   w.later(1);
   await say(w, 's3', ['Continue the work on the issue.']); // and again, before the answers were recorded

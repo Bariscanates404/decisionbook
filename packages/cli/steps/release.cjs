@@ -5,8 +5,9 @@
 // doctor's release check: the installed files of the open package and of each add-on the finder found, against the MANIFEST.json the
 // release build wrote in each (every file with its sha256, and no file it does not list), and the add-on built for this version. A
 // checkout has no such file: not measured. The list is not signed: signing it is the publisher's step, and this check says so.
-const { hash: { sha256 }, paths: { parentDir, nameOf } } = require('@atlasbound/kit');
+const { hash: { sha256 }, paths: { parentDir, nameOf }, text: { lines: { filled, shortSha } } } = require('@atlasbound/kit');
 const validate = require('../contracts/validate.cjs');
+const { WORDS: { release: W } } = require('../contracts/codes.cjs');
 
 const MANIFEST = 'MANIFEST.json';
 const SHOWN = 3;
@@ -37,21 +38,21 @@ function againstManifest(fsAt, { name, dir }) {
 
 /** What is wrong with one release folder, in a line ('' when nothing is): the files by name, the first few of each list. */
 function wrongWith(r, version) {
-  const lists = [['changed', r.changed], ['missing', r.missing], ['not in the release', r.extra]].filter(([, list]) => list.length);
-  const more = (list) => (list.length > SHOWN ? ` and ${list.length - SHOWN} more` : '');
-  const said = lists.map(([what, list]) => `${what} ${list.slice(0, SHOWN).join(', ')}${more(list)}`);
-  return [...said, ...(r.version === version ? [] : [`built for ${r.version}, this install is ${version}`])].join('; ');
+  const lists = [['changed', r.changed], ['missing', r.missing], ['extra', r.extra]].filter(([, list]) => list.length);
+  const more = (list) => (list.length > SHOWN ? filled(W.more, { n: list.length - SHOWN }) : '');
+  const said = lists.map(([what, list]) => filled(W.list, { what: W.lists[what], files: list.slice(0, SHOWN).join(', '), more: more(list) }));
+  return [...said, ...(r.version === version ? [] : [filled(W.builtFor, { built: r.version, version })])].join('; ');
 }
 
 /** The probe row: measured (every file of every release folder matches), failed (which file, in which folder), or not measured. */
 function releaseProbe({ machine, version }) {
   const seen = machine.releases().map((at) => againstManifest(machine.fsAt, at)).filter(Boolean);
-  if (!seen.length) return { state: 'not-measured', says: `no ${MANIFEST}: a checkout, not a release` };
-  const judged = seen.map((r, i) => ({ r, problem: wrongWith(r, version), at: i === 0 ? '' : ` at ${r.dir}` }));
-  const bad = judged.filter(({ problem }) => problem).map(({ r, problem }) => `${r.name} ${r.version}: ${problem}`);
+  if (!seen.length) return { state: 'not-measured', says: filled(W.noManifest, { manifest: MANIFEST }) };
+  const judged = seen.map((r, i) => ({ r, problem: wrongWith(r, version), at: i === 0 ? '' : filled(W.at, { dir: r.dir }) }));
+  const bad = judged.filter(({ problem }) => problem).map(({ r, problem }) => filled(W.bad, { name: r.name, version: r.version, problem }));
   if (bad.length) return { state: 'failed', says: bad.join('; ') };
-  const said = judged.map(({ r, at }) => `${r.name} ${r.version} (${String(r.commit).slice(0, 8)})${at}: ${r.count} files match`);
-  return { state: 'measured', says: `${said.join('; ')}; the list is not signed` };
+  const said = judged.map(({ r, at }) => filled(W.match, { ...r, commit: shortSha(r.commit), at }));
+  return { state: 'measured', says: filled(W.unsigned, { said: said.join('; ') }) };
 }
 
 module.exports = { releaseProbe };

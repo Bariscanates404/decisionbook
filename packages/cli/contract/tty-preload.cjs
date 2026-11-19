@@ -7,10 +7,11 @@
 // this process under a login shell that leads the terminal's session, under the root, with no AI host above. TTY_PRELOAD_ABOVE puts more
 // ancestors' command lines between that shell and the root (a test's AI host, a multiplexer, or a depth); TTY_PRELOAD_SHELL is the
 // parent's command line instead of the login shell; TTY_PRELOAD_LEADS makes this process lead the session itself (a pseudo-terminal
-// opened for it alone).
+// opened for it alone); TTY_PRELOAD_OUT makes stdout a terminal too (what the bin prints is a person's to read).
 const childProcess = require('node:child_process');
 
 Object.defineProperty(process.stdin, 'isTTY', { value: true });
+if (process.env.TTY_PRELOAD_OUT) Object.defineProperty(process.stdout, 'isTTY', { value: true });
 const real = childProcess.spawnSync;
 const above = (process.env.TTY_PRELOAD_ABOVE || '').split('|').filter(Boolean);
 const self = `${process.pid} ${process.ppid} ${process.env.TTY_PRELOAD_LEADS ? 'Ss+' : 'S+'} node atlasbound`;

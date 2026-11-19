@@ -8,6 +8,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const nodeFs = require('node:fs');
 const os = require('node:os');
+const childProcess = require('node:child_process');
 const { io: { proc, clock }, codes } = require('@atlasbound/kit');
 
 const node = (script, opts = {}) => proc.run({ cmd: process.execPath, args: ['-e', script, ...(opts.argv || [])], ...opts });
@@ -240,4 +241,35 @@ test('ancestry: this process\'s ancestors up to the root and who leads its sessi
   if (process.platform === 'win32') return;
   const own = proc.ancestry(64); // the system's own ps: this test's real ancestors
   assert.ok(own.chain.length >= 1 && own.chain.every((words) => words.length >= 1 && words[0].length > 0), JSON.stringify(own));
+});
+
+test('running: every process of the machine with its whole command line as ps gives it; null where ps does not answer', () => {
+  const listing = ['  501     1 Ss   /sbin/launchd', ' 4148   900 S    node /usr/local/lib/node_modules/atlasbound/engine/mcp/server.cjs',
+    ' 4150   900 S+   /Applications/My App.app/Contents/MacOS/app --flag  two ', ' 4160     1 Z', 'not a row', ''].join('\n');
+  assert.deepEqual(proc.running(listing, 'darwin'), [{ pid: 501, line: '/sbin/launchd' },
+    { pid: 4148, line: 'node /usr/local/lib/node_modules/atlasbound/engine/mcp/server.cjs' },
+    { pid: 4150, line: '/Applications/My App.app/Contents/MacOS/app --flag  two' }, { pid: 4160, line: '' }]);
+  assert.equal(proc.running(null, 'linux'), null, 'no listing: never an empty machine');
+  if (process.platform === 'win32') return;
+  assert.ok(proc.running().some((row) => row.pid === process.pid && row.line.length > 0), 'the system\'s own ps holds this test');
+  const real = childProcess.spawnSync;
+  childProcess.spawnSync = () => ({ status: 1, stdout: '' });
+  try {
+    assert.equal(proc.running(), null, 'a ps that does not answer: /proc holds this process\'s parents alone, so it is not asked');
+  } finally {
+    childProcess.spawnSync = real;
+  }
+});
+
+test('with no ps that answers, Linux walks the ancestors from /proc as ps would; elsewhere the walk is null, never a person', () => {
+  const trap = nodeFs.mkdtempSync(`${os.tmpdir()}/kit-no-ps-`);
+  // a ps that is not there (a slim image): its start finds no program
+  nodeFs.writeFileSync(`${trap}/no-ps.cjs`, "const cp = require('node:child_process'); const real = cp.spawnSync;\n" +
+    "cp.spawnSync = (cmd, ...rest) => real(cmd === 'ps' ? '/nonexistent/ps' : cmd, ...rest);\n");
+  const walk = `process.stdout.write(JSON.stringify(require(${JSON.stringify(require.resolve('@atlasbound/kit'))}).io.proc.ancestry(64)))`;
+  const walked = (preload) => JSON.parse(childProcess.execFileSync(process.execPath, [...preload, '-e', walk], { encoding: 'utf8' }));
+  const withPs = walked([]);
+  const without = walked(['--require', `${trap}/no-ps.cjs`]);
+  if (process.platform === 'linux') assert.deepEqual(without, withPs, '/proc gives the chain and the session leader ps gives');
+  else if (process.platform !== 'win32') assert.equal(without, null, 'no ps and no /proc: the walk could not be done');
 });

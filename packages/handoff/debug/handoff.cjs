@@ -4,19 +4,20 @@
 'use strict';
 // debug handoff: why the note says what it says. Which message each kept line names and whether that message is still stored, what was
 // dropped and why, the note's HEAD against the live one, what could not be measured, the last measure of the context. It only reads.
-const { traced, text: { safe: { clip }, lines: { counted } } } = require('@atlasbound/kit');
+const { traced, text: { safe: { clip }, lines: { counted, filled, shortId } } } = require('@atlasbound/kit');
 const { shortOf } = require('../contracts/codes.cjs');
 const { BOUNDS } = require('../contracts/shapes.cjs');
 const { hereOf } = require('../contracts/helpers.cjs');
-const { isStale, shortSha } = require('../core/note.cjs');
+const { isStale, shaOrNone } = require('../core/note.cjs');
 const store = require('../steps/store.cjs');
 const { sessionAsked } = require('../steps/verbs.cjs');
+const { debug: W } = require('../contracts/words.json');
 
 const numbers = (list) => list.map((n) => `m${n}`).join(', ') || 'none';
 
 /** A kept line and its sources: `stored` the cited numbers this session still holds, null when the line is another session's. */
 function keptRow(line, i, session) {
-  const mine = session && session.session.slice(0, 8) === line.session;
+  const mine = session && shortId(session.session) === line.session;
   const stored = mine ? line.cites.filter((n) => session.messages.some((m) => m.n === n)) : null;
   return { k: i + 1, job: line.job, cites: line.cites, session: line.session, at: line.at, stored, typed: Boolean(line.typed) };
 }
@@ -49,42 +50,41 @@ async function looked(args, io) {
 }
 
 function keptText(row) {
-  const stored = row.stored === null ? 'another session\'s messages are not looked up' : `still stored: ${numbers(row.stored)}`;
-  const kind = row.job ? 'job' : 'decision or constraint';
-  if (row.typed) return `  k${row.k} ${kind}: typed by the person ${row.at} with atlasbound handoff drop`;
-  return `  k${row.k} ${kind}: kept ${row.at}, quoting ${numbers(row.cites)} of session ${row.session}; ${stored}`;
+  const stored = row.stored === null ? W.notLookedUp : `still stored: ${numbers(row.stored)}`;
+  const kind = row.job ? 'job' : W.decisionKind;
+  if (row.typed) return filled(W.typedLine, { k: row.k, kind, at: row.at });
+  return filled(W.keptLine, { k: row.k, kind, at: row.at, cites: numbers(row.cites), session: row.session, stored });
 }
 
 function noteRows(note, head) {
   if (!note) return [`note: ${shortOf('note-none')}`];
-  const moved = note.stale ? `STALE, HEAD is now ${shortSha(head)}` : 'HEAD has not moved';
-  const handed = `last handoff ${note.handed || 'never'}, ${counted(note.since, 'message')} since`;
+  const moved = note.stale ? `STALE, HEAD is now ${shaOrNone(head)}` : W.headSame;
+  const handed = filled(W.lastHandoff, { at: note.handed || 'never', since: counted(note.since, 'message') });
   const cut = (text) => clip(text, BOUNDS.kept.chars);
-  return [`note: built ${note.at} at HEAD ${shortSha(note.head)}; ${moved}; ${handed}`,
-    ...note.kept.map(keptText),
-    ...note.dropped.map((d) => `  dropped ${d.at}: ${cut(d.text)} (${cut(d.why)})`),
+  return [filled(W.noteBuilt, { at: note.at, head: shaOrNone(note.head), moved, handed }),
+    ...note.kept.map(keptText), ...note.dropped.map((d) => `  dropped ${d.at}: ${cut(d.text)} (${cut(d.why)})`),
     ...note.unmeasured.map((u) => `  not measured: ${u.what} (${shortOf(u.why)})`)];
 }
 
 function contextRow(c) {
-  if (!c) return '  context notice: no prompt measured yet';
-  const by = `${clip(c.model || '?', 60)}: ${clip(c.by || '?', 120)}`;
-  const size = c.tokens == null ? '' : `${c.tokens} tokens of ${c.window || 'an unknown window'} (${by}); `;
-  return `  context notice: ${size}${c.noticed ? `said at ${c.noticed}` : `not said: ${shortOf(c.code)}`} (measured ${c.at})`;
+  if (!c) return W.contextNone;
+  const by = `${clip(c.model || '?', BOUNDS.model)}: ${clip(c.by || '?', BOUNDS.debug.by)}`;
+  const size = c.tokens == null ? '' : `${c.tokens} tokens of ${c.window || W.unknownWindow} (${by}); `;
+  return filled(W.contextNotice, { size, said: c.noticed ? `said at ${c.noticed}` : `not said: ${shortOf(c.code)}`, at: c.at });
 }
 
 function sessionView(s) {
   if (!s) return [];
-  const messages = `${counted(s.count, 'message')} seen, ${s.stored} stored (at most ${BOUNDS.message.perSession})`;
-  const kept = `${s.handed} at the last handoff, cited by kept lines: ${numbers(s.cited)}`;
-  const line = `session ${s.session}: ${messages}, ${kept}; ${counted(s.edited, 'file')} edited; began at HEAD ${shortSha(s.head)}`;
+  const messages = filled(W.messagesSeen, { seen: counted(s.count, 'message'), stored: s.stored, max: BOUNDS.message.perSession });
+  const kept = filled(W.handedCited, { handed: s.handed, cited: numbers(s.cited) });
+  const line = filled(W.sessionLine, { session: s.session, messages, kept, edited: counted(s.edited, 'file'), head: shaOrNone(s.head) });
   return [line, contextRow(s.context)];
 }
 
 async function view(io, args = {}) {
   const { out } = await traced(io, 'debug', looked)({ flags: args.flags || {} }, { run: io.run, ref: { verb: 'debug handoff' } });
-  const branch = clip(out.branch || 'detached HEAD', 120);
-  const where = `branch ${branch}, HEAD ${shortSha(out.head)}; store ${out.store || 'none (no home folder)'}`;
+  const branch = clip(out.branch || 'detached HEAD', BOUNDS.debug.branch);
+  const where = `branch ${branch}, HEAD ${shaOrNone(out.head)}; store ${out.store || W.noHome}`;
   const lines = [where, ...noteRows(out.note, out.head), ...sessionView(out.session), `plans of DecisionBook: ${out.plans}`];
   return { out, text: `${lines.join('\n')}\n` };
 }

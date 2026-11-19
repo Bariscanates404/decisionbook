@@ -3,11 +3,12 @@
     "name": "telemetry"
   },
   "caps": {
-    "pipeline": 764,
-    "debug": 62,
-    "tests": 1726
+    "pipeline": 1215,
+    "debug": 56,
+    "tests": 1111
   },
   "traceAs": {
-    "run/telemetry.cjs": "the verb table: each verb is one record of its own step (collect, redact, send, consent-on, consent-off, consent-status, hint)"
+    "run/telemetry.cjs": "the verb table: each verb is one record of its own step (collect, send, due, next, history, reset, consent-on, consent-off, consent-status, hint)",
+    "steps/period.cjs": "the period has no step of its own: its writes show in the records of the steps that call it (collect, send, reset)"
   }
 }

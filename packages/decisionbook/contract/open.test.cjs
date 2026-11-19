@@ -9,10 +9,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const decisionbook = require('@atlasbound/decisionbook');
-const { bookWorld, writeConfig, wire, planRecords, editEvent, ruling, sentBy, textOf, readyOne, starting, theirAnswer, stateOf, noForks, shows } = require('./world.cjs');
+const { bookWorld, writeConfig, wire, planRecords, editEvent, ruling, sentBy, textOf, readyOne, starting, theirAnswer, stateOf, noForks } = require('./world.cjs');
 
 const { verbs, handlers } = decisionbook;
-const { said: { clausesOf } } = require('@atlasbound/kit');
 const ISSUE = '# Deprecated options\nPeople who keep a command line program built on this library want to retire an option without breaking the scripts that '
   + 'still pass it. Add a way to mark an option as deprecated.';
 const CONTINUE = 'Continue the work on the issue.'; // the line a person sends at every new context
@@ -68,54 +67,86 @@ test('[I-32] a draft left open: a new session is shown the draft with its one ca
   const w = await openWorld();
   await w.say(ISSUE);
   const id = await w.create(FIRST);
-  // a new context: the first session died at the boundary
+  // a new context: the first session died at the boundary. Its start names the draft in one line that asks nothing of the person
   const start = textOf(await w.enter('s2'));
-  assert.match(start, new RegExp(`^Plan ${id} draft \\(normal\\) on main: [^\\n]+: the work in progress here\\. Finish this plan before any research or edit`, 'm'));
+  assert.match(start, new RegExp(`^Plan ${id} draft on main: [^\\n]+: an open draft an earlier session left, not READY\\. Ask the person nothing about it first: `
+    + `when their task goes on with it or is on its files, finish it \\(\`atlasbound decisionbook ready ${id}\` shows what it lacks;[^\\n]+$`));
+  assert.equal(w.codes('decisionbook.session')['draft-shown'], undefined, 'not said as the work in progress before a message is on it');
+  // a message that goes on with it in no word of the plan: that line under its own key and the pack, never "there is none"
+  const going = await w.say(CONTINUE);
+  assert.deepEqual([going.code, going.say.map((s) => [s.key, s.text === start])], ['prompt-nudge', [['decisionbook.draft', true], ['decisionbook.pack', false]]]);
+  assert.ok(!/there is none|decisionbook new <</.test(textOf(going)), textOf(going));
+  // a message on its words: the draft whole, as the work in progress
+  const told = await w.say('The deprecated option of this library, where it stood.');
+  assert.deepEqual([told.code, told.say.map((s) => s.key), w.codes('decisionbook.prompt')['draft-shown']], ['prompt-earlier', ['decisionbook.start'], 1]);
+  const whole = textOf(told);
+  assert.match(whole, new RegExp(`^Plan ${id} draft \\(normal\\) on main: [^\\n]+: the work in progress here\\. Finish this plan before any research or edit`, 'm'));
   // the light form: normal work asks no research count, gap, step, actor, edge or impact row; this plan lacks the answers and the yes
-  assert.match(start, new RegExp(`^not READY: ${id} lacks answers, confirm\\. Yours to fill now, with no one asked: `
+  assert.match(whole, new RegExp(`^not READY: ${id} lacks answers, confirm\\. Yours to fill now, with no one asked: `
     + 'answers\\. The person\'s: ask them all in one message, in plain words, each with the answer you propose [^\\n]+: Q1: [^\\n]+; Q2: [^\\n]+'
     + `The one call that shows what is missing, as one add you fill and send: \`atlasbound decisionbook ready ${id}\`; the person types no command$`, 'm'));
-  assert.equal(w.codes('decisionbook.session')['draft-shown'], 1, 'traced');
-  // that line, and a first message with no word of any list: the same answer, the open plan, never "there is none" nor a new
-  for (const first of [CONTINUE, 'The deprecated option of this library, where it stood.']) {
-    const told = await w.say(first);
-    assert.equal(told.code, 'prompt-earlier', first);
-    assert.deepEqual(told.say.map((s) => [s.key, s.text === start]), [['decisionbook.start', true]], 'the start\'s own text under its key: said once a context');
-    assert.ok(!/there is none|decisionbook new <</.test(textOf(told)), textOf(told));
-  }
+  assert.equal((await verbs.resume(w.io, { rest: [] })).out.text, start, 'resume says the start\'s line');
   // an edit before the plan is finished: the same sentence and the same one call, no fill-in pasted into the denial
   const denied = await w.edit();
   assert.deepEqual(ruling(denied), ['deny', 'plan-draft-here']);
-  assert.ok(denied.reason.includes(start.split('\n')[1].slice('not READY: '.length)) && !denied.reason.includes('<<\'JSON\''), denied.reason);
+  assert.ok(denied.reason.includes(whole.split('\n')[1].slice('not READY: '.length)) && !denied.reason.includes('<<\'JSON\''), denied.reason);
   // the one call: what is missing as one add; no blank question and no blank no-fork item, the person's answers and yes
   const shown = await verbs.ready(w.io, { rest: [id] });
   const handed = sentBy(shown.text, `add ${id}`);
   assert.deepEqual(handed.map((r) => r.answers || r.t), ['Q1', 'Q2', 'confirm'], 'the person\'s part only: an answer to each question asked, and their yes');
   assert.match(shown.text, /ready-answers: ask the person every behaviour the task and the code leave open, one question each/);
   assert.match(shown.text, /forks counted: none \(normal work needs at least 3: a floor, never the target; every behaviour still open is one more question\)/);
-  // the person's answers are bound by the product at their message. Two questions were
+  // the person answers; the AI records their answers in one add, the values as it read them, their words beside. Two questions were
   // asked, fewer than the level's three, so the plan says of each planned file what was read there and why nothing in it is open
-  const bound = await w.say(REPLY_TEXT);
-  assert.equal(bound.code, 'answers-bound');
-  assert.match(textOf(bound), new RegExp(`as their decisions on plan ${id}: Q1, Q2\\.[^]*\\n {2}forks counted: deprecated\\.frequency, deprecated\\.envVar \\(`));
-  const decided = () => planRecords(w.io, id).filter((r) => r.t === 'decision').map((r) => [r.answers, r.by, r.value]);
-  assert.deepEqual(decided(), [['Q1', 'the person', SAID.Q1], ['Q2', 'the person', SAID.Q2]], 'their own words, whole');
-  const traced = w.codes('decisionbook.prompt');
-  assert.deepEqual([traced['plan-continued'], traced['answer-bound']], [1, 2], JSON.stringify(traced));
-  assert.deepEqual(ruling(await w.edit()), ['deny', 'plan-draft-here'], 'two answers of theirs and nothing said of the files: no READY yet');
-  // an add of the same answers, in a value of their words, still stands as theirs and changes no row
+  await w.say(REPLY_TEXT);
   const fill = handed.map((r) => ({ ...r, ...(r.answers === 'Q1' && answered('Q1', 'deprecated.frequency', 'One warning per parse')),
     ...(r.answers === 'Q2' && answered('Q2', 'deprecated.envVar', 'Only when the person typed the option on the command line')),
     ...(r.t === 'confirm' && { by: 'the developer', said: 'Yes, go ahead.' }) }));
   const short = await w.add(id, fill.filter((r) => r.t !== 'confirm'));
   assert.equal(stateOf(short), 'ready-answers,ready-no-confirm', 'the row waits');
-  assert.deepEqual([short.out.asAi, w.codes('decisionbook.add')['answer-bound']], [[], 2]);
+  assert.match(short.text, /\n {2}forks counted: deprecated\.frequency, deprecated\.envVar \(/);
+  const decided = () => planRecords(w.io, id).filter((r) => r.t === 'decision').map((r) => [r.answers, r.by, r.said]);
+  assert.deepEqual(decided(), [['Q1', 'the person', SAID.Q1], ['Q2', 'the person', SAID.Q2]], 'their own words beside the values');
+  const traced = w.codes('decisionbook.add');
+  assert.deepEqual([traced['plan-continued'], traced['answer-bound']], [1, 2], JSON.stringify(traced));
+  assert.deepEqual(ruling(await w.edit()), ['deny', 'plan-draft-here'], 'two answers of theirs and nothing said of the files: no READY yet');
   const done = await w.add(id, [...noForks(FIRST), ...fill.filter((r) => r.t === 'confirm')]);
   assert.equal(stateOf(done), 'READY', done.text);
-  assert.deepEqual(decided().map(([q, by]) => [q, by]), [['Q1', 'the person'], ['Q2', 'the person'], ['Q1', 'the person'], ['Q2', 'the person']]);
   assert.deepEqual([w.codes('decisionbook.add')['no-fork-stated'], w.codes('decisionbook.add')['plan-ready']], [6, 1]);
   assert.deepEqual(ruling(await w.edit()), ['allow', 'gate-in-scope'], 'code can be written');
   assert.equal(w.plans(), 1, 'one plan: no re-plan');
+});
+
+// This machine's own draft, its questions waiting: every unrelated new session first asked the person to set it aside.
+test('[I-32] a draft an earlier session here left stops no unrelated task: one line, no question, other work beside it', async () => {
+  const w = await openWorld();
+  await w.say(ISSUE);
+  await w.create(FIRST);
+  for (const [session, task] of [['s2', 'ortak/fizik.js\'e AU↔km dönüştüren bir yardımcı fonksiyon ekle.'], ['s3', 'Ders 16\'daki Jüpiter düğmesini kaldır.']]) {
+    const start = textOf(await w.enter(session));
+    const told = await w.say(task);
+    assert.equal(told.code, 'prompt-nudge', task);
+    assert.ok(!/Finish this plan|set aside|there is none/.test(start + textOf(told)), `${start}\n${textOf(told)}`);
+  }
+  const other = { title: 'AU to km', why: 'lessons convert', success: 'one helper', kind: 'feature', level: 'micro' };
+  assert.equal(await w.create([link('ortak/fizik.js', 'the helper')], other), `2026-11-02-au-to-km`, 'its plan opens beside the draft');
+  const on = await w.say('In lib/option.js the deprecated warning should name the option.');
+  assert.deepEqual([on.code, /the work in progress here\. Finish this plan/.test(textOf(on))], ['prompt-earlier', true], 'a message on its file: the draft whole');
+});
+
+// The record the start's own line shows sets a plan aside on the person's own word, with no question put to them first: `by` empty,
+// `said` their words.
+test('[I-32] the person\'s own "evet" sets a plan aside, sent as the product shows it: no question asked first', async () => {
+  for (const yes of ['evet', 'Evet.']) {
+    const w = await openWorld();
+    await w.say(ISSUE);
+    const id = await w.create(FIRST);
+    await w.enter('s2');
+    await w.say('ortak/fizik.js\'e AU↔km dönüştüren bir yardımcı fonksiyon ekle.');
+    await w.say(yes);
+    const set = await w.add(id, [{ t: 'aside', by: '', said: yes }]); // the record as the start's own line shows it
+    assert.deepEqual([set.out.state.state, planRecords(w.io, id).at(-1).by], ['aside', 'the person']);
+  }
 });
 
 test('[I-32] no filler fork: leave to edit a planned file is refused; "no further fork" says why and waits for each question', async () => {
@@ -132,8 +163,8 @@ test('[I-32] no filler fork: leave to edit a planned file is refused; "no furthe
   const stated = await w.add(id, [NO_FORK]);
   assert.ok(stateOf(stated).split(',').includes('ready-answers'), stateOf(stated));
   assert.match(stated.text, /; Q1 still wait for the person's answer; no further fork is stated after 1 question\(s\), fewer than the level asks/);
-  const own = await w.add(id, [theirAnswer('Q1', 'deprecated.q1', 'once per parse', 'Once per parse is what the developer wants.')]);
-  assert.deepEqual([planRecords(w.io, id).at(-1).by, stateOf(own).split(',').includes('ready-answers')], ['ai', true], 'the AI\'s own answer to its question leaves it waiting');
+  assert.equal(await w.refused(id, [theirAnswer('Q1', 'deprecated.q1', 'once per parse', 'Once per parse is what the developer wants.')]), 'said-not-theirs',
+    'an answer in words the person did not type is refused; the question still waits');
   await w.say('Once per parse, please.');
   const theirs = await w.add(id, [theirAnswer('Q1', 'deprecated.q1', 'Once per parse', 'Once per parse, please.')]);
   // one question asked where the level asks three: the no-fork sentence alone no longer stands for the rest
@@ -158,7 +189,7 @@ test('[I-33] ask what is open: zero questions, a no-fork sentence and the person
     ...(['actor', 'edge', 'impact'].includes(r.kind) && { text: `${r.kind} of the deprecated option ${i}` }), ...(r.t === 'confirm' && { by: 'the developer', said: 'ok' }) }));
   await w.say('ok');
   const zero = await w.add(id, [...fill.filter((r) => r.t !== 'confirm'), { t: 'item', kind: 'no-fork', text: 'nothing further open' }, ...fill.filter((r) => r.t === 'confirm')]);
-  assert.equal(stateOf(zero), 'ready-answers', `regression: this was READY\n${zero.text}`);
+  assert.equal(stateOf(zero), 'ready-answers', `the answers still wait for the person: not READY\n${zero.text}`);
   assert.deepEqual(ruling(await w.edit()), ['deny', 'plan-draft-here'], 'no edit on a plan that asked nothing');
   // the two ways on: ask (three questions, each answered by the person), or say of every planned file what was read there
   const ask = (n) => ({ t: 'question', q: `Q${n}`, text: `Open behaviour ${n} of the deprecated warning: variant a${n} or variant b${n}?`, decides: `deprecated.b${n}`, whyNotCode: 'the task does not say', blocking: false });
@@ -167,28 +198,19 @@ test('[I-33] ask what is open: zero questions, a no-fork sentence and the person
   await w.say('Q1: variant a1.\nQ2: variant b2.\nQ3: variant a3.');
   const answers = await w.add(id, [1, 2, 3].map((n) => theirAnswer(`Q${n}`, `deprecated.b${n}`, n === 2 ? 'variant b2' : `variant a${n}`, n === 2 ? 'Q2: variant b2.' : `Q${n}: variant a${n}.`)));
   assert.ok(!stateOf(answers).split(',').includes('ready-answers'), `asked the level's number, each answered by the person: the sentence stands for the rest\n${answers.text}`);
-  // the person's answer names Q4: it is not stored as the AI's ("moved") because it
-  // shares more words with a longer question; a sentence of theirs that names the question is that question's, and only that one's
-  await w.add(id, [{ ...ask(4), text: 'Exact warning text?' }, { ...ask(5), text: 'If the deprecated option is passed several times in one run, warn once or on each use?' }]);
-  const NAMED = '- About "Q4. What should the warning say?": Any clear wording, as long as it names the option and includes the message.';
-  await w.say(NAMED);
-  const value = 'Any clear wording, as long as it names the option and includes the message.';
-  await w.add(id, [theirAnswer('Q5', 'deprecated.b5', value, NAMED)]);
-  await w.add(id, [theirAnswer('Q4', 'deprecated.b4', value, NAMED)]);
-  assert.deepEqual(planRecords(w.io, id).slice(-2).map((r) => [r.answers, r.by]), [['Q5', 'ai'], ['Q4', 'the person']]);
 });
 
-test('[I-32] an open plan is never dropped silently: a new is refused beside it, only the person\'s answer sets it aside', async () => {
+test('[I-32] an open plan is never dropped silently: a new is refused beside it, only the person\'s own words set it aside', async () => {
   const w = await openWorld();
   await w.say(ISSUE);
   const id = await w.create(FIRST);
   await w.enter('s2');
   const told = await w.say('Fix the typo in the Readme first, it says "optoin" twice.');
-  assert.equal(told.code, 'prompt-earlier', 'other work or not, the message alone decides nothing');
-  assert.match(textOf(told), new RegExp(`Only if the person's message plainly names other work: ask them, in a message that names plan ${id} and ends your turn, whether it is set aside`));
+  assert.equal(told.code, 'prompt-nudge', 'a message on none of its files or words: the draft in its one line, no question to settle first');
+  assert.match(textOf(told), new RegExp(`^Plan ${id} draft on main: [^\\n]+Ask the person nothing about it first`, 'm'));
   const other = { title: 'Readme typo', why: 'optoin twice', success: 'spelled right', kind: 'chore', level: 'micro' };
   assert.equal(await w.create([], other), 'plan-open', 'no second plan beside the open one');
-  // attack rows: "set aside" without the person's answer
+  // attack rows: "set aside" in words the person did not type in this session
   const aside = (said, by = 'the developer') => w.refused(id, [{ t: 'aside', by, said }]);
   assert.equal(await aside('Yes, set the old plan aside.'), 'aside-not-asked', 'words the person never said');
   assert.equal(await aside('Fix the typo in the Readme first, it says "optoin" twice.', 'ai'), 'aside-not-asked', 'signed by the AI');
@@ -196,35 +218,10 @@ test('[I-32] an open plan is never dropped silently: a new is refused beside it,
     'aside-not-asked', 'their sentence of an earlier session, from before this one was shown the plan');
   assert.equal(await aside('Fix the typo'), 'aside-not-asked', 'a piece of their sentence');
   assert.equal(w.plans(), 1);
-  // a whole sentence of theirs in this session that the AI reads as "set it aside",
-  // with no question put to them first, sets nothing aside; nor does a yes of theirs to something else
-  assert.equal(await aside('Fix the typo in the Readme first, it says "optoin" twice.'), 'aside-not-asked', 'regression: their own whole sentence, never asked');
-  await w.say('Yes, leave the deprecated option plan for now.');
-  assert.equal(await aside('Yes, leave the deprecated option plan for now.'), 'aside-not-asked', 'regression: said before any question was shown');
-  await shows(w.io, 'I will fix the typo. Shall I go ahead?');
-  await w.say('Yes.');
-  assert.equal(await aside('Yes.'), 'aside-not-asked', 'a yes to a message that did not name the plan');
-  // the question shown first (the turn's last message names the plan and asks), then their answer in their next message
-  await shows(w.io, `Plan ${id} (the deprecated option) is still open here. Is it set aside while I fix the Readme typo?`);
-  assert.equal(w.codes('decisionbook.stop')['aside-asked'], 1, 'traced');
-  await w.say('No, keep it, do the typo inside it.');
-  assert.equal(await aside('No, keep it, do the typo inside it.'), 'aside-not-asked', 'their no is no yes');
-  await shows(w.io, `Understood. Plan ${id} stays open. Set it aside after all?`);
-  await w.say('Go on with it then.');
-  assert.equal(await aside('Go on with it then.'), 'aside-not-asked', 'an answer that is no yes');
-  // a message that names the plan to say it goes on and asks something else asked
-  // nothing of it; a message that asked is not the one their yes replies to once a newer message asked something else
-  await shows(w.io, `Plan ${id} goes on. Shall I fix the Readme typo inside it first?`);
-  await w.say('Yes, do.');
-  assert.equal(await aside('Yes, do.'), 'aside-not-asked', 'regression: it named the plan and asked another question');
-  await shows(w.io, `Plan ${id}: set it aside?`);
-  await shows(w.io, 'Which spelling should the Readme use, British or American?');
-  await w.say('Yes, British.');
-  assert.equal(await aside('Yes, British.'), 'aside-not-asked', 'regression: the newest message before their yes asked something else');
-  await shows(w.io, `Plan ${id}: set it aside?`);
+  // their own words in this session, read by the AI as "set it aside", set it aside: no question is put to them first
   await w.say('Yes, leave the deprecated option plan for now.');
   await w.say('And use British spelling.');
-  const set = await w.add(id, [{ t: 'aside', by: 'the developer', said: 'Yes, leave the deprecated option plan for now.' }]); // their yes, in their next message
+  const set = await w.add(id, [{ t: 'aside', by: 'the developer', said: 'Yes, leave the deprecated option plan for now.' }]);
   assert.deepEqual([set.out.state.state, planRecords(w.io, id).at(-1).by, w.codes('decisionbook.add')['plan-set-aside']], ['aside', 'the person', 1]);
   assert.equal(set.text.trim().split('\n').at(-1), `${id} aside`);
   const made = await w.create([], other);
@@ -252,106 +249,51 @@ test('[I-32] an open plan is never dropped silently: a new is refused beside it,
   assert.equal(await again(own), 'plan-created', 'a session that began before the plan was READY plans beside it, in sight');
 });
 
-// an AI's own message may invite 'or "go with the defaults"': a decision recorded on the person's reply to it
-// is theirs, never stored `by: ai` with the gate shut.
-test('[I-33] an invited reply is the person\'s: it decides each question the message before it showed with a proposal', async () => {
-  const w = await openWorld();
-  await w.say(ISSUE);
-  const ask = (q, text, proposal) => ({ t: 'question', q, text, decides: `deprecated.${q.toLowerCase()}`, whyNotCode: 'the task does not say', blocking: true,
-    ...(proposal && { proposal }) });
-  const id = await w.create([...FIRST.filter((r) => r.t !== 'question'), ask('Q1', 'Warn on every occurrence or once per parse?', 'once per parse'),
-    ask('Q2', 'Should a value from the environment variable also warn?', 'command line only'), ask('Q3', 'Where does the help output list a deprecated option?')]);
-  const take = (q, value, said = 'Go with your suggestions.') => theirAnswer(q, `deprecated.${q.toLowerCase()}`, value, said);
-  const last = (n) => planRecords(w.io, id).filter((r) => r.t === 'decision').slice(-n).map((r) => [r.answers, r.by, r.value]);
-  const QUESTIONS = 'Q1: every occurrence or once per parse? I propose: once per parse.\nQ2: the environment variable too? I propose: command line only.\nQ3: where in the help output?';
-  // attack: the reply came with no message of the AI before it that showed the proposals (stored as the AI's)
-  await w.say('Go with your suggestions.');
-  const blind = await w.add(id, [take('Q1', 'once per parse')]);
-  assert.deepEqual([last(1), /Q1 was not among them/.test(blind.text)], [[['Q1', 'ai', 'once per parse']], true], blind.text);
-  // the words of the proposals spread over sentences that show no proposal
-  await shows(w.io, 'Q1: warn once, or on every occurrence, per parse of the command? Q2: is the environment variable read on one line only? Q3: where?');
-  await w.say('Go with your suggestions.');
-  await w.add(id, [take('Q1', 'once per parse'), take('Q2', 'command line only')]);
-  assert.deepEqual(last(2), [['Q1', 'ai', 'once per parse'], ['Q2', 'ai', 'command line only']], 'regression: a proposal is shown as one run of its words');
-  // the AI shows Q1 and Q2 with their proposals and Q3 with none; their reply takes the proposals whole
-  await shows(w.io, QUESTIONS);
-  assert.equal(w.codes('decisionbook.stop')['proposal-shown'], 1, 'traced');
-  await w.say('Go with your suggestions.');
-  await w.add(id, [take('Q2', 'on every use')]);
-  assert.deepEqual(last(1), [['Q2', 'ai', 'on every use']], 'attack: a value that is not the proposal as shown');
-  await w.add(id, [take('Q3', 'in the options list')]);
-  assert.deepEqual(last(1), [['Q3', 'ai', 'in the options list']], 'attack: a question shown without a proposal');
-  const taken = await w.add(id, [take('Q1', 'once per parse'), take('Q2', 'command line only')]);
-  assert.deepEqual(last(2), [['Q1', 'the person', 'once per parse'], ['Q2', 'the person', 'command line only']], `regression: both by ai\n${taken.text}`);
-  assert.equal(planRecords(w.io, id).filter((r) => r.t === 'decision').at(-1).said, 'Go with your suggestions.', 'in the person\'s sentence');
-  assert.equal(w.codes('decisionbook.add')['proposals-taken'], 2, 'traced');
-  assert.ok(stateOf(taken).split(',').includes('ready-open-question'), 'Q3 still waits for their own answer');
-  // other invited forms, and what is no such reply: a negation, a reply two messages after the proposals were shown
-  for (const [reply, by] of [['Yes to all.', 'the person'], ['Go with the defaults.', 'the person'], ['Önerdiğin gibi yap.', 'the person'], ['Do not go with your suggestions.', 'ai']]) {
-    await shows(w.io, QUESTIONS);
-    await w.say(reply);
-    await w.add(id, [take('Q1', 'once per parse', reply)]);
-    assert.deepEqual(last(1), [['Q1', by, 'once per parse']], reply);
-  }
-  await shows(w.io, QUESTIONS);
-  await w.say('What does Q2 change for scripts?');
-  await shows(w.io, 'It only changes when the warning is written.');
-  await w.say('Go with your suggestions.');
-  await w.add(id, [take('Q1', 'once per parse')]);
-  assert.deepEqual(last(1), [['Q1', 'ai', 'once per parse']], 'the message before their reply showed no proposal');
-});
-
-// the person answers in a list, each item quoting the question as the AI asked it. Such an answer is theirs whole, never
-// stored as the AI's (`moved`: it shares more words with another question) and theirs only once cut down to a side sentence;
-// a second item about one question is in a record too.
-test('[I-34] an answer given as a list item is their whole item, under the question it quotes; a side sentence is not', async () => {
-  const w = await openWorld();
-  await w.say(ISSUE);
-  const ask = (q, text) => ({ t: 'question', q, text, decides: `deprecated.${q.toLowerCase()}`, whyNotCode: 'the task does not say', blocking: true });
-  const id = await w.create([...FIRST.filter((r) => r.t !== 'question'), ask('Q1', 'Warn on every occurrence or once per parse?'),
-    ask('Q2', 'Should a value from the environment variable also warn?'), ask('Q3', 'Where does the help output list a deprecated option?')]);
-  const ITEMS = ['Once per parse, whatever the number of occurrences. A second parse in the same process warns again.',
-    'Only when the person typed the deprecated option; the help output and its list stay silent.',
-    'In the options list, marked (deprecated).', 'Yes, the description stays as it is.'];
-  await w.say(['Answers from me (the developer):', `- About "Should it warn on every occurrence, or once per parse? I suggest once.": ${ITEMS[0]}`,
-    `- About "Does a value from the environment variable warn too?": ${ITEMS[1]}`, `- About "Where does the help output list a deprecated option?": ${ITEMS[2]}`,
-    `- About "Does the help output keep the option's description?": ${ITEMS[3]}`].join('\n'));
-  const answer = (q, value, said) => w.add(id, [theirAnswer(q, `deprecated.${q.toLowerCase()}`, value, said)]);
-  const last = () => planRecords(w.io, id).filter((r) => r.t === 'decision').slice(-1).map((r) => [r.answers, r.by, r.value])[0];
-  // attack rows: a side sentence of their item; their item under another question than the one it quotes
-  const side = await answer('Q1', 'A second parse in the same process warns again.', 'A second parse in the same process warns again.');
-  assert.deepEqual([last(), side.out.asAi], [['Q1', 'ai', 'A second parse in the same process warns again.'], [{ key: 'deprecated.q1', q: 'Q1', why: 'part', items: [1] }]],
-    'regression: a side sentence was the person\'s decision');
-  assert.match(side.text, /"said" leaves out a part of the person's answer to Q1: their answer is the list items numbered 1 of their message; copy those into "said" whole/);
-  const moved = await answer('Q3', 'the help output and its list stay silent', ITEMS[1]);
-  assert.deepEqual([last()[1], moved.out.asAi[0].why], ['ai', 'moved']);
-  // must pass: the whole item, with a value in its words; an item that shares more words with another question is still its own question's
-  await answer('Q1', 'Once per parse', ITEMS[0]);
-  assert.deepEqual(last(), ['Q1', 'the person', 'Once per parse']);
-  const quoted = await answer('Q2', 'Only when the person typed the deprecated option', ITEMS[1]);
-  assert.deepEqual(last(), ['Q2', 'the person', 'Only when the person typed the deprecated option'], `regression: moved\n${quoted.text}`);
-  // two items quote Q3: their answer to it is both, so the second one is lost in no record
-  const one = await answer('Q3', 'In the options list', ITEMS[2]);
-  assert.deepEqual([last()[1], one.out.asAi[0].items], ['ai', [3, 4]], 'regression: the person\'s, with their fourth item in no record');
-  const both = await answer('Q3', 'In the options list', `${ITEMS[2]}\n${ITEMS[3]}`);
-  assert.deepEqual([last(), planRecords(w.io, id).filter((r) => r.t === 'decision').at(-1).said.includes('the description stays as it is')], [['Q3', 'the person', 'In the options list'], true]);
-  assert.equal(stateOf(both).includes('ready-open-question'), false, 'every question has their answer');
-});
-
-// a message's clauses are kept whole: a cap of 80 clauses would make a longer answer lose its
-// last items silently, and they could never be the person's
-test('[I-34] a long answer is kept whole: their answer in the last items of a 200-clause message is theirs', async () => {
-  const w = await openWorld();
-  await w.say(ISSUE);
-  const id = await w.create([...FIRST.filter((r) => r.t !== 'question'), { t: 'question', q: 'Q1', text: 'Warn on every occurrence or once per parse?',
-    decides: 'deprecated.q1', whyNotCode: 'the task does not say', blocking: true }]);
-  const ITEM = 'Once per parse, whatever the number of occurrences.';
-  const notes = Array.from({ length: 196 }, (_, i) => `- Note ${i + 1}: the option table stays as it is.`);
-  const message = ['Answers from me:', ...notes, `- About "Warn on every occurrence or once per parse?": ${ITEM}`].join('\n');
-  assert.ok(clausesOf(message).length >= 200, `${clausesOf(message).length} clauses`);
-  await w.say(message);
-  const added = await w.add(id, [theirAnswer('Q1', 'deprecated.q1', 'Once per parse', ITEM)]);
-  // the product bound the item itself at the prompt, whole; the AI's own add of the same answer is the person's too
-  assert.deepEqual(planRecords(w.io, id).filter((r) => r.t === 'decision').map((r) => [r.answers, r.by, r.value]),
-    [['Q1', 'the person', ITEM], ['Q1', 'the person', 'Once per parse']], `regression: the AI's (unsaid)\n${added.text}`);
+// A shared branch holds a teammate's draft with a question that waits for someone else's word. Before, every new session of every
+// teammate was told to finish it first and asked the person whether it is set aside, one turn per session for unrelated work.
+test('[I-32] a teammate\'s open draft stops no one: one line that asks nothing, other work is planned beside it', async () => {
+  const ali = await openWorld();
+  await ali.say(ISSUE);
+  const id = await ali.create(FIRST);
+  const file = `.decisionbook/${id}.jsonl`;
+  const world = (over) => {
+    const made = ali.io.fs.readText(file).replaceAll('"at":"2026-11-02T', '"at":"2026-11-01T'); // written the day before
+    const io = bookWorld({ files: { ...FILES, 'lib/suggest.js': 's\n', [file]: made }, branch: 'main', authors: { [file]: 'Ali' }, begun: null, ...over });
+    writeConfig(io, { protect: ['lib/**', 'typings/**'] });
+    return io;
+  };
+  const enter = async (io, session) => {
+    await handlers.start(starting(session), io);
+    io.session = session;
+    return handlers.session(starting(session), io);
+  };
+  const codes = (io, step) => io.fs.readText('.atlasbound/trace/r1.ndjson').trim().split('\n').map((line) => JSON.parse(line)).filter((r) => r.step === step).at(-1).codes;
+  const io = world(); // another machine: the draft came with the branch, no session here made it
+  const start = textOf(await enter(io, 's9'));
+  assert.equal(start, `Plan ${id} draft on main: ${HEAD.title} (lib/option.js, lib/command.js, typings/index.d.ts, tests/options.deprecated.test.js, `
+    + 'tests/option.chain.test.js, Readme.md): a teammate\'s open draft that came with the branch, not this session\'s work. Ask the person nothing about it '
+    + `and leave it as it is; only work on its files goes on in it (\`atlasbound decisionbook ready ${id}\` shows what it lacks). Any other work is planned `
+    + 'with its own `atlasbound decisionbook new`', 'one line: no "finish this plan", no question to settle, no aside');
+  assert.deepEqual(codes(io, 'decisionbook.session'), { 'session-draft': 1 }, 'not traced as a draft shown as the work in progress');
+  const told = await handlers.prompt({ hook_event_name: 'UserPromptSubmit', session_id: 's9', prompt: 'Add a --quiet flag to lib/suggest.js that hides the hints.' }, io);
+  assert.equal(told.code, 'prompt-nudge', 'the task is planned as new work, with its pack');
+  assert.ok(!/Finish this plan|set aside|not READY/.test(textOf(told)), textOf(told));
+  assert.equal((await verbs.resume(io, { rest: [] })).out.text, start, 'resume says the same line');
+  const other = { title: 'A quiet flag', why: 'hints are noise in scripts', success: 'no hint with --quiet', kind: 'feature', level: 'micro' };
+  const create = (records) => verbs.create(io, { rest: [wire({ ...other, records })] }).then((res) => res.out.code, (err) => err.code);
+  assert.equal(await create([link('lib/option.js', 'the flag')]), 'plan-open', 'a new that names the draft\'s file is that draft\'s work: refused, it goes on there');
+  const denied = await handlers.preEdit({ ...editEvent('lib/option.js'), session_id: 's9' }, io);
+  assert.deepEqual(ruling(denied), ['deny', 'plan-draft-here'], 'an edit of its file still meets the draft, with what it lacks');
+  assert.equal(await create([]), 'plan-created', 'other work is planned beside it with no word about it');
+  // this machine's own draft comes first, though the teammate's file sorts after it; a new session names it in its one line until a
+  // message is on it
+  const mine = (await verbs.create(io, { rest: [wire({ ...other, title: 'Hide hints quietly', records: [FIRST[0], link('lib/suggest.js', 'the flag'), FIRST[8], Q1] })] })).out.id;
+  assert.ok(mine < id, 'the teammate\'s draft is the last plan file');
+  const next = textOf(await enter(io, 's10'));
+  assert.match(next, new RegExp(`^Plan ${mine} draft on main: Hide hints quietly \\(lib/suggest\\.js\\): an open draft an earlier session left`), next);
+  assert.equal(await create([]), 'plan-open', 'and a new beside this machine\'s own open draft is refused as before');
+  // this machine's own draft, committed: the line of a draft an earlier session here left, never a teammate's
+  const theirs = world({ home: ali.io.home });
+  assert.match(textOf(await enter(theirs, 's3')), new RegExp(`^Plan ${id} draft on main: [^\\n]+: an open draft an earlier session left, not READY\\.`));
+  assert.equal(codes(theirs, 'decisionbook.session')['draft-shown'], undefined);
 });

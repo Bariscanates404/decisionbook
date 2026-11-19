@@ -79,7 +79,8 @@ test('[I-28] the gate needs no row of the session: no start row, no session id o
   const open = await begin(draft);
   await handlers.start(starting('s2'), draft);
   const denied = await handlers.preEdit(editIn('s2'), draft);
-  assert.deepEqual([...ruling(denied), denied.plan], ['deny', 'plan-draft-here', open], 'an earlier session\'s draft covers nothing: only READY freezes');
+  assert.deepEqual(ruling(denied), ['deny', 'plan-none'], 'an earlier session\'s draft covers nothing: only READY freezes');
+  assert.match(denied.reason, new RegExp(`draft ${open} does not name it`), 'a draft naming no file is named, and holds no edit');
 });
 
 test('[I-28] a resume record is still read and kept as history: it holds its why and its time, and nothing reads it', async () => {

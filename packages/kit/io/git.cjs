@@ -61,6 +61,20 @@ const commitsOf = (text) => text.split(RS).filter(Boolean).map((chunk) => {
   return { sha, subject, body: body.trim(), files: rest.split(NUL).map((name) => name.replace(/^\n/, '')).filter(Boolean) };
 });
 
+// blame --porcelain: a header per line names its commit, a commit's first header is followed by its summary; the zero sha is a line not
+// committed yet (null)
+const BLAME_HEAD = /^([0-9a-f]{40}) \d+ \d+/;
+function blameOf(text) {
+  const shas = [];
+  const subjects = new Map();
+  for (const row of text.split('\n')) {
+    const head = BLAME_HEAD.exec(row);
+    if (head) shas.push(head[1]);
+    else if (row.startsWith('summary ')) subjects.set(shas.at(-1), row.slice('summary '.length));
+  }
+  return shas.map((sha) => (/^0+$/.test(sha) ? { sha: null, subject: null } : { sha, subject: subjects.get(sha) ?? null }));
+}
+
 // HEAD's first-parent commits after `base` that another local or remote branch (less `branch`, its copies and a remote's HEAD) holds too.
 async function sharedOf(git, base, branch) {
   const not = [...(base ? [`^${base}`] : []), '--'];
@@ -79,7 +93,7 @@ const gitFailed = (verb, res) => fail('git-failed', `${verb}: ${res.error || res
 
 // createGit ({ proc, root, env }) rows: lsFiles { key, refused?, disk, mode, link }; statusZ { xy, key, refused?, disk, from? }; commits {
 // sha, subject, body, files }; shared { sha, ref }; tracked the paths git lists; unignored { key, by }; head, branch, author one line or
-// null.
+// null; blame { sha, subject } per line of a tracked file as the work tree holds it (`line`: that line only), none before a first commit.
 function createGit({ proc, root, env = {} }) {
   const child = { env: { ...env, ...CLOSED_ENV }, cwd: root, capBytes: CAP_BYTES };
   let closed = null; // once per port: the config a run reads does not change under it
@@ -116,6 +130,8 @@ function createGit({ proc, root, env = {} }) {
     author: async (key) => ((await head()) && (await line(['log', '-1', '--format=%an', '--', key]))) || null,
     commits: (base, { firstParent = false } = {}) => since(base, async () => commitsOf(await git(rangeOf(base, firstParent)))),
     shared: (base, branch) => since(base, () => sharedOf(git, base, branch)),
+    blame: async (key, line = null) => ((await head()) === null ? []
+      : blameOf(await git(['blame', '--porcelain', ...(line ? ['-L', `${line},${line}`] : []), '--', key]))),
   };
 }
 

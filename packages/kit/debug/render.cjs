@@ -3,7 +3,8 @@
 // See LICENSE and NOTICE in the package root.
 'use strict';
 // debug/render: the text primitives every debug verb shares; a view stays data, and an absent number prints "not measured", never 0.
-const d8 = (sha) => (sha ? sha.slice(0, 8) : '—');
+const { shortSha } = require('../base/text.cjs');
+const d8 = (sha) => (sha ? shortSha(sha) : '—');
 const measured = (n) => (n === null || n === undefined ? 'not measured' : String(n));
 const tally = (byCode) => Object.entries(byCode || {}).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([code, n]) => `${code} ×${n}`).join(', ');
 

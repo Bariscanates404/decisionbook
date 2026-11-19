@@ -5,15 +5,16 @@
 // debug inject's view: a scripted session's host events as the port receives them, and per event and package the characters said to the
 // agent and held back by the context rule; totals per package and module, the events that said nothing, and each MCP server's standing cost
 // beside them.
-const { errors: { fail }, paths, debug: { render: { columns } } } = require('@atlasbound/kit');
+const { errors: { fail }, paths, debug: { render: { columns } }, text: { lines: { filled } } } = require('@atlasbound/kit');
 const { DEBUG_SCHEMA } = require('../contracts/shapes.cjs');
+const { WORDS: { inject: W } } = require('../contracts/codes.cjs');
 
 const PATH_KEYS = ['file_path', 'filePath', 'notebook_path'];
 
 /** A script entry -> the payload the host would send: one session, the copy as cwd, a relative path made the copy's. */
 function payloadsOf(script, { root, session, home }) { // `transcript`: a file beside the script, laid in the scratch home by the driver
   if (!Array.isArray(script) || !script.every((e) => e && typeof e === 'object' && typeof e.event === 'string')) {
-    throw fail('args-invalid', 'debug inject: the script is a JSON list of host events, each { "event": <name>, ...its payload }');
+    throw fail('args-invalid', W.script);
   }
   const placed = (obj) => (obj && typeof obj === 'object' ? Object.fromEntries(Object.entries(obj).map(([k, v]) => [k,
     PATH_KEYS.includes(k) && typeof v === 'string' && !v.startsWith('/') ? `${root}/${v}` : v])) : obj);
@@ -52,13 +53,11 @@ function injectText({ events, standing, totals, copy }) {
   const head = ['#', 'event', 'label', ...pkgs.map((p) => `${p} said/held`), 'verdict', 'notes'];
   const rows = events.map((e, i) => [i + 1, e.event, e.label, ...pkgs.map((p) => cell(e.agent[p])), e.verdict || '-', e.notes.join('; ') || '-']);
   const total = (by) => Object.entries(by).map(([k, r]) => [k, r.said, r.held]);
-  return [`said to the agent / held back by the context rule, characters, per event and package (${events.length} events, standing ${totals.standing} beside them):`,
-    ...columns([head, ...rows]), '', 'per package (said, held):', ...columns(total(totals.byPkg)), '', 'per module (said, held):', ...columns(total(totals.byModule)), '',
-    'per event kind (said, held):', ...columns(total(totals.byKind)), '',
-    `events that said nothing: ${totals.silent} of ${events.length}; said ${totals.said}, held ${totals.held}`, '',
-    'standing cost a client holds for the session, per MCP server wired here, bytes (initialize.instructions, whole tools/list entries as sent):',
-    ...(standing.length ? columns(standing.map((s) => [s.server, s.instructions, s.tools])) : ['  none: no MCP server is wired here']),
-    ...(copy ? ['', `the copy it ran on is kept: ${copy} (atlasbound debug trace --session <id> --target <copy>)`] : []), ''].join('\n');
+  return [filled(W.said, { events: events.length, standing: totals.standing }), ...columns([head, ...rows]), '', W.perPackage,
+    ...columns(total(totals.byPkg)), '', W.perModule, ...columns(total(totals.byModule)), '', W.perKind, ...columns(total(totals.byKind)), '',
+    filled(W.silent, { ...totals, events: events.length }), '', W.standing,
+    ...(standing.length ? columns(standing.map((s) => [s.server, s.instructions, s.tools])) : [W.noServer]),
+    ...(copy ? ['', filled(W.copyKept, { copy })] : []), ''].join('\n');
 }
 
 const injectView = ({ events, standing, copy, modules }) => {

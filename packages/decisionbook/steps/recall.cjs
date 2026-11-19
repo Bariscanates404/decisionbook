@@ -2,22 +2,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-const { errors: { isFail } } = require('@atlasbound/kit');
+const { errors: { fail, isFail } } = require('@atlasbound/kit');
 const { isTaskPrompt } = require('../contracts/shapes.cjs');
-const { promptWords } = require('../base/text.cjs');
 const { WORDS } = require('../contracts/codes.cjs');
 const { sessionAdd, saidByPack, keepReads } = require('./here.cjs');
 const { eventFile } = require('./host.cjs');
 const { RECALL_BYTES } = require('../core/text/recall.cjs');
-const { SEEDS, namedFiles, branchFiles, workFiles, cardsFor } = require('./area.cjs');
+const { SEEDS, namedFiles, workFiles, cardsFor } = require('./area.cjs');
+const { untouchedOf } = require('../core/recall.cjs');
 const { packFor } = require('./pack.cjs');
 const { planPrompt } = require('./read.cjs');
 const { contractSay, promptContract } = require('./promise.cjs');
 const store = require('./store.cjs');
+const trust = require('./trust.cjs');
 
 const PACKED = ['prompt-nudge']; // where a task prompt is told to plan, the plan pack is its area's text instead of the cards
-// the branch's open plan was said, or the person's answers to it were bound: no card or pack sends the session to a new one
-const HELD = ['prompt-resume', 'prompt-earlier', 'answers-bound'];
+// the branch's open plan was said: no card or pack sends the session to a new one
+const HELD = ['prompt-resume', 'prompt-earlier'];
 
 // a coded failure of the walk keeps today's answer, counted in n (recallUnread), so the nudge and the pack never go; a statement the
 // prompt holds is kept and its contract said in this same answer
@@ -44,8 +45,7 @@ async function promptCards(said, text, session, io) {
   const files = await workFiles(io, web, { text, session, branch });
   const nudge = said.out.say || [];
   const room = RECALL_BYTES - Buffer.byteLength(nudge.map((s) => s.text).join(''));
-  const { say, n } = await cardsFor(io, web,
-    { files, words: files.length ? [] : promptWords(text), branch, session, said: saidByPack(io, session) }, room);
+  const { say, n } = await cardsFor(io, web, { files, text, branch, session, said: saidByPack(io, session) }, room);
   if (!n.cards) return { ...said, n: { ...said.n, ...n } };
   return { out: { code: 'prompt-recall', say: [...say, ...nudge] }, code: 'prompt-recall', n: { ...said.n, ...n, nudged: nudge.length } };
 }
@@ -65,7 +65,7 @@ async function recallFile(event, io) {
   if (!event.session_id) return { out: { code: 'recall-unkept' }, code: 'recall-unkept' };
   const contract = await contractSay(io, { file });
   const room = RECALL_BYTES - Buffer.byteLength(contract.say.map((s) => s.text).join(''));
-  const { say, n } = await cardsFor(io, store.readWeb(io), { files: [file], words: [], branch: await io.git.branch(),
+  const { say, n } = await cardsFor(io, store.readWeb(io), { files: [file], branch: await io.git.branch(),
     session: event.session_id, said: saidByPack(io, event.session_id) }, room);
   sessionAdd(io, event.session_id, { t: 'file', file });
   if (event.tool_name === 'Read') keepReads(io, event.session_id, [file], 'Read');
@@ -74,12 +74,18 @@ async function recallFile(event, io) {
   return { out: { code, file, ...(given.length ? { say: given } : {}) }, code, n: { ...n, ...contract.n } };
 }
 
+/** The earlier plans of the area a path or words name, the plans unread and the files no plan touched; with none it is typed wrong (exit 2
+ * with its usage), never a guess. */
 async function related({ rest }, io) {
+  if (!rest.length) throw fail('args-invalid', WORDS.usage.related);
   const web = store.readWeb(io);
   const branch = await io.git.branch();
-  const files = (rest.length ? namedFiles(io, rest.join(' ')) : await branchFiles(io, web, branch)).slice(0, SEEDS);
-  const { cards, n } = await cardsFor(io, web, { files, words: files.length ? [] : promptWords(rest.join(' ')), branch, session: io.session });
-  return { out: { cards }, code: cards.length ? 'plan-shown' : 'recall-none', n: { ...n, cards: cards.length } };
+  const files = namedFiles(io, rest.join(' ')).slice(0, SEEDS);
+  const { cards, n } = await cardsFor(io, web, { files, text: rest.join(' '), branch, session: io.session });
+  const unverified = (card, view = web.views.find((v) => v.id === card.id)) => Boolean(view?.confirm && !trust.confirmedHere(io, view));
+  return { out: { cards: cards.map((card) => ({ ...card, unverified: unverified(card) })), unread: store.unreadPlans(web),
+    untouched: untouchedOf(web, files) }, code: cards.length ? 'plan-shown' : 'recall-none',
+    n: { ...n, cards: cards.length } };
 }
 
 module.exports = { recallPrompt, recallFile, related };

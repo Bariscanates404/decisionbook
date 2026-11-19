@@ -7,7 +7,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { makeWorld, makeRepo, run, snapshot, tmp } = require('./support.cjs');
+const { makeWorld, makeRepo, run, snapshot, tmp, PASSWD } = require('./support.cjs');
 
 const BODY = `{ handlers: {
   s: () => ({ say: [{ key: "x.start", text: "S".repeat(123) }] }),
@@ -24,15 +24,27 @@ const SCRIPT = [{ label: 'start', event: 'SessionStart', source: 'startup' },
   { label: 'tool', event: 'PostToolUse', tool_name: 'mcp__some-server__read', tool_input: {} },
   { label: 'stop', event: 'Stop', stop_hook_active: false }];
 
-function injected(script, extra = []) {
+function injected(script, extra = [], env = undefined) {
   const repo = makeRepo();
   assert.equal(run(world.bin, ['setup', '--target', repo]).code, 0);
   const file = path.join(tmp('inject-script-'), 'script.json');
   fs.writeFileSync(file, JSON.stringify(script));
   const before = snapshot(repo, { trace: false });
-  const res = run(world.bin, ['debug', 'inject', '--script', file, '--target', repo, ...extra]);
+  const res = run(world.bin, ['debug', 'inject', '--script', file, '--target', repo, ...extra], { env });
   return { repo, before, res };
 }
+
+test('debug inject makes, fills and takes back its scratch copy with no program: no sh, tar, mktemp or rm, which Windows lacks', () => {
+  const trap = path.join(tmp('inject-trap-'), 'no-shell.cjs');
+  // as on Windows: a start of one of those programs is logged and finds no program
+  fs.writeFileSync(trap, `const cp = require('node:child_process');\nfor (const k of ['spawn', 'spawnSync']) { const real = cp[k];
+  cp[k] = (cmd, ...rest) => { if (!/(^|\\/)(sh|tar|mktemp|rm)$/.test(cmd)) return real(cmd, ...rest);
+    require('node:fs').appendFileSync(${JSON.stringify(`${trap}.log`)}, cmd + '\\n'); return real('/nonexistent/' + cmd, ...rest); }; }\n`);
+  const { res } = injected(SCRIPT, ['--json'], { NODE_OPTIONS: `${PASSWD} --require ${trap}` });
+  assert.equal(res.code, 0, res.err);
+  assert.equal(JSON.parse(res.out).events.length, SCRIPT.length);
+  assert.equal(fs.existsSync(`${trap}.log`), false, 'no program was started for the copy');
+});
 
 test('a planted text is counted exactly, a held one as held, a Stop text as unsent, a refused event reported, nothing written', () => {
   const { repo, before, res } = injected(SCRIPT, ['--json']);
@@ -70,6 +82,6 @@ test('the text view names each event, the totals per module and the silent count
 
 test('a script that is not a list of events refuses, naming the shape; no copy stays', () => {
   const { res } = injected({ event: 'SessionStart' });
-  assert.equal(res.code, 1);
+  assert.equal(res.code, 2);
   assert.match(res.err, /^atlasbound: args-invalid: debug inject: the script is a JSON list of host events/);
 });

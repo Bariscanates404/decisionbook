@@ -57,6 +57,7 @@ function memoryFs(files = {}) {
     remove: (key) => {
       leave(at(key));
     },
+    removeEmpty: (key) => isDir(key) && !inside(at(key)).length && emptied.delete(at(key)),
     makeDir: (key) => {
       for (let up = at(key); up; up = dirOf(up)) emptied.add(up);
     },

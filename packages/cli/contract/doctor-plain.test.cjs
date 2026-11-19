@@ -9,7 +9,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { makeWorld, makeRepo, run } = require('./support.cjs');
+const { makeWorld, makeRepo, run, exitSaid, setupRepo } = require('./support.cjs');
 
 const world = makeWorld({ real: ['handoff'] });
 // what the open package must never say where no add-on is installed: a word of one, a package that is not here, a place to install from
@@ -19,7 +19,7 @@ test('setup, status, modules and doctor say nothing of an add-on that is not ins
   const repo = makeRepo();
   const said = [['setup'], ['status'], ['modules'], ['doctor'], ['debug', 'doctor']].map((words) => {
     const res = run(world.bin, [...words, '--target', repo], { plain: true });
-    assert.equal(res.code, 0, `${words.join(' ')}: ${res.err}`);
+    assert.equal(res.code, 0, exitSaid(res, words.join(' ')));
     return res.out.replaceAll(repo, '<repo>').replaceAll(world.dir, '<install>');
   });
   said.forEach((out) => assert.doesNotMatch(out, ADD_ON));
@@ -31,14 +31,11 @@ test('setup, status, modules and doctor say nothing of an add-on that is not ins
 });
 
 test('the ignore block leaves to git only paths a wired package declares its team commits; with none, nothing of the store', () => {
-  const block = (bin, repo) => {
-    assert.equal(run(bin, ['setup', '--target', repo]).code, 0);
-    return fs.readFileSync(path.join(repo, '.gitignore'), 'utf8').split('\n').filter((line) => /^!?\.atlasbound/.test(line));
-  };
-  assert.deepEqual(block(world.bin, makeRepo()), ['.atlasbound/*']);
+  const block = (repo) => fs.readFileSync(path.join(repo, '.gitignore'), 'utf8').split('\n').filter((line) => /^!?\.atlasbound/.test(line));
+  assert.deepEqual(block(setupRepo(world).repo), ['.atlasbound/*']);
   const toy = makeWorld({ real: ['handoff'], fakes: { notebook: { manifest: { teamFiles: ['.atlasbound/notebook'] } } } });
-  const repo = makeRepo();
-  assert.deepEqual(block(toy.bin, repo), ['.atlasbound/*', '!.atlasbound/notebook']);
+  const { repo } = setupRepo(toy);
+  assert.deepEqual(block(repo), ['.atlasbound/*', '!.atlasbound/notebook']);
   fs.mkdirSync(path.join(repo, '.atlasbound', 'notebook'));
   fs.writeFileSync(path.join(repo, '.atlasbound', 'notebook', 'page.md'), 'ours\n');
   const gone = run(toy.bin, ['uninstall', '--purge', '--target', repo]);
@@ -55,11 +52,11 @@ test('a module only an add-on has is unknown here, in the words any unknown modu
   const on = run(world.bin, ['modules', 'on', 'extra', '--target', repo]);
   const withIt = run(world.bin, ['setup', '--with', 'extra', '--target', repo]);
   assert.equal(on.code, 1);
-  assert.match(on.err, /^atlasbound: module-refused: no module is called extra; the modules are handoff, decisionbook or db /);
+  assert.match(on.err, /^atlasbound: module-refused: no module is called extra; the modules are handoff or decisionbook /);
   assert.equal(on.err, withIt.err, 'one sentence for both ways of asking');
   assert.equal(on.err, run(world.bin, ['modules', 'on', 'nope', '--target', repo]).err.replace('nope', 'extra'), 'as any unknown module');
   assert.equal(state(), before);
-  assert.doesNotMatch(run(world.bin, ['help']).out, ADD_ON);
+  assert.doesNotMatch(run(world.bin, ['help', '--all']).out, ADD_ON);
 });
 
 test('a command file of the person\'s own is kept and is no wiring fault: doctor says whose it is and where ours is', () => {
@@ -71,27 +68,46 @@ test('a command file of the person\'s own is kept and is no wiring fault: doctor
   assert.match(setup.out, /file-foreign \.claude\/commands\/resume-handoff\.md: a file of yours is here, it was not touched/);
   const doctor = run(world.bin, ['doctor', '--target', repo]);
   assert.equal(doctor.code, run(world.bin, ['doctor', '--target', clean]).code, 'as a repository with no file of its own');
-  assert.doesNotMatch(doctor.out, /NOT wired|not wired: file|^fix: atlasbound setup$/m);
+  assert.doesNotMatch(doctor.out, /NOT wired|not wired: file|^fix: /m);
   assert.match(doctor.out, /^ {2}\.claude\/commands\/resume-handoff\.md: your own file, kept as it is; ours was not written\. For ours under another name: cp \S+\/commands\/resume-handoff\S*\.md \.claude\/commands\/<name>\.md$/m);
   assert.equal(fs.readFileSync(path.join(repo, '.claude', 'commands', 'resume-handoff.md'), 'utf8'), 'my own resume\n');
   // the file gone, the missing command is a wiring fault again, and setup mends it
   fs.rmSync(path.join(repo, '.claude', 'commands', 'resume-handoff.md'));
   const gone = run(world.bin, ['doctor', '--target', repo]);
   assert.match(gone.out, /NOT wired/);
-  assert.match(gone.out, /^fix: atlasbound setup$/m);
-  assert.equal(run(world.bin, ['setup', '--target', repo]).code, 0);
+  assert.match(gone.out, /^fix: atlasbound update \(/m);
+  assert.equal(run(world.bin, ['update', '--target', repo]).code, 0);
   assert.doesNotMatch(run(world.bin, ['doctor', '--target', repo]).out, /NOT wired|your own file/);
 });
 
 test('the person\'s own resume.md, the name of a command the host has itself, is never touched and never named', () => {
   const repo = makeRepo({ '.claude/commands/resume.md': 'my own resume\n' });
   const setup = run(world.bin, ['setup', '--target', repo]);
-  assert.equal(setup.code, 0, setup.err);
+  assert.equal(setup.code, 0, exitSaid(setup, 'setup'));
   const doctor = run(world.bin, ['doctor', '--target', repo]);
-  assert.equal(doctor.code, 0, doctor.out);
+  assert.equal(doctor.code, 0, exitSaid(doctor, 'doctor'));
   assert.doesNotMatch(`${setup.out}${doctor.out}`, /commands\/resume\.md|your own file|file-foreign/);
   assert.ok(fs.existsSync(path.join(repo, '.claude', 'commands', 'resume-handoff.md')), 'ours is written beside it, under its own name');
   assert.equal(run(world.bin, ['uninstall', '--target', repo]).code, 0);
   assert.equal(fs.readFileSync(path.join(repo, '.claude', 'commands', 'resume.md'), 'utf8'), 'my own resume\n');
   assert.equal(fs.existsSync(path.join(repo, '.claude', 'commands', 'resume-handoff.md')), false);
+});
+
+test('hook rows a 0.25.0 setup wrote are drift: doctor names atlasbound update, and update wires this version\'s rows', () => {
+  const repo = makeRepo();
+  assert.equal(run(world.bin, ['setup', '--target', repo]).code, 0);
+  const file = path.join(repo, '.claude', 'settings.local.json');
+  const settings = JSON.parse(fs.readFileSync(file, 'utf8'));
+  // 0.25.0's row form: `[ -x node ] && [ -f bin ] && exec <node> <bin> hook <event>; echo '<gone>'`, from this row's own parts
+  const old = (command) => command.replace(/^if (\[ -x "[^"]+" \] && \[ -f "[^"]+" \]); then (exec [^;]+); elif .*; else (echo '[^']*'); fi$/,
+    '$1 && $2; $3');
+  const rows = Object.values(settings.hooks).flatMap((list) => list.flatMap((entry) => entry.hooks));
+  rows.forEach((row) => { row.command = old(row.command); });
+  assert.ok(rows.length && rows.every((row) => !row.command.startsWith('if ')), 'every row in the 0.25.0 form');
+  fs.writeFileSync(file, JSON.stringify(settings, null, 2));
+  const drifted = run(world.bin, ['doctor', '--target', repo]);
+  assert.match(drifted.out, /^ {2}decisionbook +installed +NOT wired /m, drifted.out);
+  assert.match(drifted.out, /^fix: atlasbound update \(it wires this repository for the installed version; atlasbound setup where it was never set up\)$/m, drifted.out);
+  assert.equal(run(world.bin, ['update', '--target', repo]).code, 0);
+  assert.doesNotMatch(run(world.bin, ['doctor', '--target', repo]).out, /NOT wired|not wired|^fix: /m);
 });

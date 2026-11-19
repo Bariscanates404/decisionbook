@@ -4,8 +4,8 @@
 'use strict';
 // The hook steps. None blocks, none asks, none calls a model: a start says the branch's note once, a prompt keeps the head of the
 // message and measures the context, an edit is counted, a compaction rebuilds the note from facts.
-const { errors: { isFail } } = require('@atlasbound/kit');
-const { stepResult: said, CONTEXT, bound } = require('../contracts/shapes.cjs');
+const { errors: { isFail }, paths } = require('@atlasbound/kit');
+const { stepResult: said, CONTEXT, BOUNDS, bound } = require('../contracts/shapes.cjs');
 const { shortOf } = require('../contracts/codes.cjs');
 const { promptKind, withMessage } = require('../core/reply.cjs');
 const context = require('../core/context.cjs');
@@ -35,10 +35,10 @@ async function startStep(event, io) {
 /** The transcript's last bytes when it lies under the person's home; else null (nothing is said). */
 function transcriptOf(event, io) {
   const home = io.env.userHome();
-  const path = String(event.transcript_path || '');
-  if (!home || !path.startsWith(`${home}/`)) return null;
+  const rel = home && paths.repoRel(home, String(event.transcript_path || ''), true); // either separator, on Windows any case
+  if (!rel) return null;
   try {
-    return io.home.readText(path.slice(home.length + 1), { maxBytes: CONTEXT.tailBytes, tail: true });
+    return io.home.readText(rel, { maxBytes: CONTEXT.tailBytes, tail: true });
   } catch (err) {
     if (!isFail(err)) throw err;
     return null;
@@ -52,7 +52,7 @@ function contextMeasured(event, io, before) {
   const code = context.noticeCode(seen, before, CONTEXT);
   const at = io.clock.now();
   const noticed = code === 'context-notice' ? at : before && before.noticed;
-  const say = code === 'context-notice' ? [{ key: 'handoff.context', text: `${context.contextLine(seen)}: ${shortOf(code)}.` }] : [];
+  const say = code === 'context-notice' ? [{ key: 'handoff.context', text: `${context.contextLine(seen, BOUNDS.model)}: ${shortOf(code)}.` }] : [];
   return { context: { code, at, ...seen, ...(noticed ? { noticed } : {}) }, say };
 }
 

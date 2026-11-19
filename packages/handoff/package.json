@@ -26,16 +26,23 @@
     ],
     "verbs": [
       { "words": ["handoff"], "call": "handoff", "flags": ["--session"], "values": ["--session"], "noWords": true,
-        "what": "rebuild this branch's note from measured facts, then show it with this session's messages and the fill-in" },
-      { "words": ["handoff", "keep"], "call": "keep", "flags": ["--session"], "values": ["--session"], "stdin": 0,
-        "what": "the JSON on standard input: write now, next and the kept lines into the note; a kept line names the message it comes from" },
+        "what": "rebuild this branch's note from measured facts, then show it with this session's messages and the fill-in",
+        "help": {"line": "rebuild this branch's handoff note and show it, for your AI to fill in", "ai": true, "when": "at the end of a session: the /handoff command runs it", "example": "atlasbound handoff", "changes": "the branch's note in ~/.atlasbound (your home, never the repository)", "flags": {"--session <id>": "the AI session whose messages the note shows"}} },
+      { "words": ["handoff", "keep"], "call": "keep", "flags": ["--session", "--file"], "values": ["--session", "--file"], "stdin": 0,
+        "what": "--file <draft in .atlasbound/drafts/> (removed once kept), or the JSON on standard input: write now, next and the kept lines into the note; a kept line names the message it comes from",
+        "help": {"line": "save the note your AI filled in: where you are, the next step, the lines to keep", "ai": true, "when": "right after atlasbound handoff, as /handoff says", "usage": "--file <draft>", "example": "atlasbound handoff keep --file .atlasbound/drafts/handoff.json", "changes": "the branch's note in ~/.atlasbound", "flags": {"--session <id>": "the AI session the note is for", "--file <path>": "read the reply from this draft in .atlasbound/drafts/, then remove it"}} },
       { "words": ["handoff", "show"], "call": "show", "noWords": true, "looks": true,
-        "what": "the note of this branch as stored, with its age and whether HEAD moved since" },
+        "what": "show this branch's handoff note as saved, how old it is, and whether the branch moved since",
+        "help": {"when": "to read the note yourself; /resume-handoff gives it to a new AI session", "example": "atlasbound handoff show", "changes": "nothing"} },
       { "words": ["handoff", "drop"], "call": "drop", "by": "person", "phrase": "drop kept line",
-        "what": "<n> [new words]: you drop kept line n, or reword it when new words follow; you type its phrase at a plain terminal, never an AI session" },
-      { "words": ["debug", "handoff"], "call": "debug.handoff", "flags": ["--session"], "values": ["--session"], "looks": true,
-        "what": "why each kept line is there, what was dropped, the note's HEAD against the live one, what was not measured, the context notice" }
+        "what": "<n> [new words]: drop kept line n of the note, or reword it when new words follow; you type its phrase at your own terminal",
+        "help": {"usage": "<n> [new words]", "when": "when a kept line is wrong or no longer matters", "example": "atlasbound handoff drop 3", "changes": "the branch's note in ~/.atlasbound"} },
+      { "words": ["debug", "handoff"], "call": "debug.handoff", "noWords": true, "flags": ["--session"], "values": ["--session"], "looks": true,
+        "what": "why each kept line is there, what was dropped, the note's HEAD against the live one, what was not measured, the context notice",
+        "help": {"line": "say why each line of the handoff note is there and what was left out", "when": "when the note says something you did not expect", "example": "atlasbound debug handoff", "changes": "nothing", "flags": {"--session <id>": "the AI session to look at"}} }
     ],
+    "free": ["handoff keep"],
+    "freeAlone": ["handoff"],
     "provides": { "heard": "heard" },
     "needs": { "plans": null }
   }

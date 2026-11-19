@@ -4,11 +4,12 @@
 'use strict';
 // PURE. `show` and `find`: a plan with the nodes asked for, one node with what links to it, the plans a search
 // found; each within its byte budget.
-const { text: { safe: { clip }, lines: { filled } } } = require('@atlasbound/kit');
-const { WORDS } = require('../../contracts/codes.cjs');
+const { text: { lines: { filled } } } = require('@atlasbound/kit');
+const { WORDS, SHOWN: { show: shown }, branchWord } = require('../../contracts/codes.cjs');
+const { DIR, refIs } = require('../../contracts/shapes.cjs');
 const { unrevised } = require('../../base/text.cjs');
 const { boundedLines } = require('./budget.cjs');
-const { showCall } = require('./calls.cjs');
+const { jsonCall } = require('./calls.cjs');
 const { decisionLine, stepLine, gapLine, linkLine, confirmLines, assumptionLine, shippedCounts, planContractLine,
   levelLine } = require('./records.cjs');
 
@@ -16,26 +17,26 @@ const SHOW_BYTES = 6144;
 const FOUND_SHOWN = 20;
 
 function researchLine(r) {
-  const source = r.source ? ` (${clip(r.source, 80)})` : '';
-  return `research ${clip(r.tool, 40)}: ${clip(r.asked, 80)} -> ${clip(r.answer, 120)}${source}`;
+  const source = r.source ? ` (${shown.source(r.source)})` : '';
+  return `research ${shown.tool(r.tool)}: ${shown.asked(r.asked)} -> ${shown.answer(r.answer)}${source}`;
 }
 function criterionLine(c) {
-  const command = c.command ? ` [${clip(c.command, 80)}]` : '';
-  return `check ${clip(c.id, 40)}: ${clip(c.text, 100)}${command}`;
+  const command = c.command ? ` [${shown.command(c.command)}]` : '';
+  return `check ${shown.id(c.id)}: ${shown.text(c.text)}${command}`;
 }
 function planItemLine(i) {
-  const covers = i.covers.length ? ` (covers ${clip(i.covers.join(', '), 120)})` : '';
-  return `${i.kind}: ${clip(i.text, 100)}${covers}`;
+  const covers = i.covers.length ? ` (covers ${shown.covers(i.covers.join(', '))})` : '';
+  return `${i.kind}: ${shown.text(i.text)}${covers}`;
 }
-const questionLine = (q) => `- ${clip(q.q, 40)} ${q.answered ? 'answered' : 'OPEN'}: ${clip(q.text, 100)}`;
-const closedLine = (closed) => `closed: ${shippedCounts(closed)}, ${closed.other} not attributed`;
-const plansFirst = (a, b) => b.to.startsWith('plan:') - a.to.startsWith('plan:');
+const questionLine = (q) => `- ${shown.q(q.q)} ${q.answered ? 'answered' : 'OPEN'}: ${shown.text(q.text)}`;
+const closedLine = (closed) => filled(WORDS.closedCounts, { counts: shippedCounts(closed), other: closed.other });
+const plansFirst = (a, b) => refIs('plan', b.to) - refIs('plan', a.to);
 
 // the lines of each node `show` may hold, in the order they are said
 const SECTIONS = {
-  why: (o) => [`why: ${clip(String(o.why), 400)}`],
-  goal: (o) => (o.goal ? [`goal: ${clip(o.goal, 300)}`] : []),
-  plan: (o) => [`plan: ${clip(o.plan.join(', '), 600) || 'none'}`],
+  why: (o) => [`why: ${shown.why(String(o.why))}`],
+  goal: (o) => (o.goal ? [`goal: ${shown.goal(o.goal)}`] : []),
+  plan: (o) => [`plan: ${shown.plan(o.plan.join(', ')) || 'none'}`],
   contract: (o) => o.contract.map(planContractLine),
   steps: (o) => o.steps.map(stepLine),
   gaps: (o) => o.gaps.map(gapLine),
@@ -43,13 +44,14 @@ const SECTIONS = {
   pointers: (o) => SECTIONS.research({ research: o.pointers }).map((line) => line.replace(/^research/, 'pointer')),
   checks: (o) => o.checks.map(criterionLine),
   items: (o) => o.items.map(planItemLine),
-  decisions: (o) => unrevised(o.decisions).map(decisionLine),
+  decisions: (o) => unrevised(o.decisions).flatMap((d) => [decisionLine(d),
+    ...(d.proposedThen && !d.rivals?.length ? [`  ${filled(WORDS.proposedThen, { proposal: shown.proposedThen(d.proposedThen) })}`] : [])]),
   questions: (o) => o.questions.map(questionLine),
   assumptions: (o) => (o.assumptions.length ? [WORDS.assumed, ...o.assumptions.map(assumptionLine)] : []),
   confirm: (o) => confirmLines(o.confirm, o.confirm?.amended),
   links: (o) => [...o.links].sort(plansFirst).map(linkLine), // links to plans first: never the ones cut
-  notes: (o) => o.notes.map((n) => `note: ${clip(n.text, 200)}`),
-  resumes: (o) => o.resumes.map((r) => `resumed ${clip(String(r.at), 40)}: ${clip(r.why, 200)}`),
+  notes: (o) => o.notes.map((n) => `note: ${shown.note(n.text)}`),
+  resumes: (o) => o.resumes.map((r) => `resumed ${shown.at(String(r.at))}: ${shown.resumedWhy(r.why)}`),
   closed: (o) => (o.closed ? [closedLine(o.closed)] : []),
 };
 
@@ -57,27 +59,32 @@ const SECTIONS = {
  * node map. A bare show the session already had in full answers the head and the node map only. */
 function showText(out) {
   const missing = out.state === 'draft' && out.unmet ? out.unmet : [];
-  const head = [`${out.id} ${out.state} on ${out.branch}: ${clip(out.title, 100)}`, levelLine(out.level),
+  const head = [`${out.id} ${out.state} on ${branchWord(out.branch)}: ${shown.title(out.title)}`, levelLine(out.level),
     ...missing.map((row) => `not READY, ${row.id}: ${row.text}`)];
   const nodes = Object.entries(out.nodes || {}).map(([name, count]) => `${name} ${count}`).join(', ');
   const map = filled(WORDS.nodeMap, { id: out.id, nodes });
   if (out.seen) return [...head, WORDS.readOnce, map].join('\n');
   const list = Object.keys(SECTIONS).filter((field) => field in out).flatMap((field) => SECTIONS[field](out));
-  const refusedLines = (out.refused || []).map((r) => r.line);
-  const refused = refusedLines.length ? [`refused lines: ${refusedLines.join(', ')}`] : [];
-  const more = `${showCall(out.id, '<node>')} --json`;
+  const refused = (out.refused || []).map((r) => filled(WORDS.lineTorn, { file: `${DIR}/${out.id}.jsonl`, line: r.line, code: r.code }));
+  const more = jsonCall('show', out.id, '<node>');
   return boundedLines({ head, list, tail: [...refused, map], max: SHOW_BYTES, more }).join('\n');
 }
 
 /** One node (`type:value`): the decisions of that key with their plans, then every link to or from it. */
 function nodeText(ref, links, decisions) {
-  const list = [...decisions.map((d) => `${decisionLine(d)} in ${d.plan}`), ...links.map(linkLine)];
-  return boundedLines({ head: [ref], list, tail: [], max: SHOW_BYTES, more: `${showCall(ref)} --json` }).join('\n');
+  // a conflict is said once, by its first line here; every other line of it is in that text
+  const lineKey = (o) => `${o.plan}:${o.line}`;
+  const inOne = new Set(decisions.flatMap((d) => (d.rivals ?? []).map(lineKey)));
+  const told = new Set();
+  const once = decisions.filter((d) => !told.has(lineKey(d)) && (d.rivals?.length || !inOne.has(lineKey(d)))
+    && (d.rivals ?? []).every((r) => told.add(lineKey(r))));
+  const list = [...once.map((d) => `${decisionLine(d)} in ${d.plan}`), ...links.map(linkLine)];
+  return boundedLines({ head: [ref], list, tail: [], max: SHOW_BYTES, more: jsonCall('show', ref) }).join('\n');
 }
 
 function foundLine(hit) {
-  const plan = clip(hit.plan.join(', '), 80) || 'none';
-  return `${hit.id} ${hit.state} (${hit.matched.join(', ')}): ${clip(hit.title, 100)}; plan ${plan}`;
+  const plan = shown.foundPlan(hit.plan.join(', ')) || 'none';
+  return `${hit.id} ${hit.state} (${hit.matched.join(', ')}): ${shown.title(hit.title)}; plan ${plan}`;
 }
 /** The plans a search found, then each plan file it could not read. */
 function foundText(hits, refused = []) {

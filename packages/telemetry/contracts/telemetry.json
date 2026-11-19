@@ -1,13 +1,7 @@
 {
-  "$comment": "The telemetry words of telemetry: what its trace rows may leave as. Telemetry reads them where telemetry is installed; any other word leaves as other.",
+  "$comment": "Telemetry's own steps take no namespace: they stay in the local trace and never report (the cli namespace is the cli's alone).",
   "steps": {
-    "collect": "local-only", "redact": "local-only", "consent-on": "local-only", "consent-off": "local-only",
-    "consent-status": "local-only", "hint": "local-only", "send": "step_summary"
-  },
-  "codes": [
-    "event-unknown", "field-dropped", "net-failed", "net-url-refused", "no-endpoint", "record-oversize", "sent-line-refused",
-    "step-unruled", "telemetry-consent-unreadable", "telemetry-hint", "telemetry-killed", "telemetry-no-home", "telemetry-nothing",
-    "telemetry-off", "telemetry-on", "telemetry-sent", "telemetry-sent-unmirrored", "telemetry-what-leaves", "trace-line-refused",
-    "words-unread"
-  ]
+    "collect": "local-only", "send": "local-only", "due": "local-only", "next": "local-only", "history": "local-only", "reset": "local-only",
+    "consent-on": "local-only", "consent-off": "local-only", "consent-status": "local-only", "hint": "local-only"
+  }
 }

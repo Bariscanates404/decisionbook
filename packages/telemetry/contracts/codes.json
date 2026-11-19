@@ -1,0 +1,161 @@
+{
+  "$comment": "Telemetry's reasons ([code, short]) and the sentences it says to a person, as data. The setup question, the notice and the hint are said only where an address is set.",
+  "codes": [
+    [
+      "telemetry-on",
+      "you chose"
+    ],
+    [
+      "telemetry-default",
+      "the beta's default"
+    ],
+    [
+      "telemetry-off",
+      "you turned it off"
+    ],
+    [
+      "telemetry-not-chosen",
+      "nobody chose"
+    ],
+    [
+      "telemetry-killed",
+      "an environment switch is set in this process (DO_NOT_TRACK, ATLASBOUND_TELEMETRY=0 or CI)"
+    ],
+    [
+      "telemetry-no-home",
+      "this machine has no home directory for your user, so a choice cannot be stored; telemetry stays off"
+    ],
+    [
+      "telemetry-consent-unreadable",
+      "the stored choice could not be read; telemetry stays off until atlasbound telemetry on or off writes it again"
+    ],
+    [
+      "telemetry-module-unknown",
+      "no module of that name reports here; atlasbound telemetry status lists them"
+    ],
+    [
+      "telemetry-phrase-not-typed",
+      "the phrase was not typed, so nothing was turned on"
+    ],
+    [
+      "telemetry-hint",
+      "the hint line was said"
+    ],
+    [
+      "telemetry-reset",
+      "a new random id from the next report on"
+    ],
+    [
+      "telemetry-not-due",
+      "the next attempt is not due yet"
+    ],
+    [
+      "telemetry-busy",
+      "another process is sending; this one leaves it"
+    ],
+    [
+      "telemetry-nothing",
+      "no report waits"
+    ],
+    [
+      "telemetry-sent",
+      "the reports left; the server answered for each"
+    ],
+    [
+      "telemetry-throttled",
+      "the server asked to wait; the next attempt honours it"
+    ],
+    [
+      "telemetry-failed",
+      "the network or the server failed; retried at a later command"
+    ],
+    [
+      "telemetry-rejected",
+      "the server refused the request; it is not retried"
+    ],
+    [
+      "no-endpoint",
+      "this build has no address; nothing was dialled, the reports wait here (14 days)"
+    ],
+    [
+      "forget-done",
+      "the server deleted what your id sent"
+    ],
+    [
+      "forget-pending",
+      "the server could not be reached: deletion pending, tried once a day for 14 days (it holds only the old random id and its deletion token)"
+    ],
+    [
+      "forget-none",
+      "this build sent nothing, so there is nothing to delete on a server"
+    ],
+    [
+      "forget-unreachable",
+      "reports of your old id were received by an earlier build; this build cannot reach the service, the request waits"
+    ],
+    [
+      "forget-expired",
+      "deletion could not be confirmed in 14 days; the server's copy expires 30 days after it was sent"
+    ],
+    [
+      "report-unsupported",
+      "a report did not pass its own schema and was not made"
+    ],
+    [
+      "trace-line-refused",
+      "a trace line that does not read as ab-trace/1 was left out; the rest of its file counts"
+    ],
+    [
+      "descriptor-unread",
+      "a package's telemetry descriptor does not read: it registers nothing"
+    ],
+    [
+      "namespace-taken",
+      "a package claims a namespace another package owns: it registers nothing"
+    ],
+    [
+      "namespace-split",
+      "the descriptors of one namespace disagree on schema or policy: none registers"
+    ],
+    [
+      "step-twice",
+      "two steps of one namespace would leave as one word: none registers"
+    ],
+    [
+      "metric-twice",
+      "a metric is named twice in one namespace: none registers"
+    ],
+    [
+      "net-failed",
+      "the network call failed"
+    ],
+    [
+      "net-url-refused",
+      "only https, or http on this machine, may be dialled"
+    ]
+  ],
+  "texts": {
+    "question": "Send a daily usage report during the beta? It goes to telemetry.atlasbound.dev, run by AtlasBound, to find the product's faults and slow steps.",
+    "notice": "Telemetry is on during the beta (until {until}): a daily usage report goes to telemetry.atlasbound.dev, run by AtlasBound, to find the product's faults and slow steps.",
+    "sent": [
+      "  Sent: which AtlasBound steps ran, how often, how long (in ranges) and their outcome codes; sizes in ranges (decisions and open points per plan, time and turns until a plan is READY, lines and messages of a handoff note, answers not recorded at stop);",
+      "        the version, Node major and OS family; a random id that changes every 30 days.",
+      "  Never sent: your code, prompts, answers, file or repository names, paths, error texts."
+    ],
+    "kept": "  Kept 30 days per id, then only monthly totals for 13 months. See it: atlasbound telemetry next · Stop: atlasbound telemetry off · Delete: atlasbound telemetry reset --forget",
+    "yes": "[Y/n] (Enter = yes) ",
+    "yesAgain": "Please answer y or n [Y/n] (Enter = yes) ",
+    "unchosen": "Telemetry: no choice was recorded (the answer was neither y nor n). A person chooses later: atlasbound telemetry on | off",
+    "hint": "Telemetry is not on. A person can turn it on: atlasbound telemetry on · what it is: atlasbound telemetry status",
+    "goes": "goes to: {url}, once a day, from a command you or your AI session runs; never from a hook",
+    "noAddress": "this build has no address: nothing is sent, whatever is chosen. Reports you turn on are made and kept here only (atlasbound telemetry next | history); a release that can send tells you at setup before anything leaves.",
+    "onEmpty": "This build has no address to send to. Turning it on makes the daily reports here so you can read them; nothing leaves.",
+    "see": "see: atlasbound telemetry next | history · stop: atlasbound telemetry off · delete: atlasbound telemetry reset --forget",
+    "noModule": "telemetry: OFF (no module here reports)",
+    "forgetWaits": "a deletion request waits for the server ({n}); atlasbound telemetry status says when it is done",
+    "wouldPost": "the next attempt would post {bytes} bytes, exactly (nothing was sent by this command):",
+    "noneWaits": "no report waits to leave",
+    "staysHere": "stays here: the trace, your choice and the period's deletion token; reports already received or refused (atlasbound telemetry history)",
+    "noHistory": "no report was made here"
+  }
+}

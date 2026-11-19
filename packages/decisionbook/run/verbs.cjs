@@ -14,6 +14,9 @@ const gate = require('../steps/gate.cjs');
 const recall = require('../steps/recall.cjs');
 const shell = require('../steps/shell.cjs');
 const { planPack } = require('../steps/pack.cjs');
+const { inbox } = require('../steps/inbox.cjs');
+const { why } = require('../steps/why.cjs');
+const { pr } = require('../steps/pr.cjs');
 const stop = require('../steps/stop.cjs');
 const { protect } = require('../steps/protect.cjs');
 const { bookConfig } = require('../steps/store.cjs');
@@ -21,6 +24,9 @@ const { CONFIG, DIR } = require('../contracts/shapes.cjs');
 const { writtenText, closedText } = require('../core/text/state.cjs');
 const { showText, nodeText, foundText } = require('../core/text/show.cjs');
 const { relatedText } = require('../core/text/recall.cjs');
+const { inboxText } = require('../core/text/inbox.cjs');
+const { whyText } = require('../core/text/why.cjs');
+const { prText } = require('../core/text/pr.cjs');
 const { protectLine, protectText } = require('../core/text/protect.cjs');
 
 const planHelp = async () => ({ out: { says: WORDS.plan }, code: 'plan-shown' });
@@ -36,9 +42,12 @@ const VERBS = {
   close: ['decisionbook.close', close, closedText],
   show: ['decisionbook.show', read.showNode, shownText],
   find: ['decisionbook.find', read.findWords, (o) => foundText(o.hits, o.refused)],
-  related: ['decisionbook.related', recall.related, (o) => relatedText(o.cards)],
+  related: ['decisionbook.related', recall.related, relatedText],
   pack: ['decisionbook.pack', planPack, (o) => o.text], // `decisionbook plan <path|words>`
   resume: ['decisionbook.resume', read.resume, (o) => o.text],
+  inbox: ['decisionbook.inbox', inbox, inboxText],
+  why: ['decisionbook.why', why, whyText],
+  pr: ['decisionbook.pr', pr, prText],
   protect: ['decisionbook.protect', protect, protectText],
   notice: ['decisionbook.notice', notice, (o) => o.line],
 };

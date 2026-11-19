@@ -272,6 +272,8 @@ test('[I-66] the JSON door reads what JSON.parse is defined to read, at any size
   assert.deepEqual(Object.keys(door('{"__proto__":1,"b":2}')), ['__proto__', 'b']);
   for (const text of ['{"a":', '{"a":1,}', "{'a':1}", '', 'undefined', '{"a":1} x', `"${ch(10)}"`]) refuses('json-invalid', () => door(text));
   assert.throws(() => door('{"a":', 'config-invalid'), { code: 'config-invalid', message: 'config-invalid: SyntaxError' });
+  const where = (text) => { try { return door(text, 'record-invalid'); } catch (err) { return err.broken; } }; // for the person who sent it
+  assert.deepEqual([where('{"a":1,\n "b": }'), where('  \n'), where('{"a":1} x')], [{ line: 2, column: 7 }, { empty: true }, { line: 1, column: 9 }]);
   assert.equal(door(`${'['.repeat(512)}${']'.repeat(512)}`).length, 1);
   assert.throws(() => door(`${'['.repeat(513)}${']'.repeat(513)}`), { code: 'json-invalid', message: 'json-invalid: json-too-deep' });
 });
@@ -279,5 +281,9 @@ test('[I-66] the JSON door reads what JSON.parse is defined to read, at any size
 test('[I-66] engine pin: JSON.parse misreads an escaped key on one engine version only, and a change is noticed', () => {
   const misread = misreadBy(JSON.parse, (n) => `engine${n}`);
   const told = `V8 ${process.versions.v8} misread ${misread.length} of 65 escaped keys: when this turns red, the engine changed; update this pin and I-66 (the door needs its own reader only while an engine misreads)`;
-  assert.equal(misread.length, process.versions.v8.startsWith('13.6.') ? 60 : 0, told); // the 5 it reads right: the first raw characters ARE the key
+  // measured: node 24.12 and 24.16 (V8 13.6.233.x-node.49 and before) misread 60, the 5 it reads right: the first raw characters ARE the key;
+  // node 24.22 (V8 13.6.233.17-node.63) and every other engine misread none. Builds between node.49 and node.63 were not measured.
+  const build = /^13\.6\..*-node\.(\d+)$/.exec(process.versions.v8);
+  const want = !build ? [0] : Number(build[1]) <= 49 ? [60] : Number(build[1]) >= 63 ? [0] : [0, 60];
+  assert.ok(want.includes(misread.length), told);
 });

@@ -5,10 +5,9 @@
 // PreToolUse on a shell command: each file it writes meets the Edit gate's ladder, the gravest verdict stands; unplaced or unread in
 // BUDGET_MS asks.
 // A folder written is every file under it; a glob is the folder before its first wildcard. Not a sandbox: Stop sees git.
-const { text: { shell: { writtenBy, readBy } }, paths: { resolveFrom, nameOf, folderAfter } } = require('@atlasbound/kit');
-const { WORDS } = require('../contracts/codes.cjs');
-const { CONFIG } = require('../contracts/shapes.cjs');
-const { unplacedReason, shellReason } = require('../core/text/gate.cjs');
+const { text: { shell: { writtenBy, readBy } }, paths: { resolveFrom, nameOf, folderAfter }, host: { SHELL_TOOLS, setsHostEnv } } = require('@atlasbound/kit');
+const { CONFIG, bound } = require('../contracts/shapes.cjs');
+const { unplacedReason, unplacedOf, shellReason, gateReason } = require('../core/text/gate.cjs');
 const { guardOf } = require('./host.cjs');
 const { anyOverlap, folderOf, isGlob } = require('../base/glob.cjs');
 const { isGuarded } = require('../core/gate.cjs');
@@ -23,6 +22,7 @@ const FOLDER = /(?:^|\/)\.{0,2}$/; // spelled as a folder: `.`, `..` or a final 
 const ANY = ['**', '**/**']; // a file under a folder at one depth and at more: a plan glob that covers both covers every file under it
 // the step's time, well inside the hook's 10 s (package.json), so a slow command is asked, never passed by the host's kill
 const BUDGET_MS = 1500;
+const TEXT_BYTES = 1024 * 1024; // the longest script or package.json read for its text
 
 function globReaches(io, key, own) {
   const { config, off } = guardedPolicy(io);
@@ -93,8 +93,7 @@ async function judgedAll(io, event, read, past) {
 function gravest(judged) {
   const worst = RANK.map((verdict) => judged.find((out) => out.verdict === verdict)).find(Boolean);
   if (!worst) return { verdict: 'allow', code: 'shell-no-write' };
-  const grown = judged.map((out) => out.context).filter(Boolean); // each file the frozen plan took in, one line
-  if (worst.verdict === 'allow') return { verdict: 'allow', code: 'shell-allowed', ...(grown.length && { context: grown.join('\n') }) };
+  if (worst.verdict === 'allow') return { verdict: 'allow', code: 'shell-allowed' };
   return worst.file ? { ...worst, reason: shellReason(worst.reason, worst.file) } : worst;
 }
 
@@ -109,24 +108,48 @@ function fileAt(io, dir, word) {
     return null;
   }
 }
-const filesNamed = (io, command, cwd, past) => readBy(command).map(({ word, cd }) => [folderAfter(cd, cwd, past), word])
+// a repository file's text where the cds leave the command (a script `sh x.sh` runs, a package.json), whole UTF-8, else null as above
+const repoText = (io, cwd, past) => (cd, name) => {
+  const dir = folderAfter(cd, cwd, past);
+  try {
+    const key = dir === null ? null : io.fs.keyAt(resolveFrom(dir, name));
+    return key === null ? null : io.fs.readText(key, { maxBytes: TEXT_BYTES, wholeUtf8: true });
+  } catch (err) {
+    if (!err || !err.code) throw err;
+    return null;
+  }
+};
+// the package scripts `npm run x` runs where the cds leave it; null where none is read (that run is unplaced)
+const scriptsAt = (read) => (cd) => {
+  const { scripts } = Object(bound.jsonOrNull(read(cd, 'package.json') ?? ''));
+  return scripts && typeof scripts === 'object' ? scripts : null;
+};
+
+const filesNamed = (io, read, cwd, past) => read.map(({ word, cd }) => [folderAfter(cd, cwd, past), word])
   .filter(([dir]) => dir !== null).map(([dir, word]) => fileAt(io, dir, word)).filter(Boolean);
 
 async function preShell(event, io) {
   const until = io.clock.elapsedMs() + BUDGET_MS;
   const past = () => io.clock.elapsedMs() > until;
   const command = String((event.tool_input || {}).command ?? '');
+  const cwd = event.cwd || io.root;
+  const lang = SHELL_TOOLS[event.tool_name];
   sawCall(io, event.session_id);
-  keepReads(io, event.session_id, filesNamed(io, command, event.cwd || io.root, past), 'Bash');
-  const read = writtenBy(command, past);
-  const seal = sealedBy(io, command, read, event.cwd || io.root); // before any ladder: the own store is sealed first
-  return seal ? { out: seal, code: seal.code, n: { writes: read.writes.length, sealed: 1 } } : laddered(event, io, read, past);
+  keepReads(io, event.session_id, filesNamed(io, readBy(command, { lang }), cwd, past), event.tool_name);
+  const file = repoText(io, cwd, past);
+  const read = writtenBy(command, past, { lang, scripts: scriptsAt(file), file });
+  const seal = sealedBy(io, command, read, cwd); // before any ladder: the own store is sealed first
+  if (seal) return { out: seal, code: seal.code, n: { writes: read.writes.length, sealed: 1 } };
+  // the host's variables say which session and project a verb acts for: a command that sets one would act as another
+  const posed = setsHostEnv(command, io.hostEnv ?? []).join(', ');
+  return posed ? { out: { verdict: 'deny', code: 'shell-host-env', reason: gateReason({ code: 'shell-host-env', file: posed }) },
+    code: 'shell-host-env', n: { writes: read.writes.length } } : laddered(event, io, read, past);
 }
 
 async function laddered(event, io, read, past) {
   const { judged, told, folders, unread } = await judgedAll(io, event, read, past);
   const asking = (read.unplaced || unread) && guardedPolicy(io).off !== 'gate-off';
-  const asks = asking ? [{ verdict: 'ask', code: 'shell-unplaced', reason: unplacedReason(unread ? WORDS.shellUnread : '') }] : [];
+  const asks = asking ? [{ verdict: 'ask', code: 'shell-unplaced', reason: unplacedOf(read, unread) }] : [];
   const out = gravest([...judged, ...asks]);
   const n = { writes: read.writes.length, judged: judged.length, unplaced: Number(read.unplaced), ...(folders ? { folders } : {}),
     ...(unread ? { unread: 1 } : {}) };

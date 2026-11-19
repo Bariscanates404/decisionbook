@@ -15,6 +15,8 @@ const isInt = (v) => Number.isInteger(v) && v >= 0;
 const isHex64 = (v) => typeof v === 'string' && /^[0-9a-f]{64}$/.test(v);
 const LISTS = { '[]': (v) => (Array.isArray(v) ? v : null), '{}': (v) => (isObj(v) ? Object.values(v) : null) };
 const baseOf = (type) => type.replace(/\?$/, '').replace(/(\[\]|\{\})$/, '');
+// what an example value of a type holds where a refusal shows the shape (a placeholder the type itself takes)
+const PLACES = { str: '<text>', msg: '<text>', word: '<word>', id: '<id>', ref: '<file>:<line>', int: 1, num: 1, bool: true, obj: {}, arr: [] };
 const JSON_TYPES = { str: 'string', int: 'integer', num: 'number', bool: 'boolean', obj: 'object', arr: 'array' };
 /** What a provider is told of one field type: a list mark as what `LISTS` accepts, never as its value type. */
 function toldAs(type, value = { type: JSON_TYPES[baseOf(type)] }) {
@@ -30,8 +32,16 @@ function json(text, code = 'json-invalid') {
   try {
     return plainRead(String(text).replace(/^\u{feff}/u, ''));
   } catch (err) {
-    throw fail(code, isFail(err, 'json-invalid') ? 'SyntaxError' : err.code || err.name);
+    if (!isFail(err, 'json-invalid')) throw fail(code, err.code || err.name);
+    throw Object.assign(fail(code, 'SyntaxError'), { broken: brokenAt(String(text), err) });
   }
+}
+/** Where JSON text broke, for the person who sent it (the message stays `SyntaxError`): none given, or the line and column of the first
+ * character the reader could not take. */
+function brokenAt(text, err) {
+  if (!text.trim()) return { empty: true };
+  const before = text.slice(0, Number(/at character (\d+)/.exec(err.message)?.[1] ?? text.length)).split('\n');
+  return { line: before.length, column: before[before.length - 1].length + 1 };
 }
 /** Text that may not be JSON at all, where that is an answer and not a stop: the value, or null. */
 function jsonOrNull(text) {
@@ -63,7 +73,20 @@ const typesOf = (isCode) => ({
   codeCounts: (v) => isObj(v) && Object.entries(v).every(([k, n]) => isCode(k) && isInt(n)),
 });
 
-/** createValidate({ shapes, enums, refuse, isCode }) -> { shape, problems, refusal, knows, json, jsonOrNull, lines, kept, jsonSchema } */
+/** One value of shape `name` for a refusal to show -> { value, optional }: each required field (each field, `whole`) a placeholder its
+ * type takes, `fixed` fields as given; and the names of the optional fields it left out. */
+function exampleOf(tables, name, { fixed = {}, whole = false } = {}) {
+  const { shapes, enums } = tables;
+  const placeOf = (type) => (shapes[type] ? exampleOf(tables, type, { whole }).value : enums[type]?.[0] ?? PLACES[type] ?? `<${type}>`);
+  const valueOf = (type) => (/\[\]\??$/.test(type) ? [placeOf(baseOf(type))] : placeOf(baseOf(type)));
+  const fields = Object.entries(shapes[name]);
+  const shown = fields.filter(([f, t]) => whole || !t.endsWith('?') || Object.hasOwn(fixed, f));
+  return { value: Object.fromEntries(shown.map(([f, t]) => [f, Object.hasOwn(fixed, f) ? fixed[f] : valueOf(t)])),
+    optional: fields.filter((field) => !shown.includes(field)).map(([f]) => f) };
+}
+
+/** createValidate({ shapes, enums, refuse, isCode }) -> { shape, problems, refusal, knows, json, jsonOrNull, lines, kept, jsonSchema,
+ * example }. problems: every problem of `value` as `name`, so a writer fixes them in one go ([] when it fits). */
 function createValidate({ shapes, enums, refuse, isCode }) {
   const TYPES = typesOf(isCode);
   const fitsBase = (type, v) => (enums[type] ? enums[type].includes(v) : TYPES[type](v));
@@ -121,8 +144,8 @@ function createValidate({ shapes, enums, refuse, isCode }) {
       required: fields.filter(([, t]) => !t.endsWith('?')).map(([f]) => f), additionalProperties: false };
   }
 
-  // problems: every problem of `value` as `name`, so a writer fixes them in one go ([] when it fits)
-  return { shape, problems: (name, value) => whys(name, value, name), refusal, knows, json, jsonOrNull, lines, kept, jsonSchema };
+  const example = (name, asked) => exampleOf({ shapes, enums }, name, asked);
+  return { shape, problems: (name, value) => whys(name, value, name), refusal, knows, json, jsonOrNull, lines, kept, jsonSchema, example };
 }
 
 module.exports = { createValidate };

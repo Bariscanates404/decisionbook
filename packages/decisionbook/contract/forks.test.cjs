@@ -6,7 +6,7 @@
 // never answers. The filler worlds stay not READY; the worlds of real forks reach READY. A Ruby repository: nothing here names a language.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { bookWorld, begin, added, unmetOf, refusedWith, readFor, GAP_IDS } = require('./world.cjs');
+const { bookWorld, begin, added, unmetOf, leavesOthers, refusedWith, readFor, GAP_IDS } = require('./world.cjs');
 const { verbs } = require('@atlasbound/decisionbook');
 
 const RUBY = Object.fromEntries(['app/validators/pin_limit_validator.rb', 'app/models/status_pin.rb', 'config/settings.yml', 'spec/validators/pin_spec.rb']
@@ -57,9 +57,9 @@ test('[I-19] filler earns nothing: one-word questions, a decision with no effect
   await added(io, id, personDecides('Q3', 'pins.zero', ['check:AC-1'], { proposed: true }));
   const res = await verbs.ready(io, { rest: [id] });
   assert.deepEqual(res.out.unmet.map((u) => u.code), ['ready-answers']);
-  assert.deepEqual(res.out.rows, { met: 10, asked: 11 });
+  assert.deepEqual(res.out.rows, { met: 11, asked: 12 });
   const FORKS = 'forks counted: none \\(normal work needs at least 3: a floor, never the target; every behaviour still open is one more question\\)';
-  assert.match(res.text, new RegExp(`not READY as normal work: 10 of 11 rows met\\n {2}ready-answers: [^\\n]+\\n {2}what to ask about and research [^\\n]+\\n {2}${FORKS}$`, 'm'));
+  assert.match(res.text, new RegExp(`not READY as normal work: 11 of 12 rows met\\n {2}ready-answers: [^\\n]+\\n {2}what to ask about and research [^\\n]+\\n {2}${FORKS}$`, 'm'));
 });
 
 test('[I-19] a question that restates the task, or a fork a person already decided on the same files, is refused and names it', async () => {
@@ -69,9 +69,8 @@ test('[I-19] a question that restates the task, or a fork a person already decid
   const again = await pinPlanned(io, [], { title: 'Pin limit, take two' });
   const [code, message] = await refusedWith(io, again, askFork('Q1', 'spec.verification', 'What verification is required?'));
   assert.deepEqual([code, message.includes(`${first}/spec.verification = yes (by the person)`)], ['question-settled', true], message);
-  // the same reply hands the way on: the one record that proposes replacing that decision, the AI's, binding nothing until a person answers
-  const handed = `{"t":"decision","key":"spec.verification","value":"","why":"","by":"ai","proposed":true,"supersedes":["${first}/spec.verification"]}`;
-  assert.ok(message.includes(`to propose replacing it, send this record in the plan in place of the question, its "" filled: ${handed}; show the person`), message);
+  // the same reply hands the way on: the question again, naming that decision as what it asks the person to replace
+  assert.ok(message.includes(`or, to ask the person to replace it, add "supersedes":["${first}/spec.verification"] to this question and send`), message);
   const [restates, said] = await refusedWith(io, first, askFork('Q2', 'pins.configurable', 'Should the status pin limit be configurable?'));
   assert.deepEqual([restates, /Q2 restates the title/.test(said)], ['question-restates', true], said);
   const elsewhere = await begin(io, { ...TASK, title: 'Reaction limit', kind: 'feature', level: 'normal' });
@@ -98,6 +97,7 @@ test('[I-19] real forks reach READY: research citing a real line, or one asked f
     { t: 'item', kind: 'rollback', text: 'revert' },
     settledBy('pins.a', 1), settledBy('pins.b', 2), settledBy('pins.c', 3), settledBy('pins.d', 4)], { title: 'Critical pins', level: 'critical' });
   await readFor(io, critical, ['app/validators/pin_limit_validator.rb']); // critical research rests on a file read
+  await leavesOthers(io, critical);
   assert.deepEqual(await unmetOf(io, critical), ['ready-answers'], 'the floor per level stays: critical work needs five');
 });
 
@@ -123,15 +123,14 @@ test('[I-22] a copied decisionbook file is refused by both names, never read as 
   assert.deepEqual([io.fs.readText(`.decisionbook/${id}.jsonl`), io.fs.readText('.decisionbook/copy.jsonl')], [original, original]);
 });
 
-test('[I-19] the record a settled question\'s refusal hands is taken once its blanks are filled, and binds nothing', async () => {
+test('[I-19] a settled question that names the decision, as the refusal says, is taken and binds nothing by itself', async () => {
   const io = pinsWorld();
   const first = await pinPlanned(io, [askFork('Q1', 'spec.verification', 'Which spec proves the limit: the validator spec or a request spec?'),
     personDecides('Q1', 'spec.verification', ['check:AC-1'])]);
   const again = await pinPlanned(io, [], { title: 'Pin limit, take two' });
   const [, message] = await refusedWith(io, again, askFork('Q1', 'spec.verification', 'What verification is required?'));
-  const handed = JSON.parse(/(\{"t":"decision".*?\]\})/.exec(message)[1]);
-  assert.equal(await refusedWith(io, again, { ...handed, value: 'a request spec', why: 'the task asks for it' }), null);
+  const supersedes = JSON.parse(/"supersedes":(\[.*?\])/.exec(message)[1]);
+  assert.equal(await refusedWith(io, again, { ...askFork('Q1', 'spec.verification', 'What verification is required?'), supersedes }), null);
   const states = (await verbs.show(io, { rest: ['decision:spec.verification'] })).out.decisions.map((d) => [d.plan, d.by, d.state]);
-  assert.deepEqual(states, [[first, 'the person', 'active'], [again, 'ai', 'proposed']],
-    'the person\'s decision stands until a person replaces it');
+  assert.deepEqual(states, [[first, 'the person', 'active']], 'the person\'s decision stands until a person replaces it');
 });

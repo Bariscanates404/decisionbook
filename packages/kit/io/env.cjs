@@ -7,6 +7,7 @@
 const os = require('node:os');
 const { fail } = require('../base/errors.cjs');
 const { realOf } = require('./fs.cjs');
+const { winFolder } = require('../base/paths.cjs');
 
 const ABSOLUTE = /^(?:[/\\]|[A-Za-z]:[/\\])/; // a POSIX or backslash root, or a drive root; `C:rel` hangs off the drive's cwd
 
@@ -29,14 +30,17 @@ function userHome() {
 }
 
 // Per-user state (approvals), chosen by no env; only while a set HOME names that same home, so a test or planted HOME sees no approval and
-// writes none.
-function stateHome() {
+// writes none. On Windows (`platform`) a folder is one in any case and either separator: Git Bash hands HOME so, a plain terminal none.
+function stateHome(platform = process.platform) {
   const base = userHome();
   if (base === null) throw fail('config-invalid', 'this user has no home in the password database, so no approval can be kept or read');
   if (!ABSOLUTE.test(base)) throw fail('config-invalid', 'the home in the password database is not an absolute path');
-  const [own, home] = [base, get('HOME')].map((dir) => dir && dir.replace(/\/+$/, ''));
+  const own = base.replace(/\/+$/, '');
+  const spelled = (dir) => (platform === 'win32' ? winFolder(dir) : dir.replace(/\/+$/, ''));
   const why = `approvals are kept only there, so none is read or written while HOME is ${get('HOME')}`;
-  if (home !== null && home !== own) throw fail('config-invalid', `HOME is not this user's home in the password database (${base}): ${why}`);
+  if (get('HOME') !== null && spelled(get('HOME')) !== spelled(base)) {
+    throw fail('config-invalid', `HOME is not this user's home in the password database (${base}): ${why}`);
+  }
   return `${own}/.atlasbound`;
 }
 

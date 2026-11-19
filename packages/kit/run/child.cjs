@@ -8,6 +8,7 @@ const { childEnv } = require('../base/paths.cjs');
 const { withLock } = require('./lock.cjs');
 
 const STOP_ENV = 'ATLASBOUND_CHILD_STOP_MS'; // a child's own hard stop in ms, handed by its starter; no person or AI passes it
+const SELF_ENV = 'ATLASBOUND_SELF_CHECK'; // a run of the product's own self-check (doctor's probe), handed by its starter: its rows say so
 
 /** One detached `<this node> <this bin> ...words` at the repository root: its env is exactly `envKeys` (PATH with no repository directory)
  * and the hard stop `stopMs` when given -> { pid, error }. `handedStop(env)`: the stop this process was handed, or null (a person's own
@@ -15,6 +16,7 @@ const STOP_ENV = 'ATLASBOUND_CHILD_STOP_MS'; // a child's own hard stop in ms, h
 const startSelf = (io, words, envKeys, stopMs = null) => io.proc.startDetached({ cmd: io.self.node, args: [io.self.bin, ...words],
   env: { ...childEnv(io.env, envKeys, io.root), ...(stopMs ? { [STOP_ENV]: String(stopMs) } : {}) }, cwd: io.root });
 const handedStop = (env) => [Number(env.get(STOP_ENV))].find((ms) => Number.isInteger(ms) && ms > 0) ?? null;
+const selfCheck = (env) => env.get(SELF_ENV) === '1';
 
 /** Under `lock` (waited for at most `waitMs`, else lock-held): `plan()` -> { refused } and nothing starts, or { start, note }: `start()` ->
  * { pid, error }, then `note(pid)` only for a child that started -> { refused } | { error } | { pid }. */
@@ -29,4 +31,4 @@ function startOnce(io, { lock, waitMs }, plan) {
   }, waitMs);
 }
 
-module.exports = { startSelf, handedStop, startOnce };
+module.exports = { startSelf, handedStop, startOnce, SELF_ENV, selfCheck };

@@ -49,11 +49,11 @@ function diskRepo() {
 test('a READY plan that came with a commit lowers no deny: its one ask comes first, also for a file outside its plan',
   async () => {
   const { io, id, file } = await committed();
-  const outside = { ...editEvent('src/billing/pay.js'), tool_use_id: 'tu1' };
+  const outside = { ...editEvent('src/util/fmt.js'), tool_use_id: 'tu1' };
   const first = await handlers.preEdit(outside, io);
   assert.deepEqual([...ruling(first), first.plan], ['ask', 'plan-not-here', id], 'not the plan\'s own out-of-scope ask: the plan is no one\'s here yet');
   assert.match(first.reason,
-    /^DecisionBook gate: plan-not-here: src\/billing\/pay\.js: this READY plan was not confirmed on this machine[^]*\(it came with a commit from Mallory\)$/);
+    /^DecisionBook gate: plan-not-here: src\/util\/fmt\.js: this READY plan was not confirmed on this machine[^]*\(it came with a commit from Mallory\)$/);
   assert.deepEqual(ruling(await handlers.preEdit(asMode(outside, 'bypassPermissions'), io)), ['deny', 'plan-not-here'],
     'where the host asks no one: a deny, as with no plan');
   assert.deepEqual(ruling(await handlers.preEdit(editEvent('src/report/db/rows.sql'), io)), ['deny', 'plan-not-critical'],
@@ -63,13 +63,12 @@ test('a READY plan that came with a commit lowers no deny: its one ask comes fir
   assert.deepEqual(joined(), [], 'nothing joined the plan while it was no one\'s here');
   assert.deepEqual(ruling(await handlers.preEdit(editEvent('src/billing/db/rows.sql'), io)), ['ask', 'plan-out-of-scope'],
     'then the plan\'s own ask follows: a danger path outside it is still the person\'s');
-  // READY is the freeze. Only after the person's yes to the one ask, a plain protected file outside the plan joins it
-  const grown = await handlers.preEdit(editEvent('src/billing/pay.js'), io);
-  assert.deepEqual(ruling(grown), ['allow', 'plan-grown']);
-  assert.equal(grown.context, `DecisionBook: src/billing/pay.js was outside plan ${id}; the plan is frozen and took it in (one line added to it). Nothing to do.`);
-  assert.deepEqual(joined(), [['plans', 'file:src/billing/pay.js', 'the gate: written under the READY plan']],
-    'the product wrote the one line, the danger path none');
-  assert.deepEqual(ruling(await handlers.preEdit(editEvent('src/billing/pay.js'), io)), ['allow', 'gate-in-scope'], 'it is the plan\'s now');
+  // READY is the freeze. Only after the person's yes to the one ask, a plain protected file outside the plan is the plan's own ask
+  const grown = { ...editEvent('src/util/fmt.js'), tool_use_id: 'tu2' };
+  assert.deepEqual(ruling(await handlers.preEdit(grown, io)), ['ask', 'plan-outside']);
+  assert.equal((await handlers.postEdit({ ...grown, hook_event_name: 'PostToolUse' }, io)).code, 'trust-kept', 'the person said yes again');
+  assert.deepEqual(joined(), [['plans', 'file:src/util/fmt.js', 'the person\'s yes to the gate\'s ask']], 'their yes wrote the one line, the danger path none');
+  assert.deepEqual(ruling(await handlers.preEdit(editEvent('src/util/fmt.js'), io)), ['allow', 'gate-in-scope'], 'it is the plan\'s now');
   assert.deepEqual(ruling(await handlers.preEdit(editEvent('src/report/a.js'), io)), ['allow', 'gate-in-scope']);
   // a commit readies it again with a plan of nothing
   io.fs.append(file, `${wire({ t: 'ready', scope: [], level: 'normal', at: '2026-11-02T07:00:00.000Z' })}\n`);

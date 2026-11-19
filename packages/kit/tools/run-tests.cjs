@@ -9,8 +9,8 @@
 // (unit 1 s, other 10 s, × load/CPUs): a slower file is red unless owners.json `slow` names it (that list only shrinks).
 // `all` also holds each package's real-bin spawns (kit/testing/fake-io.cjs countSpawn) to its caps.spawns. A time the reporter does not
 // give is said, never counted as fast; a run ended by a signal or without the reporter's summary is red. A file owners.json `alone`
-// names runs after the rest, one at a time. KIT_TEST_TIME=said
-// (test-time.cjs), set only by the release's own check, judges no time; any other value is refused.
+// names runs after the rest, one at a time. KIT_TEST_TIME=said (test-time.cjs), set only by the release's own check, judges no time; any
+// other value is refused; `--time-said` is the same, for cmd.exe (npm's shell on Windows), which cannot set a variable before a command.
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -54,12 +54,12 @@ function report(ms, factor) {
   return process.stdout.write(`tests: ${ms.size} files timed, load factor ${factor.toFixed(2)}; slowest: ${top.join(', ')}\n`);
 }
 
-function runTests([tier = 'all', ...names]) {
+function runTests([tier = 'all', ...words], names = words.filter((word) => word !== '--time-said')) {
   if (!TOPS[tier]) {
     process.stderr.write(`run-tests: unknown tier ${tier}; use unit or all\n`);
     process.exit(2);
   }
-  const time = process.env[TIME_VAR];
+  const time = words.includes('--time-said') ? TIME_SAID : process.env[TIME_VAR];
   if (time !== undefined && time !== TIME_SAID) {
     process.stderr.write(`run-tests: ${TIME_VAR} is ${TIME_SAID} or unset, never ${JSON.stringify(time)}\n`);
     process.exit(2);

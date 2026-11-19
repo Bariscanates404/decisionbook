@@ -29,7 +29,7 @@ test('a person in a terminal answers automatic: the tracked source folders are p
   const config = configOf(repo);
   assert.deepEqual(config.protect.slice().sort(), ['lib/**', 'server/**', 'src/**', 'test/**']);
   assert.deepEqual([config.answer.answer, config.answer.door], ['source', 'setup-terminal']);
-  assert.ok(!Number.isNaN(Date.parse(config.answer.at)), config.answer.at);
+  assert.equal(config.answer.at, undefined, 'no time in the committed answer: two teammates write the same bytes');
   assert.match(res.out, /^protected paths: .*src\/\*\*/m, 'the summary after the answer says what is protected now');
   // the walk on this same setup: an Edit of a protected file with no plan is denied by the new plan's gate through the port
   const denied = JSON.parse(fire(repo, portOf(repo, 'PreToolUse', 'Edit'), editOf(repo, 'server/logger.ts')).out).hookSpecificOutput;
@@ -57,6 +57,17 @@ test('choose: the person picks from the numbered candidates; not now protects no
   assert.deepEqual([configOf(later).protect, configOf(later).answer.answer], [[], 'none']);
   const third = setupIn(world, later, '1\n');
   assert.doesNotMatch(third.out + third.err, ASKED, 'not now is an answer: it is not asked again');
+});
+
+test('automatic counts a folder of HTML pages and a single entry file at the root, and --source protects them', () => {
+  const world = makeWorld();
+  const site = makeRepo({ 'lessons/01.html': 'a\n', 'lessons/02.html': 'b\n', 'index.html': 'c\n', 'shared/a.js': 'd\n', 'README.md': 'e\n',
+    'notes.html': 'f\n' });
+  const asked = run(world.bin, ['setup', '--target', site]);
+  assert.match(asked.out, /automatic: index\.html \(1 file\), lessons\/\*\* \(2 files\), lib\/\*\* \(1 file\), shared\/\*\* \(1 file\) +->/, asked.out);
+  const chosen = run(world.bin, ['protect', '--source', '--target', site]);
+  assert.equal(chosen.code, 0, chosen.err);
+  assert.deepEqual(configOf(site).protect, ['index.html', 'lessons/**', 'lib/**', 'shared/**'], 'a root page that is no entry file is not guessed');
 });
 
 test('without a terminal setup prints the question for the AI to put to the person, and writes nothing', () => {

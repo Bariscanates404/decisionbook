@@ -14,9 +14,20 @@
 // reads as theirs.
 const RULES = require('../contracts/person.json');
 const { programOf, commandNames } = require('../base/paths.cjs');
+const { shellLang, handsText } = require('../text/shell-win.cjs');
 
-// a shell a person types into, by the shape of its command line: a login shell, or a program given nothing but options, none a command
-const isTyped = (words) => String(words[0]).startsWith('-') || words.slice(1).every((word) => word.startsWith('-') && word !== RULES.commandOption);
+// a shell a person types into, by the shape of its command line: a login shell, or a program given nothing but options, none a command;
+// which words hand a Windows shell a command is the shell owner's answer, the one the write gate reads
+const WIN = RULES.windows;
+function isTyped(words) {
+  const lang = shellLang(programOf(words[0]));
+  if (lang) return !handsText(lang, words.slice(1));
+  return String(words[0]).startsWith('-') || words.slice(1).every((word) => word.startsWith('-') && word !== RULES.commandOption);
+}
+// Windows keeps no terminal sessions (the walk says `sessions: false`): there the terminal's side ends at the farthest shell of the list;
+// with none (-1) that side is empty, which holds no typing shell
+const leaderOf = (walk) => (walk.sessions === false ? walk.chain.findLastIndex((words) => WIN.shells.includes(programOf(words[0])))
+  : walk.leader);
 const SHOWN = 6; // how many ancestors' programs the root's row names: the shell, the terminal and what stands between
 
 /** PURE. Where a process sits. `tty`: its input is a terminal; `marks`: the AI session variables its environment holds; `walk`: its
@@ -28,7 +39,8 @@ function seatOf({ tty, marks, walk }) {
   if (!tty) return { person: false, why: 'no-terminal' };
   if (walk === null) return { person: false, why: 'ancestry-unknown' };
   if (walk.chain.some((words) => commandNames(words, RULES.aiHosts.names))) return { person: false, why: 'ai-host-above' };
-  if (walk.leader === null || !walk.chain.slice(0, walk.leader + 1).some(isTyped)) return { person: false, why: 'no-typing-shell' };
+  const leader = leaderOf(walk);
+  if (leader === null || !walk.chain.slice(0, leader + 1).some(isTyped)) return { person: false, why: 'no-typing-shell' };
   const above = walk.chain.map((words) => programOf(words[0]));
   const wrapped = above.find((program) => RULES.wrappers.includes(program));
   return { person: true, why: 'own-terminal', above: above.slice(0, SHOWN), ...(wrapped ? { wrapped } : {}) };

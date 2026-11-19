@@ -6,6 +6,7 @@
 // ('symbolic' lets a hard link through).
 // Named limit: a PARENT directory swapped after its check is followed (whoever can do that could write the target anyway).
 const fs = require('node:fs');
+const os = require('node:os');
 const { isUtf8 } = require('node:buffer');
 const { under, dirOf, repoRel, join, parentDir, nameOf, resolveFrom } = require('../base/paths.cjs');
 const { fail, isFail } = require('../base/errors.cjs');
@@ -105,7 +106,6 @@ function diskFs(root, impl, modes) {
     const parts = key.split('/');
     if (modes.tight) parts.forEach((_, i) => impl.chmodSync(at(parts.slice(0, i + 1).join('/')), i < parts.length - 1 ? modes.dir : mode));
   };
-  const parentOf = (key) => (dirOf(key) ? at(dirOf(key)) : root);
   function orNull(op, key, noLink = false) {
     const file = at(key); // a refused key (path-*) stays its own code, outside the try
     try {
@@ -129,7 +129,7 @@ function diskFs(root, impl, modes) {
     const file = at(key);
     try {
       refuseLinks(file, key);
-      if (make) impl.mkdirSync(parentOf(key), { recursive: true, mode: modes.dir });
+      if (make) impl.mkdirSync(dirOf(key) ? at(dirOf(key)) : root, { recursive: true, mode: modes.dir });
       return op(file);
     } catch (err) {
       if (err.code === 'ELOOP') throw fail('path-link', key);
@@ -151,6 +151,7 @@ function diskFs(root, impl, modes) {
     writeAtomic: (key, text) => changing(key, (file) => { replace(impl, file, text, modes.file); tighten(key, modes.file); }),
     append: (key, text) => changing(key, (file) => { impl.appendFileSync(file, text, { flag: APPEND, mode: modes.file }); tighten(key, modes.file); }),
     remove: (key) => changing(key, (file) => impl.rmSync(file, { force: true }), false),
+    removeEmpty: (key) => changing(key, (dir) => unless('ENOTEMPTY', () => impl.rmdirSync(dir)), false), // a folder that holds nothing
     makeDir: (key) => changing(key, (dir) => { impl.mkdirSync(dir, { recursive: true, mode: modes.dir }); tighten(key, modes.dir); }, false),
     createExclusive: (key, text) => changing(key, (file) => unless('EEXIST', () => { impl.writeFileSync(file, text, { flag: 'wx', mode: modes.file }); tighten(key, modes.file); })),
     rename: (from, to) => changing(to, (file) => unless('ENOENT', () => {
@@ -204,4 +205,14 @@ async function placeAt(impl, root, hostPath, known) {
   return keys.find((key) => linkAt(impl, resolveFrom(root, key))?.id === target.id) ?? keyAt(impl, root, hostPath);
 }
 
-module.exports = { createFs, realOf };
+/** A scratch folder of this process (debug inject's copy of a repository), made under the system's temp folder in its real spelling:
+ * `copy` lays a tree under a key of that folder, its links kept as links and the `skip` names left out; `remove` takes that folder
+ * whole, and only it. No program runs: Windows has no sh or tar. */
+function scratch(prefix) {
+  const dir = fs.realpathSync.native(fs.mkdtempSync(resolveFrom(os.tmpdir(), prefix)));
+  const how = (skip) => ({ recursive: true, verbatimSymlinks: true, filter: (src) => !skip.includes(nameOf(src)) });
+  return Object.freeze({ dir, copy: (from, key, skip) => fs.cpSync(from, under(dir, key), how(skip)),
+    remove: () => fs.rmSync(dir, { recursive: true, force: true }) });
+}
+
+module.exports = { createFs, realOf, scratch };

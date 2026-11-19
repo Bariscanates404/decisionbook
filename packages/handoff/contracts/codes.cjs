@@ -42,7 +42,6 @@ const ROWS = [
   ['session-unseen', 'this session\'s start was not seen'],
   ['session-head-gone', 'the commit this session began at is no longer here'],
   ['head-none', 'this repository has no commit yet'],
-  ['plans-absent', 'DecisionBook is off or not installed here'],
   // the one context notice: no handoff is asked for by itself, a person asks (/handoff, atlasbound handoff)
   ['context-notice', 'tell the person once, inside your normal reply, how full this session\'s context is (the line above) and that '
     + '/handoff keeps what matters before a compaction if they want it; do not start a handoff yourself'],

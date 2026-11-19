@@ -4,9 +4,9 @@
 'use strict';
 // PURE: the hook logic: which handlers an event reaches, the one row that wakes the port, the merged verdict, a lost verdict, the reply in
 // the host's protocol.
-const { text: { secrets: { scrub }, shell: { writtenBy } } } = require('@atlasbound/kit');
-const { EVENTS, SHELL_GATE } = require('../contracts/shapes.cjs');
-const { shortOf } = require('../contracts/codes.cjs');
+const { text: { secrets: { scrub }, shell: { writtenBy }, lines: { filled } }, host: { SHELL_TOOLS, WRITE_TOOLS }, paths: { hostPath } } = require('@atlasbound/kit');
+const { EVENTS, PORT_GATE } = require('../contracts/shapes.cjs');
+const { shortOf, WORDS } = require('../contracts/codes.cjs');
 
 const PLAIN = /^[A-Za-z0-9_|]+$/;
 const RANK = ['deny', 'ask', 'allow'];
@@ -27,10 +27,10 @@ function unionOf(matchers) {
 const declaredFor = (manifests, event) => manifests.flatMap(({ name, hooks }) => (hooks || []).filter((h) => h.event === event)
   .map((h) => ({ pkg: name, handler: h.handler, matcher: h.matcher, timeout: h.timeout })));
 
-/** The rows that wake the port: one per event a package declared a handler for, and the port's own shell gate with them. */
+/** The rows that wake the port: one per event a package declared a handler for, and the port's own gate with them. */
 function portRows(manifests) {
   return Object.keys(EVENTS).flatMap((event) => {
-    const declared = [...declaredFor(manifests, event), ...[SHELL_GATE].filter((row) => row.event === event)];
+    const declared = [...declaredFor(manifests, event), ...[PORT_GATE].filter((row) => row.event === event)];
     if (!declared.length) return [];
     return [{ event, matcher: unionOf(declared.map((d) => d.matcher)), timeout: Math.max(...declared.map((d) => d.timeout)) }];
   });
@@ -41,7 +41,7 @@ const reached = (manifests, event, payload) => {
   return declaredFor(manifests, event).filter((d) => !on || fires(d.matcher, payload[on]));
 };
 
-/** Whether a row these manifests wire (the port's own shell gate among them) wakes on this event and payload. */
+/** Whether a row these manifests wire (the port's own gate among them) wakes on this event and payload. */
 const wakes = (manifests, event, payload) => reached([{ name: 'port', hooks: portRows(manifests) }], event, payload).length > 0;
 
 function merge(decisions) {
@@ -64,10 +64,31 @@ function reachedAgent(event, verdict, sizes) {
   }, {});
 }
 
+/** The paths a hook reads (cwd, a write tool's file) as this host opens them: on Windows, Git Bash's `/c/...` is the drive's (hostPath). */
+function hostPaths(payload, windows = undefined) {
+  const input = payload.tool_input && typeof payload.tool_input === 'object' ? payload.tool_input : null;
+  const fixed = (obj, keys) => Object.fromEntries(Object.entries(obj)
+    .map(([key, v]) => [key, keys.includes(key) ? hostPath(v, windows) : v]));
+  return { ...fixed(payload, ['cwd']), ...(input ? { tool_input: fixed(input, Object.values(WRITE_TOOLS)) } : {}) };
+}
+
+const TARGET = new Map([...Object.entries(WRITE_TOOLS), ...Object.keys(SHELL_TOOLS).map((tool) => [tool, 'command'])]);
+/** Why an event that can ask names no tool, or a write or shell tool no target a gate reads (its file, its command): no gate could judge
+ * it, so it asks as an input that is no JSON does; null when it names them. */
+function inputGap(event, payload) {
+  const { on, blocks } = EVENTS[event];
+  if (!on || !blocks.includes('ask')) return null;
+  const tool = payload[on];
+  if (typeof tool !== 'string' || !tool) return `no ${on}`;
+  const field = TARGET.get(tool);
+  const value = field && Object(payload.tool_input)[field];
+  return !field || (typeof value === 'string' && value) ? null : `no tool_input.${field}`;
+}
+
 function onlyReads(payload, past) {
   const { command } = (payload && payload.tool_input) || {};
   if (typeof command !== 'string') return false;
-  const read = writtenBy(command, past);
+  const read = writtenBy(command, past, { lang: SHELL_TOOLS[payload.tool_name] || 'sh' });
   return !read.writes.length && !read.unplaced;
 }
 
@@ -77,6 +98,9 @@ function lostAsk(event, payload, lost, past) {
   const can = lost.length > 0 && Object.hasOwn(EVENTS, event) && EVENTS[event].blocks.includes('ask');
   return can && !onlyReads(payload, past) ? { verdict: 'ask', reason: `atlasbound: hook-lost: ${lost.join(', ')}: ${shortOf('hook-lost')}` } : null;
 }
+
+// The host shows a Stop block to the person as "Stop hook error": this line says it is the product's check doing its work.
+const STOP_HELD = WORDS.hooks.stopHeld;
 
 /** Allow is never passed on (it would skip the host's permission prompt); the one door into the agent's context, so no secret shape leaves
  * it.
@@ -89,8 +113,9 @@ function replyOf(event, merged, notes, plain) {
   const decision = reason === null ? {} : event === 'Stop' ? { decision: 'block', reason } : { hookSpecificOutput };
   const specific = rule && rule.context && text
     ? { hookSpecificOutput: { hookEventName: event, ...decision.hookSpecificOutput, additionalContext: text } } : {};
-  const system = [...plain, ...notes.slice(0, 1).map(() => `atlasbound: no verdict formed by ${notes.join(', ')}`)];
+  const held = [STOP_HELD].filter(() => decision.decision === 'block'); // only a Stop blocks so
+  const system = [...held, ...plain, ...notes.slice(0, 1).map(() => filled(WORDS.hooks.noVerdict, { by: notes.join(', ') }))];
   return { ...decision, ...specific, ...(system.length ? { systemMessage: system.join('\n') } : {}) };
 }
 
-module.exports = { portRows, wakes, reached, merge, reachedAgent, lostAsk, replyOf };
+module.exports = { portRows, wakes, reached, merge, reachedAgent, lostAsk, replyOf, hostPaths, inputGap };

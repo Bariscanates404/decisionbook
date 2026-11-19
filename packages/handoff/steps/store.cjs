@@ -4,6 +4,7 @@
 'use strict';
 // THE one reader and writer of the handoff's store: this repository's folder in the person's home (never the repository). It holds the
 // note of each branch, and per session the heads of the person's messages and the list of edited files.
+const { text: { lines: { shortId } } } = require('@atlasbound/kit');
 const { SCHEMA, BOUNDS, bound, shapedOrNull } = require('../contracts/shapes.cjs');
 const { noteKey, sessionKey, sessionIds } = require('../contracts/helpers.cjs');
 
@@ -61,7 +62,7 @@ function pruneSessions(io) {
 function heardHere(io) {
   if (!io.home) return [];
   const rows = sessionIds(io).flatMap((id) => ((readSession(io, id) || { messages: [] }).messages)
-    .map((m) => ({ id: `${id.slice(0, 8)}.${m.n}`, at: m.at, text: m.text })));
+    .map((m) => ({ id: `${shortId(id)}.${m.n}`, at: m.at, text: m.text })));
   return rows.sort((a, b) => a.at.localeCompare(b.at));
 }
 

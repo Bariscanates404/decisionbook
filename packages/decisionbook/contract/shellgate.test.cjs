@@ -17,7 +17,8 @@ const bash = (command, cwd = ROOT) => ({ hook_event_name: 'PreToolUse', session_
 const LINE = (file) => `this shell command writes ${file}; once the branch's READY plan covers the file, the same command passes`;
 // READY is the freeze. A plain protected file a command writes outside the READY plan joins it, said in one line; a danger path
 // (here app/db/, a database path) outside it is still the person's
-const GROWN = (file, id) => `DecisionBook: ${file} was outside plan ${id}; the plan is frozen and took it in (one line added to it). Nothing to do.`;
+// a file outside the READY plan, as the shell gate asks it: its code and the file the reason names first
+const outside = (said) => [...shellRuling(said), (String(said.reason).match(/^DecisionBook gate: plan-outside: ([^:]+): [^\n]*open a new plan for this file/) || [])[1]];
 const joined = (io, id) => planRecords(io, id).filter((r) => r.t === 'link' && r.source).map((r) => r.to.slice('file:'.length));
 const WRITES_X = [["cat > app/x.rb <<'EOF'\nclass X\nEOF", ROOT], ["cat > ../app/x.rb <<'EOF'\nclass X\nEOF", `${ROOT}/lib`],
   ["cd app && cat > x.rb <<'EOF'\nx\nEOF", ROOT],
@@ -49,7 +50,7 @@ test('[I-5] a shell command writing a protected file is denied with no READY pla
     'the Edit gate itself is unchanged');
 });
 
-test('[I-5] inside a READY plan every such command is allowed; a file outside it joins the plan, a danger path outside it asks',
+test('[I-5] inside a READY plan every such command is allowed; a file outside it asks, a danger path outside it asks',
   async () => {
   const io = protectedWorld();
   const { id } = await readyOne(io, { plans: ['app/x.rb'] });
@@ -59,11 +60,10 @@ test('[I-5] inside a READY plan every such command is allowed; a file outside it
   assert.deepEqual(shellRuling(danger), ['ask', 'plan-out-of-scope']);
   assert.match(danger.reason,
     /^DecisionBook gate: plan-out-of-scope: app\/db\/y\.sql: a danger path [^\n]* outside the READY plan is the person's, once[^\n]*\nthis shell command writes app\/db\/y\.sql; once the branch's READY plan/);
-  const outside = await handlers.preShell(bash('echo y > app/y.rb && echo x >> app/x.rb'), io);
-  assert.deepEqual([...shellRuling(outside), outside.context], ['allow', 'shell-allowed', GROWN('app/y.rb', id)]);
-  assert.deepEqual(joined(io, id), ['app/y.rb'], 'the product added the one path; the danger path asked about joined nothing');
-  const again = await handlers.preShell(bash('echo y > app/y.rb'), io);
-  assert.deepEqual([...shellRuling(again), again.context, joined(io, id)], ['allow', 'shell-allowed', undefined, ['app/y.rb']], 'the plan\'s now: silent, added once');
+  const plain = await handlers.preShell(bash('echo y > app/y.rb && echo x >> app/x.rb'), io);
+  assert.deepEqual(outside(plain), ['ask', 'plan-outside', 'app/y.rb']);
+  assert.match(plain.reason, /\nthis shell command writes app\/y\.rb; /);
+  assert.deepEqual(joined(io, id), [], 'an ask joins nothing to the plan, the danger path nothing either');
   const policy = bash(`echo '{"protect":[]}' > .decisionbook/config.json`);
   assert.deepEqual(shellRuling(await handlers.preShell(policy, io)), ['ask', 'policy-narrowed']);
   assert.deepEqual(shellRuling(await handlers.preShell(asMode(policy, 'bypassPermissions'), io)), ['deny', 'policy-narrowed'],
@@ -82,7 +82,8 @@ test('[I-5] a file another command only reads, lists or globs is never judged',
   const called = (file) => `cd ${ROOT}/app/javascript; python3 - <<'EOF'\ndef edit(p):\n    open(p,'w').write('x')\nedit('${file}')\nEOF`;
   assert.match((await handlers.preShell(bash(called('db/x.sql')), io)).reason, /^DecisionBook gate: plan-out-of-scope: app\/javascript\/db\/x\.sql: /,
     'a function\'s parameter is placed from its call: the danger path it writes is named');
-  assert.equal((await handlers.preShell(bash(called('x.ts')), io)).context, GROWN('app/javascript/x.ts', id), 'and a plain file it writes is the one that joins the plan');
+  assert.deepEqual(outside(await handlers.preShell(bash(called('x.ts')), io)), ['ask', 'plan-outside', 'app/javascript/x.ts'],
+    'and a plain file it writes is the one named outside the plan');
   const unplaced = `cd ${ROOT}/app/javascript; python3 - <<'EOF'\nfor p in sorted(glob('*.ts')):\n    open(p,'w').write('x')\nEOF`;
   const said = await handlers.preShell(bash(unplaced), io);
   assert.deepEqual([...shellRuling(said), said.reason], ['ask', 'shell-unplaced',
@@ -90,9 +91,27 @@ test('[I-5] a file another command only reads, lists or globs is never judged',
   assert.deepEqual(lastN(io, 'decisionbook.shell'), { writes: 0, judged: 0, unplaced: 1, decision_ask: 1 }); // the shell gate's verdict counted
   assert.match((await handlers.preShell(bash(`${unplaced}\necho y > ${ROOT}/app/db/y.sql`), io)).reason, /^DecisionBook gate: plan-out-of-scope: app\/db\/y\.sql: /,
     'a placed danger path outside the plan is named first');
-  assert.deepEqual(shellRuling(await handlers.preShell(bash(`${unplaced}\necho y > ${ROOT}/app/y.rb`), io)), ['ask', 'shell-unplaced'],
-    'beside a plain file that joins the plan, the write that cannot be placed still asks');
+  assert.deepEqual(shellRuling(await handlers.preShell(bash(`${unplaced}\necho y > ${ROOT}/app/y.rb`), io)), ['ask', 'plan-outside'],
+    'beside a write that cannot be placed, a plain file outside the plan asks by its own name');
   assert.deepEqual(shellRuling(await handlers.preShell(bash(unplaced), bookWorld())), ['allow', 'shell-no-write'], 'nothing protected: nothing to ask');
+});
+
+test('[I-5] a repository script a shell runs is read, its writes judged; git merge, pull, rebase and an unread script ask',
+  async () => {
+  const io = protectedWorld({ files: { 'app/x.rb': 'class X\n', 'tools/fix.sh': 'echo y > app/x.rb\n', 'tools/log.sh': 'echo y > tmp/log\n' } });
+  assert.deepEqual(shellRuling(await handlers.preShell(bash('sh tools/fix.sh'), io)), ['deny', 'plan-none']);
+  assert.deepEqual(shellRuling(await handlers.preShell(bash('cd tools && bash ./fix.sh', `${ROOT}`), io)), ['allow', 'shell-allowed'],
+    'from tools/ the script writes tools/app/x.rb, no protected file');
+  assert.deepEqual(shellRuling(await handlers.preShell(bash('bash tools/log.sh'), io)), ['allow', 'shell-allowed']);
+  for (const command of ['sh tools/none.sh', 'bash /elsewhere/x.sh', 'git merge feature', 'git pull --rebase', 'git cherry-pick abc', 'git am x.patch',
+    'git rebase main']) assert.deepEqual(shellRuling(await handlers.preShell(bash(command), io)), ['ask', 'shell-unplaced'], command);
+  const GIT = 'DecisionBook gate: shell-unplaced: git: a git command that changes files it does not name (a merge, rebase, pull, '
+    + 'cherry-pick, revert, am, stash, apply or clean), protected ones among them: allow it only if you asked for it, or run it yourself';
+  for (const command of ['git merge feature', 'git pull', 'git rebase main', 'git revert HEAD']) {
+    assert.equal((await handlers.preShell(bash(command), io)).reason, GIT, `${command}: a sentence that fits git, not "use Edit"`);
+  }
+  assert.match((await handlers.preShell(bash('sh tools/none.sh'), io)).reason, /use Edit for it$/, 'an unread script keeps its own words');
+  assert.deepEqual(shellRuling(await handlers.preShell(bash('git merge feature'), bookWorld())), ['allow', 'shell-no-write'], 'nothing protected');
 });
 
 test('[I-5] a folder written is every file under it: where a protect glob reaches under it and the plan does not, it asks',
@@ -117,8 +136,8 @@ test('[I-5] a folder written is every file under it: where a protect glob reache
     'a danger path named outside the plan is asked by its own name first');
   assert.deepEqual(joined(io, id), [], 'a folder written joins nothing to the plan');
   const named = await handlers.preShell(bash('rm -rf app/x.rb app'), io);
-  assert.deepEqual([...shellRuling(named), named.reason, joined(io, id)], [...folderAsk('app/'), ['app/x.rb']],
-    'a plain file named outside the plan joins it; the folder beside it still asks');
+  assert.deepEqual([...outside(named), joined(io, id)], ['ask', 'plan-outside', 'app/x.rb', []],
+    'a plain file named outside the plan asks by its name and joins nothing');
   assert.deepEqual(shellRuling(await handlers.preShell(bash('rm -rf app'), bookWorld({ files: { 'app/x.rb': 'x\n' } }))), ['allow', 'shell-allowed'],
     'nothing protected: nothing to ask');
 });
@@ -127,14 +146,14 @@ test('[I-5] a glob is the folder before its first wildcard, and a copy lands eac
   async () => {
   const io = protectedWorld({ files: { 'app/x.rb': 'class X\n', 'app/models/y.rb': 'y\n', 'app/javascript/a.ts': 'a\n', 'tmpout/a.txt': 'a\n',
     '.atlasbound/labels/b.door.json': wire({ id: 'b.door', lock: 'firm' }) } });
-  const { id } = await readyOne(io, { plans: ['app/x.rb', 'app/models/**'] });
+  await readyOne(io, { plans: ['app/x.rb', 'app/models/**'] });
   const folderAsk = (folder) => ['ask', 'shell-unplaced',
     `DecisionBook gate: shell-unplaced: ${folder}: a write this build cannot place; use Edit for it\n${LINE(folder)}`];
   const rows = [['rm -rf ap*', './'], ['npx prettier --write "**/*.rb"', './'], ["npx eslint --fix 'app/**/*.js'", 'app/'],
     ["sed -i '' 's/a/b/' */models/y.rb", './'], ['rm -rf {app,tmp}', './'],
     ['cp -r /tmp/x/* app/javascript/', 'app/javascript/'], ['cp -r /tmp/app .', 'app/'], [`rm -rf ${ROOT}/..`, './'], ['rm -rf .decisionbook', '.decisionbook/'],
       ['mv .decisionbook /tmp/old', '.decisionbook/'],
-    ['git checkout .', './']];
+    ['git checkout .', './'], ['rsync -a /tmp/new/ .', './'], ['cp -R /tmp/new/ .', './'], ['cp -R /tmp/new/. app', 'app/']]; // a source's contents land in the folder
   for (const [command, folder] of rows) {
     const said = await handlers.preShell(bash(command), io);
     assert.deepEqual([...shellRuling(said), said.reason], folderAsk(folder), command);
@@ -153,8 +172,7 @@ test('[I-5] a glob is the folder before its first wildcard, and a copy lands eac
   for (const [command, file] of [['git checkout app/javascript/a.ts', 'app/javascript/a.ts'], ['git checkout app/gone.rb', 'app/gone.rb'],
     ['git checkout HEAD~1 app/javascript/b.ts', 'app/javascript/b.ts']]) {
     const said = await handlers.preShell(bash(command), io);
-    assert.deepEqual([...shellRuling(said), said.context], ['allow', 'shell-allowed', GROWN(file, id)],
-      `${command}: a file there, or a guarded one git brings back, is judged: it joins the plan`);
+    assert.deepEqual(outside(said), ['ask', 'plan-outside', file], `${command}: a file there, or a guarded one git brings back, is judged: outside the plan`);
   }
   for (const [command, code] of [['rm -rf tmpout/*', 'shell-allowed'], ['rm -rf app/models/*', 'shell-allowed'], ['rm .decisionbook/notes.md', 'shell-allowed'],
     ['git checkout app/x.rb', 'shell-allowed'],
@@ -175,8 +193,8 @@ test('[I-5] a parameter rebuilt inside its function never reaches the calls outs
   assert.deepEqual([...shellRuling(silent), silent.context, joined(io, id)], ['allow', 'shell-allowed', undefined, []]);
   const { writes, judged, unplaced } = lastN(io, 'decisionbook.shell');
   assert.deepEqual({ writes, judged, unplaced }, { writes: 2, judged: 2, unplaced: 0 }, 'the two files written, each placed and judged');
-  assert.equal((await handlers.preShell(bash(command.replace("p='reducers/list.js'", "p='reducers/other.js'")), io)).context,
-    GROWN('app/lib/reducers/other.js', id), 'its near miss: the other file is named, as the one that joins the plan');
+  assert.deepEqual(outside(await handlers.preShell(bash(command.replace("p='reducers/list.js'", "p='reducers/other.js'")), io)),
+    ['ask', 'plan-outside', 'app/lib/reducers/other.js'], 'its near miss: the other file is named, outside the plan');
   assert.match((await handlers.preShell(bash(command.replace("p='reducers/list.js'", "p='db/list.sql'")), io)).reason,
     /^DecisionBook gate: plan-out-of-scope: app\/lib\/db\/list\.sql: /, 'and a danger path there is named and asked');
 });
@@ -291,4 +309,23 @@ test('a shell write into the home store or the repository\'s own store is refuse
   assert.ok(Date.now() - started < 1500, `judged in ${Date.now() - started} ms`);
   io.sessionWrites = () => ['.atlasbound/handoff/drafts/'];
   assert.equal((await handlers.preShell(bash('echo x > .atlasbound/handoff/drafts/s1.md'), io)).verdict, 'allow', 'what the root says a session writes');
+  io.sessionWrites = () => ['.atlasbound/drafts/'];
+  assert.equal((await handlers.preShell(bash("cd .atlasbound/drafts && python3 - <<'EOF'\nopen('new.json', 'w')\nEOF"), io)).verdict, 'allow',
+    'a session\'s folder named by its own name, no slash: still the session\'s');
+});
+
+test('a command that sets, exports or unsets a host session variable is denied; one that only names it passes', async () => {
+  const io = protectedWorld();
+  for (const command of ['CLAUDE_CODE_SESSION_ID=session-a atlasbound decisionbook add p x', 'env CLAUDE_PID=1 atlasbound decisionbook show',
+    'export CLAUDE_PROJECT_DIR=/elsewhere; atlasbound decisionbook ready', 'unset CLAUDE_CODE_SESSION_ID && atlasbound debug',
+    "$env:CLAUDE_CODE_SESSION_ID = 'a'; atlasbound decisionbook add p x", 'declare -x CLAUDE_PID=1; atlasbound debug',
+    'env -u CLAUDE_CODE_SESSION_ID atlasbound decisionbook show']) {
+    const said = await handlers.preShell(bash(command), io);
+    assert.deepEqual(shellRuling(said), ['deny', 'shell-host-env'], command);
+    assert.match(said.reason, /CLAUDE_(CODE_SESSION_ID|PID|PROJECT_DIR)/u, command);
+  }
+  for (const command of ['echo $CLAUDE_CODE_SESSION_ID', 'echo "${CLAUDE_PROJECT_DIR}"', 'atlasbound decisionbook show',
+    'grep -rn CLAUDE_PROJECT_DIR .claude/', 'git commit -m "the gate denies CLAUDE_CODE_SESSION_ID=a and export CLAUDE_PID"']) {
+    assert.equal((await handlers.preShell(bash(command), io)).verdict, 'allow', command);
+  }
 });

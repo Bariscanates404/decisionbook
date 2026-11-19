@@ -97,9 +97,9 @@ test('[I-6] a two-folder plan word is that folder\'s glob and covers only what i
   assert.deepEqual([res.out.unmet, planRecords(io, id).find((r) => r.rel === 'plans').to], [[], 'file:src/report/**']);
   assert.deepEqual(ruling(await handlers.preEdit(editEvent('src/report/export.js'), io)), ['allow', 'gate-in-scope']);
   assert.deepEqual(ruling(await handlers.preEdit(editEvent('src/other/db/x.sql'), io)), ['ask', 'plan-out-of-scope'], 'a danger path outside the folder asks');
-  // a plain file outside the folder is not covered by the word: the frozen plan takes it in by its own name, one path
-  assert.deepEqual(ruling(await handlers.preEdit(editEvent('src/other/x.js'), io)), ['allow', 'plan-grown']);
-  assert.deepEqual(planRecords(io, id).filter((r) => r.rel === 'plans').map((r) => r.to), ['file:src/report/**', 'file:src/other/x.js']);
+  // a plain file outside the folder is not covered by the word: it is outside the frozen plan, asked, and nothing joins at the ask
+  assert.deepEqual(ruling(await handlers.preEdit(editEvent('src/other/x.js'), io)), ['ask', 'plan-outside']);
+  assert.deepEqual(planRecords(io, id).filter((r) => r.rel === 'plans').map((r) => r.to), ['file:src/report/**']);
   const file = await planOf(bookWorld({ tracked: ['src/report/export.js'] }), './src/report/export.js', 'Report sums');
   assert.equal(file.res.out.ready, true);
 });
@@ -145,10 +145,14 @@ test('[I-8] gateRead: the mode reaches the gate, so a deny where no one is asked
   assert.deepEqual(ruling(await gateRead(io, { file: 'app/x.rb', session: 's1' })), ['allow', 'gate-in-scope'], 'the session that made it READY');
   assert.deepEqual(ruling(await gateRead(io, { file: 'app/x.rb', session: 's2' })), ['allow', 'gate-in-scope'], 'a later session: the same READY plan');
   const held = planRecords(io, id).length;
-  assert.deepEqual(ruling(await gateRead(io, { file: 'app/y.rb', session: 's2' })), ['allow', 'plan-grown'], 'what the hook would say of a file outside it');
+  assert.deepEqual(ruling(await gateRead(io, { file: 'app/y.rb', session: 's2' })), ['ask', 'plan-outside'], 'what the hook would say of a file outside it');
   assert.equal(planRecords(io, id).length, held, 'a reading writes nothing: the file is not in the plan');
+  const ran = { hook_event_name: 'PostToolUse', session_id: 's2', tool_name: 'Edit', tool_input: { file_path: `${ROOT}/app/y.rb` } };
+  await handlers.postEdit(ran, io);
+  assert.equal(planRecords(io, id).length, held, 'a write a reading judged was never asked: nothing joins');
   const hook = await handlers.preEdit({ ...editEvent('app/y.rb'), session_id: 's2' }, io);
-  assert.deepEqual([...ruling(hook), planRecords(io, id).length], ['allow', 'plan-grown', held + 1], 'the hook\'s own write of it is what joins the plan');
+  await handlers.postEdit(ran, io);
+  assert.deepEqual([...ruling(hook), planRecords(io, id).length], ['ask', 'plan-outside', held + 1], 'the hook\'s ask, then the person\'s yes, joins it');
   assert.deepEqual(ruling(await gateRead(io, { file: 'app/db/schema.rb', session: 's2' })), ['ask', 'plan-out-of-scope']);
   const guardedFile = '.atlasbound/labels/k.one.json';
   assert.deepEqual(ruling(await gateRead(io, { file: guardedFile })), ['ask', 'guarded-person']);
@@ -163,9 +167,8 @@ test('[I-23] a step in the plan\'s own word is kept as written: the folder is st
   assert.deepEqual(planRecords(io, id).filter((r) => r.kind === 'step' || r.rel === 'plans').map((r) => r.to || r.file), ['file:src/report/**', 'src/report']);
   assert.equal((await verbs.ready(io, { rest: [id] })).out.ready, true);
   assert.deepEqual(ruling(await handlers.preEdit(editEvent('src/report'), io)), ['allow', 'gate-in-scope'], 'the folder\'s own name is inside its glob');
-  assert.deepEqual(ruling(await handlers.preEdit(editEvent('src/reporter.js'), io)), ['allow', 'plan-grown'],
-    'a name beside it is never inside the glob: it joins the frozen plan as a file of its own');
-  assert.deepEqual(planRecords(io, id).filter((r) => r.rel === 'plans').map((r) => r.to), ['file:src/report/**', 'file:src/reporter.js']);
+  assert.deepEqual(ruling(await handlers.preEdit(editEvent('src/reporter.js'), io)), ['ask', 'plan-outside'],
+    'a name beside it is never inside the glob: it is a file outside the frozen plan');
 });
 
 test('[I-6] a one-segment plan word git does not track yet is a folder: too wide, never a pass for the whole folder', async () => {
@@ -186,4 +189,35 @@ test('[I-6] a one-segment plan word git does not track yet is a folder: too wide
   const io = bookWorld({ tracked: ['README.md', 'src/report/export.js'] });
   const { id, res } = await planned(io, 'README.md');
   assert.deepEqual([res.out.ready, planRecords(io, id).find((r) => r.rel === 'plans').to], [true, 'file:README.md'], 'a tracked root file stays a file');
+});
+
+test('[I-17] protect takes every word it is given: a glob the shell expanded protects all its files and is told to quote globs', async () => {
+  const io = bookWorld({ tracked: ['src/a.js', 'src/b.js', 'src/c.js', 'lib/x.js'] });
+  const said = await verbs.protect(io, { rest: ['src/a.js', 'src/b.js', 'src/c.js'] });
+  assert.deepEqual(protectedNow(io), ['src/a.js', 'src/b.js', 'src/c.js']);
+  assert.match(said.text, /quote a glob/);
+  const more = bookWorld({ tracked: ['src/a.js', 'lib/x.js', 'README.md'] });
+  const both = await verbs.protect(more, { rest: ['src/**', 'lib', 'README.md,'] });
+  assert.deepEqual(protectedNow(more), ['src/**', 'lib/**', 'README.md']);
+  assert.doesNotMatch(both.text, /quote a glob/, 'words that are no expanded glob are not told to quote');
+  await assert.rejects(verbs.protect(more, { rest: ['src/**', 'extra'] }), (err) => err.code === 'protect-refused' && err.message.includes('extra'));
+});
+
+test('[I-17] protect reads a path from the folder it was typed in, and says when a path is protected already', async () => {
+  const io = { ...bookWorld({ tracked: ['src/a.js', 'src/b.js', 'lib/x.js'] }), start: `${ROOT}/src` };
+  await verbs.protect(io, { rest: ['b.js'] });
+  assert.deepEqual(protectedNow(io), ['src/b.js'], 'b.js typed in src is src/b.js');
+  await verbs.protect(io, { rest: ['../lib'] });
+  assert.deepEqual(protectedNow(io), ['src/b.js', 'lib/**']);
+  const again = await verbs.protect({ ...io, start: ROOT }, { rest: ['lib/x.js'] });
+  assert.deepEqual(protectedNow(io), ['src/b.js', 'lib/**'], 'a path a glob holds is not added again');
+  assert.match(again.text, /lib\/x\.js: protected already by lib\/\*\*/);
+});
+
+test('protect run again by a teammate at another time leaves .decisionbook/config.json byte for byte: no time is in it', async () => {
+  const io = bookWorld({ tracked: TRACKED });
+  await verbs.protect(io, { rest: [], flags: { source: true } });
+  const first = io.fs.readText('.decisionbook/config.json');
+  await verbs.protect(io, { rest: [], flags: { source: true } });
+  assert.equal(io.fs.readText('.decisionbook/config.json'), first);
 });

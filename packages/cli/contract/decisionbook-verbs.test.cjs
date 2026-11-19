@@ -8,7 +8,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { makeWorld, makeRepo, git, run, typedYes, cleanEnv, tmp } = require('./support.cjs');
+const { makeWorld, makeRepo, git, run, runAll, typedYes, cleanEnv, tmp } = require('./support.cjs');
 
 test('the short word db stands for the first word decisionbook, and a word the table does not hold is no verb', () => {
   const world = makeWorld();
@@ -17,7 +17,7 @@ test('the short word db stands for the first word decisionbook, and a word the t
   const [short, full, old] = ['db', 'decisionbook', 'notaverb'].map((word) => ab(word, 'resume'));
   assert.deepEqual([short.code, short.out], [full.code, full.out], short.err);
   assert.match(short.out, /^No plan on this branch\. Plan before code: one `atlasbound decisionbook new`\.$/m, 'the text says the full word');
-  assert.deepEqual([old.code, /verb-unknown/.test(old.err)], [1, true], old.err);
+  assert.deepEqual([old.code, /verb-unknown/.test(old.err)], [2, true], old.err);
 });
 
 test('[I-5] the decisionbook group reaches the package: new, add, ready after the person\'s confirm, show, resume, close', () => {
@@ -35,13 +35,18 @@ test('[I-5] the decisionbook group reaches the package: new, add, ready after th
       by: 'developer' }]) {
     assert.equal(ab('decisionbook', 'add', id, JSON.stringify(record)).code, 0);
   }
-  assert.match(ab('decisionbook', 'ready', id).out, /not READY as small fix: 3 of 4 rows met\n {2}ready-no-confirm: show the person the plan/,
+  assert.match(ab('decisionbook', 'ready', id).out, /not READY as small fix: 4 of 5 rows met\n {2}ready-no-confirm: show the person the plan/,
     'the person\'s yes comes before READY');
   for (const record of [{ t: 'confirm', by: 'developer', said: 'yes' }]) {
     assert.equal(ab('decisionbook', 'add', id, JSON.stringify(record)).code, 0);
   }
   assert.match(ab('decisionbook', 'ready', id).out, new RegExp(`${id} READY as small fix`));
   assert.match(ab('decisionbook', 'show', 'file:src/report/export.rb').out, new RegExp(`file:src/report/export.rb planned-in plan:${id}`));
+  // a session's memory shortens what the AI reads again, never what a terminal shows the person, and a person's read is not the AI's
+  const home = tmp('cli-home-');
+  const shown = (out) => [1, 2].map(() => run(world.bin, ['decisionbook', 'show', id, '--target', repo], { env: { ...typedYes().env, HOME: home,
+    CLAUDE_CODE_SESSION_ID: 's-tty', ...(out ? { TTY_PRELOAD_OUT: '1' } : {}) } }).out).map((said) => /given in full earlier/.test(said));
+  assert.deepEqual([shown(true), shown(false)], [[false, false], [false, true]]);
   assert.match(ab('decisionbook', 'resume').out, /report\.rounding = half-even/);
   fs.writeFileSync(path.join(repo, 'src/report/export.rb'), 'y\n');
   git(repo, 'commit', '-qam', 'round half-even');
@@ -130,7 +135,7 @@ test('[I-5] through the real bin, normal work is READY with no gap item named; a
   const ab = (...args) => run(world.bin, [...args, '--target', repo], { env: typedYes().env }); // a person typing the verbs at their terminal
   const made = ab('decisionbook', 'new', POLL_TASK);
   const id = made.out.split(' ')[0];
-  assert.match(made.out, new RegExp(`^${id} not READY as normal work: 6 of 11 rows met$`, 'm'));
+  assert.match(made.out, new RegExp(`^${id} not READY as normal work: 7 of 12 rows met$`, 'm'));
   assert.doesNotMatch(made.out, /ready-gaps|ready-steps|gaps not closed/, 'no row of the form asks for a gap or a step');
   assert.equal(ab('decisionbook', 'add', id, JSON.stringify(plan)).code, 0);
   const ready = ab('decisionbook', 'ready', id).out;
@@ -146,8 +151,8 @@ test('[I-5] through the real bin, normal work is READY with no gap item named; a
   assert.match(shown[1], /^gap invalid-input: evidence: a bad value gives nil: fall back to 4 \(run: ruby -e /);
 });
 
-// A long add in single quotes breaks the shell on an apostrophe in a text, so no fill-in prints that form.
-// The JSON rides on standard input, as a quoted heredoc, the one form every fill-in prints
+// A long add in single quotes breaks the shell on an apostrophe in a text, so no fill-in prints that form; the fill-ins print a draft
+// file (drafts.test.cjs). A person may still pipe the JSON on standard input, or send it as a quoted heredoc
 test('new and add take their JSON from standard input when the JSON word is not given, a quoted heredoc untouched', () => {
   const world = makeWorld();
   const repo = makeRepo({ 'src/report/export.rb': 'x\n' });
@@ -163,10 +168,10 @@ test('new and add take their JSON from standard input when the JSON word is not 
   const worded = run(world.bin, ['decisionbook', 'add', id, JSON.stringify({ t: 'note', text: 'by word' }), '--target', repo], { input: 'not read' });
   assert.deepEqual([worded.code, lines().at(-1).text], [0, 'by word'], 'a JSON word given: standard input is not read');
   const none = run(world.bin, ['decisionbook', 'add', id, '--target', repo], { input: '' });
-  assert.deepEqual([none.code, none.err.split('\n')[0]], [1, 'atlasbound: plan-args: add <id> <record> | add <id> [<record>, ...], or the JSON on standard input']);
+  assert.deepEqual([none.code, none.err.split('\n')[0]], [1, 'atlasbound: plan-args: add <id> <record> | add <id> [<record>, ...], or add <id> --file .atlasbound/drafts/<id>.json']);
 });
 
-test('a question a person settled is refused with the record that proposes replacing it; one more call waits for the person', () => {
+test('a question a person settled is refused until it names that decision; the person\'s answer naming it then replaces it', () => {
   const world = makeWorld();
   const repo = makeRepo({ 'lib/errors.js': 'module.exports = {};\n' });
   const home = tmp('cli-home-');
@@ -188,32 +193,53 @@ test('a question a person settled is refused with the record that proposes repla
   const asked = { t: 'question', q: 'Q1', text: 'should a class replace the plain Error here?', decides: 'errortype', whyNotCode: 'a team rule' };
   const refused = ai(['decisionbook', 'new'], JSON.stringify({ ...head, title: 'Error class', records: [...records, asked] }));
   assert.equal(refused.code, 1);
-  assert.equal(refused.err, `atlasbound: question-settled: nothing written: record 6 of 6: Q1: ${old}/errortype = a plain Error with a code `
-    + '(by the person); to propose replacing it, send this record in the plan in place of the question, its "" filled: '
-    + `{"t":"decision","key":"errortype","value":"","why":"","by":"ai","proposed":true,"supersedes":["${old}/errortype"]}; `
-    + 'show the person the plan: their answer, after their next message, is the same record in their words without "proposed", '
-    + 'and it replaces the old decision\n');
-  // ONE further call: the same new with the handed record, its blanks filled, in place of the question
-  const handed = JSON.parse(/(\{"t":"decision".*?\]\})/.exec(refused.err)[1]);
-  const proposal = { ...handed, value: 'an AppError class', why: 'the task asks for it' };
-  const made = ai(['decisionbook', 'new'], JSON.stringify({ ...head, title: 'Error class', records: [...records, proposal] }));
+  assert.ok(refused.err.startsWith(`atlasbound: question-settled: nothing written: record 6 of 6: Q1: ${old}/errortype = a plain Error with a code (by the person)`)
+    && refused.err.endsWith(`Their answer then says which: "supersedes":["${old}/errortype"] on their decision replaces it, "keeps":["${old}/errortype"] keeps it\n`),
+  refused.err);
+  // ONE further call: the same new, its question naming the decision as the refusal says
+  const naming = { ...asked, supersedes: JSON.parse(/"supersedes":(\[.*?\])/.exec(refused.err)[1]) };
+  const made = ai(['decisionbook', 'new'], JSON.stringify({ ...head, title: 'Error class', records: [...records, naming] }));
   assert.equal(made.code, 0, made.err);
   const id = made.out.split(' ')[0];
-  assert.match(made.out, new RegExp(`^${id} not READY as small fix: 3 of 4 rows met$`, 'm'));
-  assert.deepEqual(made.out.split('\n').filter((line) => /^ {2}ready-/.test(line)).map((line) => line.trim().split(':')[0]), ['ready-no-confirm'],
-    'the plan waits for the person and for nothing else');
-  assert.match(ai(['decisionbook', 'show', 'decision:errortype']).out, /= a plain Error with a code \(small; by the person\) active/, 'a proposal binds nothing');
-  // the person answers: the same record in their words under their name without "proposed", and their yes
-  const ANSWER = 'yes, use the class, the plain error is not enough any more';
+  assert.match(made.out, new RegExp(`^${id} not READY as small fix: 3 of 5 rows met$`, 'm'));
+  assert.deepEqual(made.out.split('\n').filter((line) => /^ {2}ready-/.test(line)).map((line) => line.trim().split(':')[0]),
+    ['ready-open-question', 'ready-no-confirm'], 'the plan waits for the person and for nothing else');
+  assert.match(ai(['decisionbook', 'show', 'decision:errortype']).out, /= a plain Error with a code \(small; by the person\) active/, 'a question binds nothing');
+  const ANSWER = 'yes, use the class instead of the plain error'; // their answer, naming what it replaces: the new decision and their yes
+  const theirs = { t: 'decision', key: 'errortype', value: 'a class', why: 'callers switch on it', by: 'developer', said: ANSWER, answers: 'Q1',
+    effect: ['check:AC-1'], supersedes: naming.supersedes };
+  const early = ai(['decisionbook', 'add', id], JSON.stringify([theirs])); // before any message of theirs: refused, nothing written
+  assert.match(early.err, /^atlasbound: said-not-theirs: nothing written: /, early.out);
+  assert.match(ai(['decisionbook', 'show', 'decision:errortype']).out, /= a plain Error with a code \(small; by the person\) active/);
   assert.equal(prompted(ANSWER).code, 0);
-  const theirs = { ...handed, value: 'an AppError class', why: 'callers switch on it', by: 'developer', said: ANSWER };
-  delete theirs.proposed;
-  const yes = { t: 'confirm', by: 'developer', said: 'yes' };
-  for (const said of [undefined, 'yes', 'use the class']) { // no words of theirs, a word on nothing, a part of a sentence with a negation
-    const unsaid = ai(['decisionbook', 'add', id], JSON.stringify([{ ...theirs, said }, yes]));
-    assert.match(unsaid.err, /^atlasbound: supersede-not-asked: nothing written: record 1 of 2: [^\n]*no whole sentence of the person about this decision/, said);
-  }
-  const done = ai(['decisionbook', 'add', id], JSON.stringify([theirs, yes]));
+  const done = ai(['decisionbook', 'add', id], JSON.stringify([theirs]));
+  assert.match(done.out, new RegExp(`^recorded as the person's: errortype: "${ANSWER}", replaces ${old}/errortype$`, 'm'), done.out);
   assert.match(done.out, new RegExp(`^${id} READY as small fix; parked: ${old}\\. Frozen: `, 'm'), done.err);
-  assert.match(ai(['decisionbook', 'show', 'decision:errortype']).out, new RegExp(`a plain Error with a code \\(small; by the person\\) superseded by ${id}/errortype`));
+  const rows = fs.readFileSync(path.join(repo, '.decisionbook', `${id}.jsonl`), 'utf8').trim().split('\n').map((line) => JSON.parse(line));
+  assert.deepEqual(rows.filter((row) => row.t === 'decision').map((row) => [row.by, row.value, row.supersedes]), [['the person', 'a class', naming.supersedes]],
+    'the AI\'s reading of their answer, with what it replaces, as theirs');
+  assert.match(ai(['decisionbook', 'show', 'decision:errortype']).out,
+    new RegExp(`a plain Error with a code \\(small; by the person\\) superseded by ${id}/errortype \\(the person, \\d{4}-\\d\\d-\\d\\d: "${ANSWER}"\\)`));
+});
+
+test('many `new` at once, each its own process: each keeps its own plan file and rows; 20 `add` at once to one file all land', async () => {
+  const world = makeWorld();
+  const repo = makeRepo({ 'src/report/export.rb': 'x\n' });
+  const found = (asked) => ({ t: 'research', tool: 'grep', asked, answer: 'one call', source: 'src/report/export.rb:1' });
+  const news = Array.from({ length: 8 }, (_, i) => ({ args: ['decisionbook', 'new', JSON.stringify({ title: 'Same title', why: `w${i}`,
+    success: 'totals match', kind: 'bug', level: 'micro', records: [found(`q${i}`)] }), '--target', repo] }));
+  const made = await runAll(world.bin, news, { pool: news.length });
+  assert.deepEqual(made.map((res) => res.code), news.map(() => 0), made.map((res) => res.err).join(''));
+  const ids = made.map((res) => res.out.split(' ')[0]);
+  const rowsOf = (id) => fs.readFileSync(path.join(repo, '.decisionbook', `${id}.jsonl`), 'utf8').trim().split('\n').map((line) => JSON.parse(line));
+  assert.equal(new Set(ids).size, news.length, `each new answers with an id of its own: ${ids.join(' ')}`);
+  assert.deepEqual(fs.readdirSync(path.join(repo, '.decisionbook')).filter((name) => name.endsWith('.jsonl')).sort(), ids.map((id) => `${id}.jsonl`).sort(),
+    'one plan file per new: none written over another');
+  assert.deepEqual(ids.map((id) => rowsOf(id).map((row) => row.why ?? row.asked)), ids.map((_, i) => [`w${i}`, `q${i}`]),
+    'each file holds the plan and the record of the new that answered with its id');
+  const adds = Array.from({ length: 20 }, (_, i) => ({ args: ['decisionbook', 'add', ids[0], JSON.stringify(found(`a${i}`)), '--target', repo] }));
+  const added = await runAll(world.bin, adds, { pool: adds.length });
+  assert.deepEqual(added.map((res) => res.code), adds.map(() => 0), added.map((res) => res.err).join(''));
+  assert.deepEqual(rowsOf(ids[0]).map((row) => row.asked).filter((asked) => /^a\d+$/.test(asked)).sort(), adds.map((_, i) => `a${i}`).sort(),
+    '20 of 20, every line whole');
 });

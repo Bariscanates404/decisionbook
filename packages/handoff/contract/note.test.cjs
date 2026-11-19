@@ -27,8 +27,8 @@ test('[I-1] the note names the branch, HEAD with its subject, the commits since 
   const w = await workedWorld();
   const { text, out } = await handoff.handoff(w.io('s1'));
   assert.equal(out.code, 'note-built');
-  assert.match(text, /^Handoff note, branch feature\/export: built 2026-11-12T01:00:00\.000Z \(0 min ago\) at HEAD 0404040$/m);
-  assert.match(text, /^ {2}HEAD 0404040 "Add fixtures"$/m);
+  assert.match(text, /^Handoff note, branch feature\/export: built 2026-11-12T01:00:00\.000Z \(0 min ago\) at HEAD 04040404$/m);
+  assert.match(text, /^ {2}HEAD 04040404 "Add fixtures"$/m);
   assert.match(text, /^ {2}3 commits since this session began\n {4}"Add fixtures"\n {4}"Extract Amount"\n {4}"Add the export route"$/m);
   assert.match(text, /^ {2}1 file changed and not committed\n {4}pages\/report\.js$/m);
   assert.match(text, /^Facts, measured 2026-11-12T01:00:00\.000Z:$/m);
@@ -66,7 +66,7 @@ test('[I-1] outside an AI session the verb still rebuilds the facts and says whe
   const w = await workedWorld();
   const { text, out } = await handoff.handoff(w.io(null));
   assert.equal(out.code, 'handoff-no-session');
-  assert.match(text, /^ {2}HEAD 0404040 "Add fixtures"$/m);
+  assert.match(text, /^ {2}HEAD 04040404 "Add fixtures"$/m);
   assert.match(text, /No AI session here/);
   assert.doesNotMatch(text, /atlasbound handoff keep/);
 });
@@ -78,7 +78,7 @@ test('[I-3] a note read after HEAD moved says STALE with both commits, and a reb
   w.git.commit('A commit after the note');
   w.later(30);
   const stale = (await handoff.show(w.io('s1'))).text;
-  assert.match(stale, /^STALE: HEAD is now 0505050; the facts below were measured at 0404040\.$/m);
+  assert.match(stale, /^STALE: HEAD is now 05050505; the facts below were measured at 04040404\.$/m);
   assert.match(stale, /\(30 min ago\)/);
   assert.doesNotMatch((await handoff.handoff(w.io('s1'))).text, /STALE/);
 });

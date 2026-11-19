@@ -20,7 +20,7 @@ function scrubbed(value) {
 }
 const cut = (rec) => (rec.err ? { ...rec, err: { ...rec.err, msg: clip(String(rec.err.msg ?? ''), MSG_CAP) } } : rec);
 
-function createTrace({ fs, clock, keepDays = null }) {
+function createTrace({ fs, clock, keepDays = null, self = false }) {
   if (keepDays !== null && !(Number.isInteger(keepDays) && keepDays >= 1)) throw fail('config-invalid', `trace keepDays ${keepDays}: at least one day`);
   const seqs = new Map();
   const tables = new Set();
@@ -46,7 +46,8 @@ function createTrace({ fs, clock, keepDays = null }) {
     }
     function record(input) {
       const seq = (seqs.get(input && input.run) || 0) + 1;
-      const raw = cut(scrubbed({ v: 1, seq, at: clock.now(), ...EMPTY, ...input, pkg }));
+      const marked = self ? { ref: { ...input.ref, self: true } } : {}; // a row of the product's own self-check says so in its ref
+      const raw = cut(scrubbed({ v: 1, seq, at: clock.now(), ...EMPTY, ...input, pkg, ...marked }));
       const rec = (raw.err ? validateFailure : validate).shape('TraceRecord', raw);
       seqs.set(rec.run, seq);
       append(keepDays === null ? tracePath(rec.run) : dailyPath(rec.at), `${JSON.stringify(rec)}\n`);

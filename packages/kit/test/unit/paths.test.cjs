@@ -194,6 +194,8 @@ test('repoRel: NFC on both sides is one location, only the drive letter folds, w
   assert.equal(repoRel(root, `${NFD(root)}/a.ts`), 'a.ts');
   assert.equal(repoRel('/w/App', '/w/app/a.ts'), null, 'no case fold past the drive');
   assert.equal(repoRel('C:\\R', 'C:\\r\\a.ts'), null, 'no case fold past the drive');
+  assert.equal(repoRel('C:\\Users\\Jane', 'c:\\users\\jane\\.x\\A.txt', true), '.x/A.txt', 'a home on Windows is one folder in any case');
+  assert.equal(repoRel('/home/Jane', '/home/jane/.x/a.txt', true), null, 'elsewhere a folder keeps its case');
   assert.equal(repoRel('C:\\r\\', 'C:\\r\\a.ts'), 'a.ts');
   assert.equal(repoRel('/w/app', '/w/app/'), null, 'still the root');
   assert.equal(repoRel('/w/app', '/w/app/./'), null);
@@ -215,6 +217,15 @@ test('one door for a host path: its parent, its name, its chain upward without t
   const name = NFD('café');
   assert.equal(resolveFrom('/w', name), `/w/${name}`, 'a name that is NFD on a byte-exact disk stays NFD: NFC would name another directory');
   assert.equal(resolveFrom(`/w/${name}`, 'x'), `/w/${name}/x`);
+});
+
+test('upward walks a Windows spelling too (node hands __dirname and the cwd with `\\` and a drive), without the drive root', () => {
+  const cli = 'C:\\npm\\node_modules\\atlasbound\\lib\\node_modules\\@atlasbound\\cli';
+  assert.deepEqual(upward(cli), [cli, 'C:\\npm\\node_modules\\atlasbound\\lib\\node_modules\\@atlasbound', 'C:\\npm\\node_modules\\atlasbound\\lib\\node_modules',
+    'C:\\npm\\node_modules\\atlasbound\\lib', 'C:\\npm\\node_modules\\atlasbound', 'C:\\npm\\node_modules', 'C:\\npm']);
+  assert.deepEqual(upward('D:/work/repo/'), ['D:/work/repo', 'D:/work']);
+  assert.deepEqual(upward('C:\\'), []);
+  assert.deepEqual(upward('a/b'), ['a/b', 'a'], 'a relative POSIX spelling keeps its old chain');
 });
 
 const REPO = '/work/repo';

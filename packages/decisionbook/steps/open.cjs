@@ -3,64 +3,64 @@
 // See LICENSE and NOTICE in the package root.
 'use strict';
 // The branch's open plan across sessions (core/gate openPlan), for the writing verbs: no silent re-plan and no silent drop. A `new`
-// beside a plan an earlier session left open is refused; setting that plan aside is the person's own answer to the AI's question; a
-// later session's first write to the draft is counted as going on with it; what a turn's last message showed the person is kept.
-const { errors: { fail }, text: { safe: { clip }, lines: { filled } }, said: { asksAside } } = require('@atlasbound/kit');
-const { WORDS, shortOf } = require('../contracts/codes.cjs');
+// beside a plan an earlier session left open is refused; setting that plan aside is the person's, in their own words; a later
+// session's first write to the draft is counted as going on with it.
+const { errors: { fail }, text: { lines: { filled } }, said: { isAbout } } = require('@atlasbound/kit');
+const { WORDS, shortOf, SHOWN: { open: shown } } = require('../contracts/codes.cjs');
 const { openPlan } = require('../core/gate.cjs');
-const { foldPlan } = require('../core/fold.cjs');
+const { foldPlan, scopeOf } = require('../core/fold.cjs');
+const { anyOverlap } = require('../base/glob.cjs');
+const { promptAs } = require('../contracts/shapes.cjs');
 const { asideOwn } = require('../core/yes.cjs');
 const { notSaid } = require('../core/text/refused.cjs');
-const { actorOf, heardOf, shownOf, keepShown, startedAt } = require('./here.cjs');
-const { mentions, wordsIn, quotedBy } = require('../base/text.cjs');
+const { actorOf, promptsOf, startedAt, everyRow } = require('./here.cjs');
+const { mentions, isBefore } = require('../base/text.cjs');
+const { PHASE } = require('./phase.cjs');
 const store = require('./store.cjs');
 
-/** In an AI session whose start is known, a `new` is refused while the branch holds a plan an earlier session left open: its READY
+/** In an AI session whose start is known, a `new` (`planned`: the paths it plans) is refused while the branch holds a plan an earlier
+ * session left open and it names none but that plan's files or none at all: its READY
  * plan (frozen: the work goes on from it until it is closed or set aside; in the session that made it READY a new parks it, in
  * sight), its draft until that is READY, closed or set aside. A session that cannot tell when it began, and a person at their
  * terminal, plan as before. */
-function newBesideOpen(io, branch) {
+async function newBesideOpen(io, branch, planned) {
   const since = startedAt(io, io.session);
   if (!since || actorOf(io).who === 'terminal' || !store.keepsPlan(io)) return;
-  const open = openPlan(store.readWeb(io), branch);
-  if (!open || Date.parse((open.ready || open).at) >= Date.parse(since)) return;
-  const which = filled(WORDS.planOpen, { id: open.id, state: open.state, title: clip(open.title, 100) });
+  const { open, whose } = await openFor(io, store.readWeb(io), branch);
+  if (!open || !isBefore((open.ready || open).at, since)) return;
+  // other files are other work, never a re-plan of the open one; a teammate's draft is re-planned only by a new that names its files
+  if (!anyOverlap(planned, scopeOf(open)) && (planned.length || whose === 'teammate')) return;
+  const which = filled(WORDS.planOpen, { id: open.id, state: open.state, title: shown.title(open.title) });
   throw fail('plan-open', `${which}: ${shortOf('plan-open')}`);
 }
 
-/** An aside no person gave (core/yes): refused, never stored as the AI's. The person's answer is of this session, where the open plan
- * was shown; a session that cannot tell when it began reads since the plan's `new`. -> [code, detail] | null */
+/** The branch's open plan as a session of this machine meets it, and whose it is to that session: core/gate's, with each teammate's
+ * draft passed over (a commit holds it and no session here made it, made it READY or wrote under it: steps/phase's rows; no home: none
+ * is), so this machine's own work comes first (`mine`); else a teammate's draft (`teammate`); a draft an earlier session here left is
+ * `earlier` until a message (`task`) is on it. -> { open, whose } */
+async function openFor(io, web, branch, task = null) {
+  const here = new Set(io.home ? everyRow(io).filter((row) => row.t === PHASE).map((row) => row.id) : web.views.map((v) => v.id));
+  const drafts = web.views.filter((v) => v.branch === branch && v.state === 'draft' && !here.has(v.id));
+  const held = await Promise.all(drafts.map((v) => io.git.author(store.pathOf(v.id)))); // who committed each; null: no commit holds it
+  const views = web.views.filter((v) => !held[drafts.indexOf(v)]);
+  const open = openPlan({ views }, branch);
+  if (open) return { open, whose: leftEarlier(io, open, task) ? 'earlier' : 'mine' };
+  return { open: openPlan(web, branch) || null, whose: views.length < web.views.length ? 'teammate' : 'mine' };
+}
+
+// a draft an earlier session here left, with no message of this one on it yet
+const leftEarlier = (io, open, task) => open.state === 'draft' && !(task && onDraft(open, task)) && goesOn(io, { id: open.id });
+/** Whether a person's message is on a draft: it resumes their handoff, names the plan or one of its files, or is about its title. */
+const onDraft = (view, text) => promptAs(text) === 'resume' || mentions(text, view.id) || isAbout(text, view.title)
+  || scopeOf(view).some((file) => !file.includes('*') && mentions(text, file.split('/').pop()));
+
+/** An aside no person gave (core/yes): refused, never stored as the AI's. Its words are theirs, of a message of this session.
+ * -> [code, detail] | null */
 function asideRefused(io, view, value) {
   if (value.t !== 'aside') return null;
   const actor = actorOf(io);
-  const own = asideOwn({ actor, record: value, heard: heardOf(io), shown: shownOf(io), view }, startedAt(io, io.session) || view.at);
-  return own ? null : ['aside-not-asked', `${view.id}: ${notSaid('aside-not-asked', actor.why !== 'no-prompt-row')}`];
-}
-
-/** At a person's message: which question of each open plan its list items quote back as the AI asked them (base/text quotedBy), for
- * the prompt's row: item numbers and question ids, never words. Their answer to a question is those items, whole. */
-async function quotedAtPrompt(io, text) {
-  if (!io.home || !store.keepsPlan(io)) return {};
-  const quoted = (await store.openHere(io)).map((view) => [view.id, quotedBy(text, view.questions)]);
-  return Object.fromEntries(quoted.filter(([, of]) => Object.keys(of).length));
-}
-
-/** At a turn's end: what the AI's last message showed the person of each open plan of the branch, kept as ids and flags (never its
- * words) for the two things only their reply to that message can do: `qs`, the questions whose proposal the message holds word for
- * word, as one run (a reply that takes the proposals whole decides those); `aside`, it named the plan and asked whether it is set
- * aside (kit's words for that; their yes sets it aside). A host that hands no last message keeps nothing, so neither can be claimed.
- * -> the trace's codes */
-async function shownAtStop(event, io) {
-  const message = event.last_assistant_message;
-  if (typeof message !== 'string' || !io.home || !event.session_id || !store.keepsPlan(io)) return {};
-  const open = await store.openHere(io);
-  const plans = Object.fromEntries(open.map((view) => [view.id, {
-    qs: view.questions.filter((q) => q.proposal && wordsIn(q.proposal, message)).map((q) => q.q),
-    aside: Number(mentions(message, view.id) && asksAside(message)) }]));
-  if (!open.length) return {};
-  keepShown(io, event.session_id, plans);
-  const all = Object.values(plans);
-  return { ...(all.some((p) => p.qs.length) && { 'proposal-shown': 1 }), ...(all.some((p) => p.aside) && { 'aside-asked': 1 }) };
+  return asideOwn({ actor, record: value, heard: promptsOf(io) }) ? null
+    : ['aside-not-asked', `${view.id}: ${notSaid('aside-not-asked', actor.why !== 'no-prompt-row')}`];
 }
 
 /** Whether this write is a later session's first on the draft an earlier one left: every record the file holds is from before this
@@ -69,7 +69,7 @@ function goesOn(io, batch) {
   const since = startedAt(io, io.session);
   if (!since || batch.fresh) return false;
   const { rows } = store.planRows(io, batch.id);
-  return foldPlan(rows).stage === 'draft' && rows.every((row) => Date.parse(row.at) < Date.parse(since));
+  return foldPlan(rows).stage === 'draft' && rows.every((row) => isBefore(row.at, since));
 }
 
-module.exports = { newBesideOpen, asideRefused, goesOn, shownAtStop, quotedAtPrompt };
+module.exports = { newBesideOpen, openFor, asideRefused, goesOn };

@@ -12,6 +12,7 @@ const { sessionRows, sessionAdd, keptRows, keepRows } = require('./here.cjs');
 const { resolved, promisesHere } = require('./surface.cjs');
 const { scopeOf } = require('../core/fold.cjs');
 const { globCovers } = require('../base/glob.cjs');
+const { refOf } = require('../contracts/shapes.cjs');
 
 const CONTRACT = 'contract'; // the derived rel a plan's promise is written as (contracts/record.json)
 
@@ -62,7 +63,7 @@ async function planContracts(io, view, batch) {
   const promises = planned.length ? await promisesHere(io, batch) : []; // a promise decided in this same call is read from the batch
   const held = new Set(view.links.filter((l) => l.rel === CONTRACT).map((l) => l.to));
   const takes = (p) => planned.some((glob) => globCovers(glob, p.file) || concerns([p], glob, fileRole(glob).role === 'test'));
-  return promises.filter((p) => !held.has(`file:${p.file}`) && takes(p)).map((p) => ({ t: 'link', rel: CONTRACT, to: `file:${p.file}`, why: p.text, source: p.from }));
+  return promises.filter((p) => !held.has(refOf('file', p.file)) && takes(p)).map((p) => ({ t: 'link', rel: CONTRACT, to: refOf('file', p.file), why: p.text, source: p.from }));
 }
 
 /** DecisionBook's own ear: a prompt's statements are kept on this machine, nothing else of it (core promptKept), and the contract is said

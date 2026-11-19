@@ -25,6 +25,10 @@ const REPO = path.dirname(path.dirname(packageDir('kit')));
 const SETTINGS = path.join('.claude', 'settings.local.json');
 // approvals follow the password database, so a world's bin answers it with the world's home, or a verb that keeps a person's yes would write into the real one.
 const PASSWD = `--require ${path.join(packageDir('kit'), 'testing', 'passwd-preload.cjs')}`;
+// and it sees no process of the machine (ps-preload), or a process another test started meanwhile would be named as this world's
+const NO_TABLE = `${PASSWD} --require ${path.join(__dirname, 'ps-preload.cjs')}`;
+/** `env` for a run that reads the machine's own process table (a real process the test started must be seen). */
+const realTable = (env = {}) => ({ ...env, NODE_OPTIONS: PASSWD });
 /** one empty home per process. The moment something has written to it, the next call gets a new one, so no test sees another's home. */
 let home = null;
 const emptyHome = () => {
@@ -33,7 +37,7 @@ const emptyHome = () => {
 };
 // the env a world-env.cjs beside this file adds to every world, where there is one
 const WORLD_ENV = fs.existsSync(path.join(__dirname, 'world-env.cjs')) ? require('./world-env.cjs') : {};
-const cleanEnv = (extra = {}) => ({ PATH: process.env.PATH, ...(extra.HOME ? {} : { HOME: emptyHome() }), NODE_OPTIONS: PASSWD,
+const cleanEnv = (extra = {}) => ({ PATH: process.env.PATH, ...(extra.HOME ? {} : { HOME: emptyHome() }), NODE_OPTIONS: NO_TABLE,
   ...WORLD_ENV, ...extra });
 /** A person at a plain terminal answering the one question a verb puts (tty-preload: the bin sees a terminal on the piped stdin): yes to
  * a yes question; run() types the phrase instead where the verb is a grave act that asks for one. */
@@ -284,8 +288,10 @@ function run(bin, sent, { cwd, input, env, ai = false, plain = false } = {}) {
   const [program, words] = asHost(process.execPath, [bin, ...args], ai);
   const res = spawnSync(program, words, { cwd: cwd || os.tmpdir(), input: typedInput(bin, args, { input, ai }),
     env: hostEnv(callerEnv(bin, args, { env, ai }), viaHost(process.execPath, [bin, ...args], ai)), encoding: 'utf8', timeout: STUCK_MS });
-  return { code: res.status, out: res.stdout, err: res.stderr };
+  return { code: res.status, signal: res.signal, out: res.stdout, err: res.stderr };
 }
+/** What a failed exit assertion says: the code, the signal that ended a stuck run, and both streams (a verb writes its rows to stdout). */
+const exitSaid = (res, words) => `${words}: code ${res.code}${res.signal ? `, ended by ${res.signal}` : ''}\n--- out\n${res.out}--- err\n${res.err}`;
 
 /** One run as a promise: the same process and answer as run(). */
 function startedRun(bin, { args: sent, cwd, input, env, ai = false, plain = false }) {
@@ -297,7 +303,7 @@ function startedRun(bin, { args: sent, cwd, input, env, ai = false, plain = fals
     const said = { out: '', err: '' };
     child.stdout.on('data', (chunk) => { said.out += chunk; });
     child.stderr.on('data', (chunk) => { said.err += chunk; });
-    child.on('close', (code) => resolve({ code, ...said }));
+    child.on('close', (code, signal) => resolve({ code, signal, ...said }));
     child.stdin.end(typedInput(bin, args, { input, ai }));
   });
 }
@@ -372,7 +378,7 @@ const hookDecisionOf = (res) => replyJson(res).hookSpecificOutput || {};
 function setupRepo(world, files = {}) {
   const repo = makeRepo(files);
   const res = run(world.bin, ['setup', '--target', repo]);
-  if (res.code !== 0) throw new Error(`setup: ${res.err}`);
+  if (res.code !== 0) throw new Error(exitSaid(res, 'setup'));
   return { repo, out: res.out };
 }
 
@@ -381,6 +387,6 @@ const editOf = (repo, file) => ({ session_id: 's1', cwd: repo, hook_event_name: 
 
 const fileJson = (repo, key) => JSON.parse(fs.readFileSync(path.join(repo, key), 'utf8'));
 
-module.exports = { fileJson, REPO, QUIET, SETTINGS, PASSWD, typedYes, writeFiles, recordingClaude, tmp, cleanEnv, makeWorld, writeFake,
-  makeRepo, protect, git, run, runAll, snapshot, traceRows, traceRow, planted, readSettings, fires, commandsFor, portRow, replyJson, hookContextOf, hookDecisionOf, setupRepo,
+module.exports = { fileJson, REPO, QUIET, SETTINGS, PASSWD, realTable, typedYes, writeFiles, recordingClaude, tmp, cleanEnv, makeWorld, writeFake,
+  makeRepo, protect, git, run, exitSaid, runAll, snapshot, traceRows, traceRow, planted, readSettings, fires, commandsFor, portRow, replyJson, hookContextOf, hookDecisionOf, setupRepo,
     fire, editOf };

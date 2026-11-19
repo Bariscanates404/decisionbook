@@ -31,7 +31,7 @@ test('[I-5] a decision given in message 3 of 40 is in front of the model again i
   assert.match(text, /^The person's messages in this session, their heads as kept in your home folder \(40 of 40\):$/m);
   assert.match(text, /^ {2}m3 Money math goes through lib\/amount\.js, never floats\.$/m);
   assert.match(text, /^ {2}m40 ok, go on with step 40$/m);
-  assert.match(text, /^atlasbound handoff keep <<'JSON'$/m);
+  assert.match(text, /^write this JSON with your Write tool to \.atlasbound\/drafts\/[0-9a-f]{12}\/handoff\.json:\n\{[^\n]+\nthen run: atlasbound handoff keep --file \.atlasbound\/drafts\/[0-9a-f]{12}\/handoff\.json$/m);
   assert.match(text, /do not trust your memory/);
   assert.match(text, /^40 messages in this session and no handoff yet: say \/handoff to keep what matters from them$/m);
 });

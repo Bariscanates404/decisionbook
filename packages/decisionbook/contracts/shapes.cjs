@@ -5,9 +5,9 @@
 // The published data: decisionbook-record/1, its relations, enums and shapes as data in contracts/record.json (any language can read
 // it), and this module, its one door: the validator bound to it, the store's paths, and the reads a verb's words go through.
 const { createValidate, errors: { fail, isFail }, text: { secrets }, host: { RESUME_PROMPT } } = require('@atlasbound/kit');
-const { isCode, WORDS } = require('./codes.cjs');
+const { isCode, WORDS, shortOf } = require('./codes.cjs');
 const { LEVELS, FORKS, GAPS } = require('./rubric.cjs');
-const { isAi } = require('../base/text.cjs');
+const { isAi, asList, isKeep } = require('../base/text.cjs');
 const RECORD = require('./record.json');
 
 const SCHEMA = 'decisionbook-record/1';
@@ -42,11 +42,16 @@ function shapeOf(value) {
   return by && Object.hasOwn(by, value[field]) ? by[value[field]] : value.t;
 }
 const isPlanLink = (value) => Boolean(value) && value.t === 'link' && value.rel === 'plans'; // a typed word the plan stores as its glob
+/** A node reference `type:value` (plan:<id>, file:<path or glob>, decision:<key>, …), and what follows a reference's type. */
+const refOf = (type, value) => `${type}:${value}`;
+const refValue = (ref) => String(ref).slice(String(ref).indexOf(':') + 1);
+const refIs = (type, ref) => String(ref).startsWith(refOf(type, ''));
+const plannedPath = (link) => refValue(link.to); // a `plans` link's file or glob
 const VARIANTS = Object.values(RECORD.variants).flatMap(([, by]) => Object.values(by));
 const REFUSE = { ...Object.fromEntries([...ENUMS.t, 'Record', ...VARIANTS].map((name) => [name, 'record-invalid'])), Cited: 'research-uncited' };
-/** A decision's effects are `kind:value` of a known kind, and one that answers a question names at least one. */
+/** A decision's effects are `kind:value` of a known kind, and one that answers a question names at least one, unless it only keeps. */
 const effectOk = (e) => typeof e === 'string' && /^[^:]+:./.test(e) && FORKS.EFFECTS.includes(e.split(':')[0]);
-const effectHolds = ({ answers, effect = [] }) => Array.isArray(effect) && !(answers && !effect.length) && effect.every(effectOk);
+const effectHolds = (v, e = v.effect ?? []) => Array.isArray(e) && !(v.answers && !e.length && !isKeep(v)) && e.every(effectOk);
 
 const bound = createValidate({ shapes: SHAPES, enums: ENUMS, refuse: REFUSE, isCode });
 
@@ -83,7 +88,9 @@ const CHECKS = {
   unlink: [[(v) => !isAi(v.by), 'unlink-by-person', (v) => v.by]], // removing a link DecisionBook wrote is the person's
   aside: [[(v) => !isAi(v.by), 'aside-not-asked', (v) => v.by]], // leaving an open plan for other work is the person's
   // the refusal says what an effect is and the next step
-  decision: [[effectHolds, 'decision-no-effect', (v) => `${v.key}: effect ${[].concat(v.effect || []).join(', ') || 'none'}: ${WORDS.effectIs}`]],
+  decision: [[effectHolds, 'decision-no-effect', (v) => `${v.key}: effect ${asList(v.effect).join(', ') || 'none'}: ${WORDS.effectIs}`],
+    // a ref the person's answer both replaces and keeps is placed nowhere
+    [(v) => !asList(v.keeps).some((ref) => asList(v.supersedes).includes(ref)), 'replace-unplaced', (v) => `${v.key}: ${shortOf('replace-unplaced')}`]],
   research: [[(v) => !v.settles || bound.shape('Cited', v), 'research-uncited', (v) => v.source]],
 };
 /** What `run` refuses, as a problem [code, detail], or null; a coded refusal it throws is that problem, a fault passes. */
@@ -105,6 +112,17 @@ function recordProblems(value) {
     ...(CHECKS[t] || []).map(([holds, code, names]) => problemOf(() => !holds(value) && [code, names(value)])).filter(Boolean)];
 }
 
+/** For each record of `values` whose shape does not hold, once per kind: that kind's record with each required field a placeholder of
+ * its type, and its optional fields, for the refusal to show the shape it takes. -> { routes } | {} */
+function shapesTold(values) {
+  const told = values.filter((v) => v && typeof v === 'object' && SHAPES[shapeOf(v)] && bound.problems(shapeOf(v), v).length).map((v) => {
+    const [field] = shapeOf(v) === v.t ? [] : RECORD.variants[v.t]; // a variant (a step item, a run probe) keeps the word that names it
+    const { value, optional } = bound.example(shapeOf(v), { fixed: { t: v.t, ...(field ? { [field]: v[field] } : {}) } });
+    return `a ${field ? v[field] : v.t} record: ${JSON.stringify(value)}${optional.length ? ` (optional: ${optional.join(', ')})` : ''}`;
+  });
+  return told.length ? { routes: [...new Set(told)] } : {};
+}
+
 /** the name of the first text field kit's secret reader would clip (`said`, `answer`, `files.0`), or null; the value itself is never
  * named. */
 function secretField(value, at = null) {
@@ -118,5 +136,5 @@ function refuseSecrets(items, place) {
   if (at >= 0) throw fail('record-secret', `${place(at)}: ${secretField(items[at])}`);
 }
 
-module.exports = { SCHEMA, DIR, CONFIG, storedLine, isTaskPrompt, promptAs, asksLeave, RELS, BUILT_ON, SHAPES, shapeOf, isPlanLink, bound,
-  nodeOf, argOf, fieldsAsked, problemOf, recordProblems, refuseSecrets };
+module.exports = { SCHEMA, DIR, CONFIG, storedLine, isTaskPrompt, promptAs, asksLeave, RELS, BUILT_ON, SHAPES, shapeOf, isPlanLink,
+  plannedPath, refOf, refValue, refIs, bound, nodeOf, argOf, fieldsAsked, problemOf, recordProblems, shapesTold, refuseSecrets };

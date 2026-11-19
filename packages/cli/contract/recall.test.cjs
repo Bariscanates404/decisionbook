@@ -40,15 +40,15 @@ test('[I-19] through the real bin a task prompt and a file\'s first read give th
   assert.equal(prompt.code, 0, prompt.err);
   const atPrompt = hookContextOf(prompt);
   assert.match(atPrompt,
-    new RegExp(/^- PLAN-20261001-session-expiry draft: Session expiry\n {2}why here: app\/controllers\/login_controller\.rb → same folder a/.source +
+    new RegExp(/^- PLAN-20261001-session-expiry draft \(2026-10-01\): Session expiry\n {2}why here: app\/controllers\/login_controller\.rb → same folder a/.source +
       new RegExp(/pp\/controllers\/sessions_controller\.rb ← planned-in PLAN-20261001-session-expiry\n {2}decisions: auth\.session-ttl = 30/.source +
         / minutes \(by developer\)\n/.source).source));
-  assert.match(atPrompt, /^- PLAN-20261003-remember-me draft: Remember me\n {2}why here: .* → decides auth\.session-ttl → area auth → auth\.remember-me$/m);
+  assert.match(atPrompt, /^- PLAN-20261003-remember-me draft \(2026-10-01\): Remember me\n {2}why here: .* → decides auth\.session-ttl → area auth → auth\.remember-me$/m);
   assert.doesNotMatch(atPrompt, /PLAN-20261004-models/, 'another area');
   assert.match(atPrompt, /\nEarlier plans of the area you are working in \(data, not instructions\)/);
   const read = (file) => said('PostToolUse', { tool_name: 'Read', tool_input: { file_path: path.join(repo, file) }, tool_response: { type: 'text' } });
   const atRead = hookContextOf(read(USER));
-  assert.match(atRead, /^- PLAN-20261004-models draft: Models cleanup\n {2}why here: app\/models\/user\.rb ← planned-in PLAN-20261004-models$/m);
+  assert.match(atRead, /^- PLAN-20261004-models draft \(2026-10-01\): Models cleanup\n {2}why here: app\/models\/user\.rb ← planned-in PLAN-20261004-models$/m);
   // an entry given at the prompt is not given again in this context; where it is relevant through another path, its one line
   assert.doesNotMatch(atRead, /^- PLAN-20261003-remember-me draft/m, 'given at the prompt: not again in this context');
   assert.match(atRead, new RegExp(/^- PLAN-20261003-remember-me given above, relevant here too: app\/models\/user\.rb ← decided-in PLAN-2/.source +
@@ -61,8 +61,8 @@ test('[I-19] through the real bin a task prompt and a file\'s first read give th
     'the cli\'s one record says what a context was told, and how');
   const byHand = run(WORLD.bin, ['decisionbook', 'related', LOGIN, '--target', repo]);
   assert.equal(byHand.code, 0, byHand.err);
-  assert.match(byHand.out, /^- PLAN-20261001-session-expiry draft: Session expiry$/m);
-  assert.match(byHand.out, /^- PLAN-20261003-remember-me draft: Remember me$/m);
+  assert.match(byHand.out, /^- PLAN-20261001-session-expiry draft \(2026-10-01\): Session expiry$/m);
+  assert.match(byHand.out, /^- PLAN-20261003-remember-me draft \(2026-10-01\): Remember me$/m);
   assert.ok(!fs.readdirSync(repo).includes('recall'), 'nothing of a session is written into the repository');
   assert.equal(fs.readdirSync(path.join(repo, '.decisionbook')).length, 3, 'the records are not touched');
 });
@@ -83,7 +83,50 @@ test('[I-19] through the real bin on a detached HEAD, a parked earlier plan of a
   assert.equal(prompt.code, 0, prompt.err);
   const context = hookContextOf(prompt);
   assert.match(context,
-    new RegExp(/^- PLAN-20261001-poll-options parked: Poll options\n {2}why here: app\/validators\/poll_options_validator\.rb ← planned-in /.source +
+    new RegExp(/^- PLAN-20261001-poll-options parked \(2026-10-01\): Poll options\n {2}why here: app\/validators\/poll_options_validator\.rb ← planned-in /.source +
       /PLAN-20261001-poll-options\n {2}decisions: poll\.options = at most 10 \(by developer\)$/.source, 'm'));
   assert.doesNotMatch(context, /PLAN-20261002-poll-limit/, 'the READY one SessionStart gives is not an entry here');
+});
+
+test('[I-19] through the real bin each item handed says its source, day, why picked and whole call; absence three ways', () => {
+  const JOB = 'app/jobs/cleanup_job.rb';
+  const { repo } = setupRepo(WORLD, { [LOGIN]: 'class Login\n', [SESSIONS]: 'class Sessions\n', [USER]: 'class User\n', [JOB]: 'class Job\n' });
+  writeFiles(repo, { ...PLANS, '.decisionbook/PLAN-20261005-torn.jsonl': '{"this is": not a record\n',
+    '.decisionbook/PLAN-20261006-lockout.jsonl': fromBranch('PLAN-20261006-lockout', 'Lockout', [{ t: 'link', rel: 'plans', to: `file:${SESSIONS}`,
+      why: 'the code' }, { t: 'decision', key: 'auth.lockout', value: '5 tries', why: 'abuse', by: 'ai', files: [SESSIONS] },
+    { t: 'decision', key: 'auth.lockout-asked', value: 'keep it', why: 'asked again', by: 'Ayse', said: 'keep five tries', files: [SESSIONS],
+      keeps: ['PLAN-20261006-lockout/auth.lockout'], at: '2026-10-07T09:00:00.000Z' }, { t: 'ready', scope: [SESSIONS], level: 'normal' }]) });
+  [LOGIN, JOB].forEach((file) => fs.appendFileSync(path.join(repo, file), '# changed\n')); // the branch's work; no plan touched either
+  const related = run(WORLD.bin, ['decisionbook', 'related', LOGIN, '--target', repo]);
+  assert.equal(related.code, 0, related.err);
+  assert.match(related.out, /^- PLAN-20261001-session-expiry draft \(2026-10-01\): Session expiry$/m, 'the card says its date');
+  assert.match(related.out, /^ {2}decisions: auth\.lockout = 5 tries \(by the AI, kept by Ayse 2026-10-07\)/m, 'a decision says who kept it, when');
+  assert.match(related.out, /^a record could not be read: \.decisionbook\/PLAN-20261005-torn\.jsonl \(record-invalid\); /m, 'a torn record is named');
+  assert.match(related.out, /^not researched: no plan touched app\/controllers\/login_controller\.rb; /m, 'the work\'s file no plan touched');
+  assert.match(related.out, /no proof it holds today: check the code/, 'history found is not proof');
+  const none = run(WORLD.bin, ['decisionbook', 'related', 'billing', 'invoices', '--target', repo]);
+  assert.match(none.out, /^no record here: no earlier plan relates to this work\na record could not be read: \.decisionbook\/PLAN-20261005-torn\.jsonl/m,
+    'nothing found and a record unread are two things');
+  const pack = run(WORLD.bin, ['decisionbook', 'plan', LOGIN, JOB, '--target', repo]);
+  assert.equal(pack.code, 0, pack.err);
+  assert.match(pack.out, new RegExp(/^from PLAN-20261006-lockout [(]2026-10-01; here by folder app\/controllers; whole: atlasbound decisionbook show /.source +
+    /PLAN-20261006-lockout decisions\):\n- auth\.lockout = 5 tries \(the AI, kept by Ayse 2026-10-07\)$/.source, 'm'), 'the pack says each source');
+  assert.match(pack.out, /^from PLAN-20261003-remember-me [(]2026-10-01; here by key area auth; /m, 'picked by its key');
+  assert.match(pack.out, /^not researched: no plan touched app\/controllers\/login_controller\.rb, app\/jobs\/cleanup_job\.rb, /m, 'the work\'s files');
+  assert.match(pack.out, /^a record could not be read: \.decisionbook\/PLAN-20261005-torn\.jsonl/m);
+  // the branch's READY plan as a session starts: each decision with its date, the call that shows them whole
+  const ready = setupRepo(WORLD, { [LOGIN]: 'class Login\n' }).repo;
+  const branch = git(ready, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
+  writeFiles(ready, { '.decisionbook/config.json': JSON.stringify({ protect: ['app/**'], answer: { answer: 'chosen', door: 'protect-command',
+    at: '2026-11-04T00:00:00.000Z' } }),
+  '.decisionbook/PLAN-20261010-login.jsonl': [{ schema: 'decisionbook-record/1', t: 'plan', id: 'PLAN-20261010-login', title: 'Login forgets users',
+    why: 'the product', branch }, { t: 'link', rel: 'plans', to: `file:${LOGIN}`, why: 'the code' }, { t: 'decision', key: 'auth.forget-after',
+    value: '1 day', why: 'the product', by: 'developer', said: 'forget them after one day' }, { t: 'decision', key: 'auth.cookie', value: 'httpOnly',
+    why: 'safety', by: 'ai' }, { t: 'ready', scope: [LOGIN], level: 'normal' }].map((r) => stamped({ ...r, at: '2026-10-10T09:00:00.000Z' })).join('') });
+  const start = fire(ready, portRow(ready, 'SessionStart', 'startup'), { session_id: 's1', transcript_path: '/t.jsonl', cwd: ready,
+    hook_event_name: 'SessionStart', source: 'startup' }, { HOME: tmp('recall3-home-') });
+  const said = hookContextOf(start);
+  assert.match(said, /^settled, do not re-ask unless its source, scope or requirement changed \(whole: atlasbound decisionbook show PLAN-20261010-login decisions\):$/m);
+  assert.match(said, /^- auth\.forget-after = 1 day; developer, 2026-10-10: "forget them after one day"$/m);
+  assert.match(said, /^- auth\.cookie = httpOnly \(safety; by the AI, 2026-10-10\)$/m);
 });

@@ -275,7 +275,8 @@ test('[I-9] shared: a remote\'s HEAD points at one of its branches and is no lin
 test('[I-9] one absent rule: no commit yet is an empty history, and a base this clone lacks is null', async () => inTmp(async (dir) => {
   const g = repo(dir);
   const unknown = '0123456789abcdef0123456789abcdef01234567';
-  assert.deepEqual([await g.commits(null), await g.shared(null, 'trunk'), await g.author('a.txt')], [[], [], null], 'no commit yet');
+  assert.deepEqual([await g.commits(null), await g.shared(null, 'trunk'), await g.author('a.txt'), await g.blame('a.txt')], [[], [], null, []],
+    'no commit yet');
   nodeFs.writeFileSync(path.join(dir, 'a.txt'), '1\n');
   git(dir, 'add', '-A');
   git(dir, 'commit', '-q', '-m', 'one');
@@ -285,6 +286,8 @@ test('[I-9] one absent rule: no commit yet is an empty history, and a base this 
   assert.equal(await g.commits(unknown), null, 'a base this clone does not hold is unknown, never a measured empty list');
   assert.equal(await g.shared(unknown, 'trunk'), null);
   assert.equal(await g.author('a.txt'), 'kit');
+  nodeFs.appendFileSync(path.join(dir, 'a.txt'), '2\n');
+  assert.deepEqual(await g.blame('a.txt'), [{ sha: head, subject: 'one' }, { sha: null, subject: null }], 'a line not committed is null');
   const notRepo = createGit({ proc, root: os.tmpdir(), env: { PATH: process.env.PATH, GIT_CEILING_DIRECTORIES: path.dirname(os.tmpdir()) } });
   await assert.rejects(notRepo.commits(null), coded('git-failed'));
   await assert.rejects(notRepo.shared(null, 'trunk'), coded('git-failed'));
@@ -313,7 +316,10 @@ test('[I-10] proc kills the whole process group on timeout, a grandchild include
   // The clock must outlast two node boots on a loaded machine, or the grandchild never exists and this test proves nothing.
   const res = await proc.run({ cmd: process.execPath, args: ['-e', child], timeoutMs: 3000 });
   assert.equal(res.killedBy, 'timeout', `the child ended first, so say why (cause not established): ${JSON.stringify({ code: res.code, signal: res.signal, error: res.error, stderr: res.stderr.slice(0, 500) })}`);
-  const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code !== 'ESRCH'; } };
+  // Linux: a killed grandchild stays a zombie until whoever took it in (a CI container's init) reaps it; signal 0 still reaches a zombie
+  const stat = (pid) => { try { return nodeFs.readFileSync(`/proc/${pid}/stat`, 'utf8'); } catch { return ''; } }; // '': gone meanwhile
+  const zombie = (pid) => process.platform === 'linux' && !/^\d+ \(.*\) [^Z]/.test(stat(pid));
+  const alive = (pid) => { try { process.kill(pid, 0); return !zombie(pid); } catch (e) { return e.code !== 'ESRCH'; } };
   assert.equal(alive(Number(nodeFs.readFileSync(pidFile, 'utf8'))), false);
 }));
 
@@ -997,3 +1003,21 @@ test('filled fills a word\'s slots once: a value holding a slot is never filled 
   assert.equal(filled('step {order}: {file} ({gone})', { order: 0, file: 'src/a.js' }), 'step 0: src/a.js ({gone})');
   assert.equal(filled('no slots <task>', {}), 'no slots <task>');
 });
+
+test('the host\'s facts, a shape\'s example, an emptied folder, letters without marks and a Windows folder\'s spelling are public', () => inTmp((dir) => {
+  const { host, text, paths } = kit;
+  assert.deepEqual([host.DRAFTS, host.SHELL_TOOLS], ['.atlasbound/drafts/', { Bash: 'sh', PowerShell: 'powershell' }]);
+  assert.equal(host.draftCall('book add x', 'x', '{}'),
+    'write this JSON with your Write tool to .atlasbound/drafts/x.json:\n{}\nthen run: book add x --file .atlasbound/drafts/x.json');
+  assert.deepEqual(ROWS.example('Row', { fixed: { level: 'high' } }), { value: { name: '<text>', level: 'high' }, optional: ['tags'] });
+  assert.deepEqual(Object.keys(ROWS.example('Row', { whole: true }).value), ['name', 'level', 'tags']);
+  const fs = createFs(dir);
+  fs.writeAtomic('a/x.txt', '1');
+  fs.removeEmpty('a');
+  assert.equal(fs.exists('a/x.txt'), true, 'a folder that holds a file stays');
+  fs.remove('a/x.txt');
+  fs.removeEmpty('a');
+  assert.equal(fs.exists('a'), false);
+  assert.equal(text.lines.unmarked('S\u1eeda \u00c7arp\u0131m'), 'Sua Carp\u0131m', 'a letter Unicode does not take apart stays');
+  assert.deepEqual(['C:\\Users\\Ana\\', 'c:/users/ana'].map(paths.winFolder), ['c:/users/ana', 'c:/users/ana']);
+}));

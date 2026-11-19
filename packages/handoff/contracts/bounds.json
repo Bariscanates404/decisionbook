@@ -1,5 +1,5 @@
 {
-  "//": "Every bound of the handoff, as data. note: the rendered note is one screen. message: the head of a person's message kept in the home store, how many per session, and how many characters of them one fill-in shows. now, next, kept: the lines an AI sends back (kept.perHandoff new lines in one reply, kept.cap lines in all, kept.cites message numbers on one line). facts: how many rows of each fact the note names before it says '+n more'. dropped: how many dropped lines the note remembers. sessionDays: a session's record older than this is removed at a session start. touchedBytes: how much of a session's list of edited files is read. heard: how many of the person's last messages here (of any session) the note carries whole to the next session, and how many characters of them in all, so that the next session does not ask again what they answered; message.chars is 1200 so that a person's answers to a plan's questions are kept whole. facts.decided: how many decisions and open questions of a plan the note names.",
+  "//": "Every bound of the handoff, as data. note: the rendered note is one screen. message: the head of a person's message kept in the home store, how many per session, and how many characters of them one fill-in shows. now, next, kept: the lines an AI sends back (kept.perHandoff new lines in one reply, kept.cap lines in all, kept.cites message numbers on one line). facts: how many rows of each fact the note names before it says '+n more'. dropped: how many dropped lines the note remembers. sessionDays: a session's record older than this is removed at a session start. touchedBytes: how much of a session's list of edited files is read. heard: how many of the person's last messages here (of any session) the note carries whole to the next session, and how many characters of them in all, so that the next session does not ask again what they answered; message.chars is 1200 so that a person's answers to a plan's questions are kept whole. facts.decided: how many decisions and open questions of a plan the note names. plan: the characters of a plan's id, state, a decision's key, value and the person's sentence, and an open question, in the note. droppedLine: of a dropped line's words and why. model: of a model's name, in the context line and debug handoff. debug: of who chose a window and of the branch, in debug handoff. age: below how many minutes a note's age is said in minutes, then below how many in hours, then in days.",
   "note": { "lines": 40, "chars": 4000 },
   "message": { "chars": 1200, "perSession": 60, "shown": 6000 },
   "heard": { "messages": 4, "chars": 2400 },
@@ -7,7 +7,12 @@
   "next": { "steps": 3, "chars": 120 },
   "kept": { "perHandoff": 7, "cap": 12, "chars": 160, "cites": 3 },
   "facts": { "commits": 5, "dirty": 8, "touched": 8, "plans": 2, "decided": 6, "path": 80, "subject": 72, "branch": 60 },
+  "plan": { "id": 60, "state": 20, "key": 60, "value": 100, "said": 160, "open": 200 },
   "dropped": 5,
+  "droppedLine": { "text": 80, "why": 160 },
+  "model": 60,
+  "debug": { "by": 120, "branch": 120 },
+  "age": { "minutes": 120, "hours": 2880 },
   "sessionDays": 14,
   "touchedBytes": 262144
 }

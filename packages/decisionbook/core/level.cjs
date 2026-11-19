@@ -7,10 +7,10 @@
 // proposed = critical.
 // each signal is the reason in the gate's words (WORDS.levelWhy) with what holds it, so a reply says why the level rose.
 const { repo: { fileRole }, text: { lines: { filled } } } = require('@atlasbound/kit');
-const { LEVELS, HARD_PATHS, SOFT_PATHS, MICRO_PATHS, RISK_WORDS, FANOUT_MIN, MICRO_FILES, GROWN_FACTOR, GROWN_FLOOR, QUIET_ROLES } = require('../contracts/rubric.cjs');
+const { higher, HARD_PATHS, SOFT_PATHS, MICRO_PATHS, RISK_WORDS, FANOUT_MIN, MICRO_FILES, GROWN_FACTOR, GROWN_FLOOR, QUIET_ROLES } = require('../contracts/rubric.cjs');
 const { WORDS } = require('../contracts/codes.cjs');
 const { globsOverlap, globCovers, isGlob } = require('../base/glob.cjs');
-const { ofKind } = require('../base/text.cjs');
+const { ofKind, isAi } = require('../base/text.cjs');
 const { scopeOf } = require('./fold.cjs');
 
 const OUTCOMES = [[(s) => s.below && (s.hard || (s.soft && !s.waived)), 'level-raised'], [(s) => s.below && s.soft, 'level-waived'], [(s) => s.rejected, 'level-micro-rejected']];
@@ -44,7 +44,7 @@ function planLevel(view, danger) {
   const { hard, soft, small, big, names } = signalsOf(view, danger);
   const proposed = view.level || 'critical';
   const asked = proposed === 'micro' && !small ? 'normal' : proposed;
-  const said = { below: asked !== 'critical', hard: hard.length > 0, soft: soft.length > 0, waived: Boolean(view.waiver), rejected: asked !== proposed };
+  const said = { below: asked !== 'critical', hard: hard.length > 0, soft: soft.length > 0, waived: Boolean(view.waiver) && !isAi(view.waiver.by), rejected: asked !== proposed };
   const outcome = OUTCOMES.find(([holds]) => holds(said));
   const code = outcome ? outcome[1] : null;
   return { proposed, level: code === 'level-raised' ? 'critical' : asked, code, signals: code === 'level-micro-rejected' ? big : [...hard, ...soft], names };
@@ -55,7 +55,7 @@ function grownSince(seen, now, danger) {
   const was = planLevel(seen, danger);
   const is = planLevel(now, danger);
   const had = scopeOf(seen);
-  const rose = LEVELS.indexOf(is.level) > LEVELS.indexOf(was.level)
+  const rose = higher(is.level, was.level)
     ? [filled(WORDS.grewLevel, { level: WORDS.levels[is.level], was: WORDS.levels[was.level] })] : [];
   const added = scopeOf(now).filter((file) => !had.includes(file)).length;
   const many = added > Math.max(GROWN_FACTOR * had.length, GROWN_FLOOR) ? [filled(WORDS.grewFiles, { added, held: had.length })] : [];

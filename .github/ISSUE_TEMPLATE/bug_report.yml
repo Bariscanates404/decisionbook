@@ -23,6 +23,12 @@ body:
     validations:
       required: true
   - type: textarea
+    id: doctor
+    attributes:
+      label: atlasbound doctor
+      description: The output of atlasbound doctor in the repository, if it runs. It names paths inside your repository; remove what you do not want to share.
+      render: text
+  - type: textarea
     id: reproduce
     attributes:
       label: Steps to reproduce

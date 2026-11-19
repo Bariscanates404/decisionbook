@@ -23,14 +23,14 @@ record is one line in the file; the long ones are wrapped here. Left out: the li
  "command":"npm test -- store","at":"2026-11-02T06:10:04.123Z"}
 {"t":"question","q":"Q1","text":"How many past states should the store keep before it drops the oldest?","decides":"store.history.limit",
  "whyNotCode":"a product limit the code does not hold","proposal":"Keep the last 50 states.","blocking":true,"at":"2026-11-02T06:10:04.124Z"}
-{"t":"decision","key":"store.history.limit","value":"Keep 100, and make it an option.",
- "why":"the person's answer, recorded from their message by the product","by":"the person","answers":"Q1","said":"Keep 100, and make it an option.",
+{"t":"decision","key":"store.history.limit","value":"keep the last 100 states; the limit is an option",
+ "why":"the person's answer","by":"the person","answers":"Q1","said":"Keep 100, and make it an option.",
  "effect":["check:AC-1"],"head":"6c1f0a9b3e5d47c2a8f1b0d9e7c6a5b4d3e2f1a0","at":"2026-11-02T06:14:31.507Z"}
 {"t":"ready","head":"6c1f0a9b3e5d47c2a8f1b0d9e7c6a5b4d3e2f1a0","scope":["src/store.js"],"level":"normal","at":"2026-11-02T06:14:31.512Z"}
 ```
 
-The decision's `said` is the person's own sentence, copied from their message by the product, which also writes `by`. Their answer to
-the one blocking question is their yes, so the same call writes the `confirm` and the `ready` line. The format is `contracts/record.json`.
+The decision's `value` is what the person's AI understood they decided; `said` is their own words, copied from their message; the
+product writes `by`. Their answer to the one blocking question is their yes, so the same call writes the `confirm` and the `ready` line. The format is `contracts/record.json`.
 
 ## The flows the tests prove
 
@@ -50,7 +50,7 @@ flowchart TD
   G -->|protected, no READY plan on this branch| D[deny]
   G -->|a danger path outside the plan, or a yes not held on this machine| AS[ask]
   G -->|inside the READY plan, whichever session made it| A2[allow]
-  G -->|any other file outside the READY plan| GR[allow: the product adds it to the plan and says so in one line]
+  G -->|any other file outside the READY plan| GR[ask: open a new plan for it; the person's yes to the edit adds it to the plan]
   S[Stop] --> ST{a protected file this session changed that no READY or closed plan records?}
   ST -->|yes, once| BL[block, naming the files]
   Q[a task prompt, a file's first read or edit] --> RC[at most 3 cards of the area's earlier plans, in 2 KB]
@@ -65,6 +65,8 @@ Below, "you" are the person the records call `the person`, and "the AI" is your 
 ### What you protect
 
 - `atlasbound protect app` protects `app/**`; `app/`, `./app` and `./app/**` name the same folder.
+- Every word is a path, read from the folder you are in; quote a glob (`"src/**"`), or the shell hands its files one by one, and protect
+  says so. A path a protected glob already holds is said, not added again.
 - A word that covers no tracked file, or the whole repository, is refused, and nothing is written.
 - The policy is `.decisionbook/config.json`: `protect` lists what needs a READY plan, `danger` the zones where work is critical.
 - A danger zone is guarded even where `protect` does not name it.
@@ -74,8 +76,10 @@ Below, "you" are the person the records call `the person`, and "the AI" is your 
 
 ### Planning a task
 
+- A plan's id is its date and title in ASCII letters (`Çarpım` is `carpim`); a title with no letter or digit is refused.
 - `new` writes the plan and its records as one batch. `add` appends one record or a list of them, all or none.
 - A refused `new` writes nothing and names every problem in one reply.
+- A line of a plan file that does not read is named, with its file and line, by `show` and by `doctor`; the rest of the plan reads.
 - A record that holds what looks like a secret is refused before anything is written, because the folder is committed.
 - Every write ends with the READY check: the reply names the rows still missing, and a complete draft becomes READY at that write.
 - The AI proposes a level and code decides it: `micro` is a small fix, `normal` is normal work, `critical` is critical work.
@@ -94,8 +98,14 @@ Below, "you" are the person the records call `the person`, and "the AI" is your 
 
 - A bug also needs repro evidence, a user-interface path a precedent, and a planned file in a danger zone a decision that covers it.
 - A plan names files or narrow globs: `src/**` is too wide for READY, `src/report/**` is not.
-- A branch has one READY plan: a newer one parks the older. A draft covers no edit, and the session start says what it lacks.
-- In a session, a `new` beside a plan an earlier session left open is refused. Only your yes to the AI's question sets that plan aside.
+- A branch has one READY plan: a newer one parks the older. A draft covers no edit, and the session start says what it lacks; it holds
+  back only the files it names.
+- In a session, a `new` beside a plan an earlier session left open is refused, unless it plans only files that plan does not name. Only
+  your own words set that plan aside.
+- A teammate's draft that came with the branch (committed, and no session on your machine worked on it) stops no one: your own open
+  plan comes first; with none, the session start names theirs in one line and asks nothing about it. Only work on its files goes on in it.
+- Your own draft an earlier session left is named in one line too; a message on its files or its title brings it whole, any other task
+  is planned beside it, and nothing is asked first.
 
 ### Research before questions
 
@@ -113,24 +123,58 @@ Below, "you" are the person the records call `the person`, and "the AI" is your 
   answer to a question with its effect on the plan. The AI's own answer or proposal settles nothing.
 - A plan with fewer forks says so with a `no-fork` item per planned file. That counts only once every question asked has your answer.
 - A question with `to` and `source` is parked with someone else: it blocks nothing, and every session start names it.
-- The product records your answers from your own message: a list item that quotes a question is your answer to it, whole.
-- A reply that takes the AI's proposals whole decides only the questions its last message showed with a proposal. The record says so.
+- A decision recorded as yours carries words you typed. Your AI decides what you meant. The product checks only that the words are
+  yours: it refuses a record whose words are not in a message you typed in that session. That stops an AI that misreads or invents; it
+  is not built to stop one that attacks the product's own files.
+- Your AI records your answers in one add: `value` is what it understood you decided, `said` your own words beside it. The reply shows
+  each decision recorded as yours with its words, so a wrong one is seen in the same turn.
+- The one check: `said` is whole clauses of one message you typed in this session (a sentence, a list item, a part set off by a comma
+  or "and"; a sentence that holds a negation, whole); case and the punctuation at its edges aside. A confirm's and a waiver's words come
+  from a message after the plan was written. A refused record writes nothing (`said-not-theirs`); the stored words are cut at 500
+  characters to a whole word, marked `~`.
+- Not checked: that the words are about the record, that the value keeps their meaning, which question they answer.
+- An answer you relay ("I asked Deniz: …") is your decision; `saidBy` names the one you asked, kept only on a decision of yours.
+- An answer to a question parked with a colleague (`to`) is stored under that name with its `source` and is checked against nothing:
+  it shows that name and where it came from, and it never replaces or keeps a person's decision. Parked with you, it is checked as yours.
 - The product sets a decision's `by`, never the sender: `the person`, `ai`, or the colleague a parked question named.
-- In a session a decision is yours only when its `said` copies whole clauses of a message you sent after the plan, or its question, was written.
-- An answer moved to another question, or a value your words do not hold or that flips them, is stored as the AI's. The reply says why.
-- Your answers to every blocking question are your yes: a complete plan is READY in that write.
-- With no blocking question the plan waits for a `confirm`, refused until a message of yours has come after the plan was written.
+- Your answers to every blocking question, typed after the plan was written, are your yes: a complete plan is READY in that write. An
+  answer that keeps an old decision is no yes: the plan waits for your yes in words, from a message after the keep. With no blocking question the plan waits for a `confirm`, refused until a message of
+  yours has come after the plan was written.
+- A confirm line no receipt on this machine backs (one added by hand, or another machine's) shows as unverified in show and related.
 - A `confirm` is also refused once the plan outgrew what you saw: a higher level, a new raising signal, or over max(3 × its files, 6) added files.
-- A decision is valid by scope and `supersedes`, never by date. Replacing your decision takes your own sentence, said after the proposal.
-- The exact rules of whole clauses are in kit's `text/said.cjs`. Their tests are `contract/asked.test.cjs`, `contract/flow.test.cjs`
-  and `contract/open.test.cjs`. Named limit: a value put together from words of several sentences is not seen as another meaning.
+- A decision is valid by scope and `supersedes`, never by date. Your decision replaces another person's decision when it names it in
+  `supersedes`; the AI's never does (`supersede-theirs`), and the AI's own decision of a key a person decided in the same plan is
+  refused (`decision-theirs`: ask the person, or send it as a proposal); an AI line that a merge put after a person's never takes its place. Your answer to a question that names standing decisions places each one: in
+  `supersedes` (replaced) or `keeps` (kept, nothing replaced); one in neither is refused (`replace-unplaced`). Your answer may also
+  keep a standing decision the question did not name; a keep only, it needs no `effect`. Every ref in `supersedes` or `keeps` is
+  `<plan id>/<key>` of a standing decision of another plan, as a question's are, else refused (`supersede-unknown`). A change of a decision
+  of the same plan is its key written again naming its own `<plan id>/<key>` in `supersedes`: it replaces the lines of that key before it.
+  Person decisions of one key in one plan where none names it so (a `git merge` that kept both sides' lines, or one written again with
+  no `supersedes`) and that differ in value and in words are a conflict: every reader of the key (show, pr, the pack, cards, inbox)
+  shows each line with who and their words, says that none holds until the person says which, and the plan is not READY until the
+  person's answer is recorded as that change (`ready-replace-unasked`). The same value byte for byte, or the same words written again,
+  is no conflict. A decision of yours beside
+  another person's of the same key and scope that names it nowhere holds READY, one line each (`ready-replace-unasked`); so does a person's
+  standing decision of a READY or closed plan on a file this plan edits (its own files, else its plan's), until your answer replaces or keeps
+  it, a blocking question names it, or a `non-goal` item covering it says why this change leaves it. A file the plan only reads places nothing.
+- Named limits: (1) whether a prompt-hook call comes from Claude Code itself is checked on macOS only; on Windows and Linux every such
+  call is heard, a shell command that names the hook is denied, a script that starts it is not seen; (2) the seal on the home store judges
+  a write tool by its path and a shell command by its text; a command that builds the path so that its text does not hold it is not seen;
+  (3) a program that stands in for Claude Code, or a second Claude Code started on the same session, is heard as you; (4) an answer you
+  pick in a question dialog is not a typed message: the AI has to ask again in plain words; (5) the product does not check that the value
+  is what you meant: `atlasbound decisionbook show <id> decisions` prints your words beside it. The rule of whole clauses is in kit's
+  `text/said.cjs`; the check is `core/yes.cjs`; its tests are `contract/said.test.cjs`, `contract/asked.test.cjs` and `contract/flow.test.cjs`.
 
 ### The gate: edits and shell writes
 
 - The gate runs before Edit, Write, MultiEdit and NotebookEdit, and before every shell command.
 - An unprotected file passes. A protected file with no READY plan on the branch is denied.
-- READY is the freeze: a write inside the plan passes in silence, in any later session, with no new yes.
-- A file outside the plan joins it: the product adds its path to the plan and says so in one line.
+- READY is the freeze: a write inside the plan passes in silence, with no new yes, in a session that works on it (it made or wrote to
+  the plan, the person resumed their handoff in it, or it began with no new task); a session that began with another task is denied
+  (`plan-other-task`) and plans its own, or records a `resume` on the plan where the person asked it to go on with it.
+- A file outside the plan asks you, and the reason says to open a new plan for it. Your yes to that Edit or Write adds it to the plan; a
+  path the AI links to a READY plan itself stays outside it. A plan that grows past its level this way covers no edit until it holds
+  that level's rows.
 - A danger path outside the plan asks you at each write. Added to the plan, it needs your yes again.
 - A danger path inside a plan below critical is denied.
 - A READY plan that came with a commit asks once on this machine, naming who brought it. Where no one can be asked it is denied.
@@ -149,7 +193,8 @@ Below, "you" are the person the records call `the person`, and "the AI" is your 
 - The pack fits 5,000 characters: up to 8 binding decisions newest first, 3 unconfirmed assumptions, 3 check commands, 12 files,
   the level this task runs at, and the two calls as fill-in JSON.
 - `plan <path|words>` prints the same pack, `related <path|words>` up to 10 cards, `find <words>` the plans that hold a word.
-- `close <id>` runs on the plan's branch and records the plan's own commits with their files and tests.
+- `close <id>` runs on the plan's branch and records the plan's own commits with the files it plans and their tests; any other file
+  they touched is a number. It names the one commit its record still needs.
 - A commit is the plan's own when its message names the plan id or its issue, or when it touches a planned file. Others are only counted.
 - Close reads first-parent commits only. It refuses a line another branch already holds, and names the routes to close it.
 - One READY row, `standards`, is filled only where another installed package hands the patterns a plan's new files follow; with none

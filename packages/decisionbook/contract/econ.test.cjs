@@ -32,8 +32,8 @@ test('without the person yes the same call leaves a draft and names the missing 
   const res = await econStart(io, { records: records.slice(0, -1) });
   const { id } = res.out;
   assert.deepEqual([res.out.state.ready, res.out.state.unmet.map((u) => u.code)], [false, ['ready-no-confirm']]);
-  assert.deepEqual(res.out.state.rows, { met: 10, asked: 11 }, 'its progress: the rows met of the rows its level asks');
-  assert.match(res.text, /not READY as normal work: 10 of 11 rows met\n {2}ready-no-confirm: /);
+  assert.deepEqual(res.out.state.rows, { met: 11, asked: 12 }, 'its progress: the rows met of the rows its level asks');
+  assert.match(res.text, /not READY as normal work: 11 of 12 rows met\n {2}ready-no-confirm: /);
   const yes = await added(io, id, records.at(-1));
   assert.deepEqual([yes.out.state.ready, planRecords(io, id).at(-1).t], [true, 'ready'], 'the second and last call: the yes makes it READY');
   // normal work with fewer than 3 research records on files read in its sessions gets one note at READY, never a refusal

@@ -9,16 +9,18 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { replyJson, writeFiles, runAll } = require('./support.cjs');
-const { tableWorld, shellWorld, againstHuman } = require('./truth-world.cjs');
+const { tableWorld, shellWorld, shellEvent, expectedReply, againstHuman } = require('./truth-world.cjs');
 const TABLE = require('../test/fixtures/shell-commands.json');
 const FORMS = require('../test/fixtures/shell-forms.json');
+// a Stop block also tells the person it is a check, not a crash (the host shows it as a hook error)
+const HELD = 'atlasbound: a deliberate check, not a crash: the session was held from finishing and the AI was told what to do first';
 
 const UNRECORDED = 'protected files changed in this session and no READY or closed plan of this branch covers them: record this change in a ' +
   'plan (why, the decisions, the files) before you finish';
 
 test('252 write and read forms by hand each name the protected file or say they cannot place it; near misses stay silent', async () => {
   const { repo, env } = tableWorld(TABLE.policy);
-  assert.deepEqual([FORMS.rows.length, FORMS.rows.filter((row) => row.human.verdict === 'allow').length], [252, 103]);
+  assert.deepEqual([FORMS.rows.length, FORMS.rows.filter((row) => row.human.verdict === 'allow').length], [252, 102]);
   await againstHuman(repo, env, FORMS.rows);
 });
 
@@ -67,10 +69,14 @@ test('no command makes the gate silent by being slow or by running out of memory
       file: 'app/models/user.rb' } },
     { from: 'a tuple of 6.5 KB', cwd: '', command: code(`\n${' '.repeat(3200)}a,b${' '.repeat(3200)}x`), human: { verdict: 'ask',
       file: 'app/models/user.rb' } },
-    { from: '2000 files', cwd: '', command: `rm -f ${files} app/models/user.rb`, human: { verdict: 'ask', unplaced: true, unread: true } },
     { from: '379 KB: 30,000 cds and a touch of 30,000 files', cwd: '', command: touched, human: { verdict: 'ask', unplaced: true,
       unread: true } },
   ]);
+  // 2000 operands: a machine that reads them all in time names the protected file, a slower one asks as too long; both ask
+  const [many] = await runAll(shellWorld().bin, [{ args: ['hook', 'PreToolUse'], cwd: repo, env,
+    input: JSON.stringify(shellEvent(repo, { cwd: '', command: `rm -f ${files} app/models/user.rb` })) }]);
+  const either = [{ verdict: 'ask', file: 'app/models/user.rb' }, { verdict: 'ask', unplaced: true, unread: true }];
+  assert.ok(either.some((human) => JSON.stringify(expectedReply({ human })) === many.out.trim()), `2000 files: ${many.out}`);
   assert.ok(Date.now() - started < 9000, `all four answered inside the hook's deadline: ${Date.now() - started} ms`);
 });
 
@@ -82,7 +88,7 @@ test('a write no reader can see, a tool rewriting a protected file itself, is si
     'the gate cannot see what i18n-tasks writes: it says nothing, it does not guess');
   writeFiles(repo, { 'config/locales/en.yml': 'en:\n  normalized: true\n', [TABLE.policy.plan[0]]: 'two\n', 'spec/models/user_spec.rb': 'two\n' });
   const stop = (over = {}) => replyJson(said('Stop', { stop_hook_active: false, ...over }));
-  assert.deepEqual(stop(), { decision: 'block', reason: `DecisionBook: stop-unrecorded: config/locales/en.yml: ${UNRECORDED}` },
+  assert.deepEqual(stop(), { systemMessage: HELD, decision: 'block', reason: `DecisionBook: stop-unrecorded: config/locales/en.yml: ${UNRECORDED}` },
     'only the protected file outside the plan: not the planned file, not the spec');
   assert.deepEqual(stop({ stop_hook_active: true }), {}, 'never twice in a row');
 });

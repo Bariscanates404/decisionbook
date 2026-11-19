@@ -7,7 +7,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const decisionbook = require('@atlasbound/decisionbook');
-const { bookWorld: world, begin, added, logFile, recordsFor, unmetOf, tracedSteps, wire, readFor } = require('./world.cjs');
+const { bookWorld: world, begin, added, logFile, recordsFor, unmetOf, leavesOthers, tracedSteps, wire, readFor } = require('./world.cjs');
 
 const { verbs } = decisionbook;
 const batch = added; // an array of records is one batch
@@ -71,9 +71,11 @@ test('[I-23] steps are optional at any level: READY asks none; a step on a file 
   const critical = await begin(io, { title: 'Critical export', level: 'critical' });
   await readFor(io, critical, ['src/report/export.js']); // critical research rests on a file read
   await batch(io, critical, stepless(recordsFor('critical', ['src/report/export.js'], '.critical')));
+  await leavesOthers(io, critical);
   assert.deepEqual(await unmetOf(io, critical), [], 'critical work too');
   const small = await begin(io, { title: 'Small export fix', level: 'micro' });
   await batch(io, small, recordsFor('micro', ['src/report/export.js'], '.small'));
+  await leavesOthers(io, small);
   assert.deepEqual(await unmetOf(io, small), [], 'a small fix is unchanged');
   const old = '2026-10-01-old-plan';
   io.fs.writeAtomic(logFile(old), `${[{ schema: 'decisionbook-record/1', t: 'plan', id: old, title: 'Old plan', why: 'w', success: 's', kind: 'feature',

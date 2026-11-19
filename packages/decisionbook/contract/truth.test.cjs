@@ -59,7 +59,7 @@ test('[I-2] a plan one record short is not READY: the missing row is named and t
     for (const record of nearMiss(miss)) await added(io, id, record);
     const res = await verbs.ready(io, { rest: [id] });
     assert.deepEqual(res.out.unmet.map(({ code }) => code), [miss.row], miss.row);
-    assert.match(res.text, new RegExp(`not READY as normal work: 10 of 11 rows met\\n {2}${miss.row}: `), `${miss.row}: the text names the row`);
+    assert.match(res.text, new RegExp(`not READY as normal work: 11 of 12 rows met\\n {2}${miss.row}: `), `${miss.row}: the text names the row`);
     assert.deepEqual(planRecords(io, id).filter((r) => r.t === 'ready'), [], `${miss.row}: nothing READY on disk`);
     assert.deepEqual(await gateSays(io, 'src/report/export.ts'), ['deny', 'plan-draft-here', id], `${miss.row}: the gate stays shut, naming this session's draft (the world's session began first)`);
     for (const record of miss.fix) await added(io, id, record);
@@ -171,7 +171,8 @@ test('[I-7] close records exactly the commits of the work, their files and their
     own: [{ sha: 'c1', subject: COMMITS[0].subject }, { sha: 'c2', subject: COMMITS[1].subject }, { sha: 'c3', subject: 'teammate tweak' }],
     files: ['lib/csv.rb', 'spec/report/export_spec.rb', 'src/report/export.ts', 'src/report/format.ts', 'test/report/export.test.ts'],
       tests: ['spec/report/export_spec.rb', 'test/report/export.test.ts'], other: 2 });
-  assert.equal(res.text, `${id} closed: 3 own commits, 5 files, 2 tests; 2 other commits not attributed\n`);
+  assert.equal(res.text, `${id} closed: 3 own commits, 5 files, 2 tests; 2 other commits not attributed; `
+    + `commit this record: git add .decisionbook/${id}.jsonl, then git commit -m "DecisionBook: close ${id}" .decisionbook/${id}.jsonl\n`);
 });
 
 test('close credits a commit by the whole issue token, never by a number that only contains it',
@@ -321,7 +322,7 @@ const holdsHead = (ref, b, to) => ['plan-close-merged', [`plan-close-merged: a-e
   ...routesOf(ref, b, to)], true];
 /** The refusal when `ref`'s line holds `sha`, a commit under HEAD (of the plan `id`). */
 const holdsUnder = (sha, ref, id = 'a-export') => ['plan-close-merged', [`plan-close-merged: ${id}: HEAD's line holds ${sha.slice(0,
-  7)}, which ${ref}'s line holds too: own commits unknown, nothing recorded`, ...routesOf(ref)], true];
+  8)}, which ${ref}'s line holds too: own commits unknown, nothing recorded`, ...routesOf(ref)], true];
 /** close as the person runs it, then (refused) its route `n` (1: the reflog, 2: a reused name) followed word for word as a coding AI reads it, whether its
  * condition holds or
  * not (the caller's hand answer): the steps after `? `, split at `, then `; `close` is the verb, a git step runs as written with its <place> filled by hand
@@ -518,7 +519,7 @@ test('a branch that moved with a tip no other line holds is refused, and the ref
   first.commit('src/report/late.ts', 'export const l = 1;\n', 'late work');
   writePlan(first.root, { id: 'a-export', title: 'Report export', head: first.fork, plan: 'src/report/**', day: 1, branch: 'feat/late' });
   assert.deepEqual(await closeOf(first), ['plan-close-merged', [`plan-close-merged: a-export: HEAD's line holds ${mate.slice(0,
-    7)}, which main's line holds too: own commits unknown, nothing recorded`, ...routesOf('main', 'feat/late')], true],
+    8)}, which main's line holds too: own commits unknown, nothing recorded`, ...routesOf('main', 'feat/late')], true],
       'synced before the work: main\'s commit under it');
 });
 
@@ -584,7 +585,7 @@ test('ready on a READY plan stores nothing again: ready then close credits the w
 // READY is the freeze. A plain protected file outside the plan joins it (the product writes the one line and says so) and a path
 // planned after READY is the plan's too; a danger path is what stays the person's: outside the plan it asks naming the file, and planned
 // after READY below critical work it is denied
-test('[I-5] the gate reads the READY plan: inside passes, a file outside joins it, a danger path outside asks naming the file',
+test('[I-5] the gate reads the READY plan: inside passes, a file outside is asked, a danger path outside asks naming the file',
   async () => {
   const io = bookWorld();
   writeConfig(io, { protect: ['src/**', 'app/**'] });
@@ -597,14 +598,11 @@ test('[I-5] the gate reads the READY plan: inside passes, a file outside joins i
   assert.deepEqual([danger.verdict, danger.code, danger.plan], ['ask', 'plan-out-of-scope', id]);
   assert.match(danger.reason, /^DecisionBook gate: plan-out-of-scope: src\/billing\/db\/retries\.sql: a danger path \(a danger zone, a database schema or migration\) outside the READY plan is the person's, once/);
   const outside = await handlers.preEdit(editEvent('src/billing/retry.ts'), io);
-  assert.deepEqual([outside.verdict, outside.code, outside.plan], ['allow', 'plan-grown', id]);
-  assert.equal(outside.context, `DecisionBook: src/billing/retry.ts was outside plan ${id}; the plan is frozen and took it in (one line added to it). Nothing to do.`);
-  assert.deepEqual(timeless(planRecords(io, id).at(-1)), { t: 'link', rel: 'plans', to: 'file:src/billing/retry.ts', source: 'the gate: written under the READY plan' },
-    'the one line the product added; the danger path asked about added none');
-  assert.deepEqual(await gateSays(io, 'src/billing/retry.ts'), ['allow', 'gate-in-scope', id], 'the plan\'s now');
+  assert.deepEqual([outside.verdict, outside.code, outside.plan, 'context' in outside], ['ask', 'plan-outside', id, false]);
+  assert.ok(!planRecords(io, id).some((r) => r.to === 'file:src/billing/retry.ts'), 'nothing joins at an ask');
   await added(io, id, { t: 'link', rel: 'plans', to: 'file:app/**', why: 'planned after READY' });
-  assert.deepEqual(await gateSays(io, 'app/models/user.rb'), ['allow', 'gate-in-scope', id], 'a path planned after READY is the frozen plan\'s');
-  assert.deepEqual(await gateSays(io, 'app/db/users.sql'), ['deny', 'plan-not-critical', id], 'a danger path under it opens nothing below critical work');
+  assert.deepEqual(await gateSays(io, 'app/models/user.rb'), ['ask', 'plan-outside', id], 'a path the AI planned after READY is not the person\'s yes');
+  assert.deepEqual(await gateSays(io, 'app/db/users.sql'), ['ask', 'plan-out-of-scope', id], 'a danger path under it is the person\'s');
   await added(io, id, { t: 'link', rel: 'plans', to: 'file:src/billing/db/retries.sql', why: 'planned after READY, with no yes of the person' });
   assert.deepEqual(await gateSays(io, 'src/billing/db/retries.sql'), ['ask', 'plan-out-of-scope', id],
     'the danger path asked about opens with no link of the AI: linked after the yes, it is still outside the plan and still the person\'s');
@@ -612,8 +610,8 @@ test('[I-5] the gate reads the READY plan: inside passes, a file outside joins i
   assert.deepEqual(await gateSays(io, 'src/report/export.ts'), ['deny', 'plan-none', null], 'another branch\'s READY opens nothing here');
 });
 
-// a file of the parked plan is a file outside the newer one: it joins the newer plan, which names itself; a danger path there asks
-test('[I-8] a newer READY plan parks the older one: the older opens nothing, its file joins the newer one, which names itself', async () => {
+// a file of the parked plan is a file outside the newer one: asked under the newer plan, which names itself; a danger path there asks
+test('[I-8] a newer READY plan parks the older: the older opens nothing, its file is asked under the newer one', async () => {
   const io = bookWorld();
   writeConfig(io, { protect: ['src/**'] });
   const old = await begin(io, { title: 'Report export' });
@@ -624,9 +622,7 @@ test('[I-8] a newer READY plan parks the older one: the older opens nothing, its
   for (const record of recordsFor('normal', ['src/filters/**'], '.next').slice(0, -1)) await added(io, next, record);
   assert.equal((await added(io, next, { t: 'confirm', by: 'Ayse', said: 'yes' })).out.state.parked, old, 'the yes that makes it READY parks the older');
   assert.deepEqual(await gateSays(io, 'src/report/db/rows.sql'), ['ask', 'plan-out-of-scope', next], 'a danger path the parked plan held is outside the newer one');
-  assert.deepEqual(await gateSays(io, 'src/report/export.ts'), ['allow', 'plan-grown', next]);
-  assert.deepEqual([planRecords(io, next).at(-1).to, planRecords(io, old).some((r) => r.source === 'the gate: written under the READY plan')],
-    ['file:src/report/export.ts', false], 'the line is added to the newer plan, never to the parked one');
+  assert.deepEqual(await gateSays(io, 'src/report/export.ts'), ['ask', 'plan-outside', next], 'the parked plan\'s file is outside the newer one');
   assert.deepEqual(await gateSays(io, 'src/filters/a.ts'), ['allow', 'gate-in-scope', next]);
 });
 

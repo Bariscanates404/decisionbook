@@ -23,7 +23,7 @@ git port:  closed child (-c filters off, fsmonitor off, hooks off, --literal-pat
 - `contract/kit.test.cjs` `[I-9]`: the one absent rule on a real repository, a bracket name read literally, a folder that is no repository.
 
 ```
-fs port:   key ──> pathKey (NFC, contained) ──> refuse links on the way ──> atomic temp + rename | O_APPEND O_NOFOLLOW | rm (makes nothing) | mkdir -p (makeDir)
+fs port:   key ──> pathKey (NFC, contained) ──> refuse links on the way ──> atomic temp + rename | O_APPEND O_NOFOLLOW | rm (makes nothing) | rmdir of an empty folder (removeEmpty) | mkdir -p (makeDir)
            createFs(root, { hold }) ──> under `hold` every verb reads and writes this process's memory over the disk, so a verb that only reads
            leaves no file; its folders answer as the disk's (a removed file's folders stay)
 ```
@@ -32,10 +32,11 @@ fs port:   key ──> pathKey (NFC, contained) ──> refuse links on the way 
 
 ```
 text:      secrets.find / scrub / clipped (scrub, then cut) / masked (a line holding a shape -> its indentation + mask)
-           shell.writtenBy(command) ──> shell-lex tokens ──> rows of shell.json ──> shell-code for inline code ──> { writes (each `by`), unplaced, unread,
+           shell.writtenBy(command, past, { lang: sh | powershell | cmd, scripts }) ──> shell-lex or shell-win tokens ──> rows of shell.json
+           (`windows`: PowerShell's commands, cmd's; a package script read from `scripts`) ──> shell-code for inline code ──> { writes (each `by`), unplaced, unread,
            why: each cause once, a code and the word as written }; shell.readWords(command): the words it saw (cli's `debug shell`)
 ```
-- `contract/secrets-false.test.cjs`, `[I-16]`; `contract/shell.test.cjs` `[I-57]`; `contract/shell-shells.test.cjs` `[I-57]` (generated
+- `contract/secrets-false.test.cjs`, `[I-16]`; `contract/shell.test.cjs` `[I-57]`; `contract/shell-windows.test.cjs` `[I-57]` (PowerShell, cmd, package scripts, Git Bash paths); `contract/shell-shells.test.cjs` `[I-57]` (generated
   commands run in bash, zsh and dash: every file they create is named or unplaced).
 
 ```

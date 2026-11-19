@@ -4,15 +4,21 @@
 'use strict';
 // PURE. What is said of the earlier plans that relate to the work at hand: a hook is given the first whole cards
 // that fit its byte budget; the `related` verb, every card.
-const { text: { safe: { clip } } } = require('@atlasbound/kit');
-const { WORDS, shortOf } = require('../../contracts/codes.cjs');
+const { text: { lines: { filled } } } = require('@atlasbound/kit');
+const { WORDS, shortOf, SHOWN: { recall: shown } } = require('../../contracts/codes.cjs');
 const { bytes, boundedLines } = require('./budget.cjs');
+const { jsonCall } = require('./calls.cjs');
 const { cardText } = require('./card.cjs');
 
 const RECALL_BYTES = 2048;
 const RECALL_CARDS = 3;
 const RELATED_BYTES = 6144;
 const RELATED_CARDS = 10;
+// what was not found, three ways apart: no record here (`found` 0 and no file of the work that no plan touched says more), records unread
+// ([{ file, code }]), the work's files no plan touched (none in a repository with no plan); each line names five files and how many more
+const absentLines = ({ found, unread = [], untouched = [] }) => [...(found === 0 && !untouched.length ? [`${WORDS.absent.none}: ${shortOf('recall-none')}`] : []),
+  ...[['unread', unread.map((r) => `${r.file} (${r.code})`)], ['untouched', untouched]].filter(([, files]) => files.length).map(([word, files]) =>
+    filled(WORDS.absent[word], { files: shown.files(`${files.slice(0, 5).join(', ')}${files.length > 5 ? ` (+${files.length - 5} more)` : ''}`) }))];
 
 /** What a hook says of `cards`: the first whole cards that fit in `max` bytes (once one does not fit, none after it
  * is given), each with the short line that stands for it when the context already holds it, then the line that says
@@ -24,18 +30,19 @@ function recallSay(cards, max = RECALL_BYTES) {
     const text = cardText(card);
     room -= bytes([text, '']);
     if (room < 0) break;
-    const short = `- ${card.id} ${WORDS.alsoHere} ${clip(card.path, 300)}`;
+    const short = `- ${card.id} ${WORDS.alsoHere} ${shown.path(card.path)}`;
     said.push({ key: `decisionbook.card:${card.id}`, text, short });
   }
   return [...said, { key: 'decisionbook.recall', text: WORDS.recall }];
 }
 
-/** `related`: every card, up to the verb's own count and budget. */
-function relatedText(cards) {
-  if (!cards.length) return shortOf('recall-none');
-  const more = 'atlasbound decisionbook related <path|words> --json';
+/** `related`: every card, up to the verb's own count and budget, then what was not found. */
+function relatedText({ cards, unread, untouched }) {
+  const absent = absentLines({ found: cards.length, unread, untouched });
+  if (!cards.length) return absent.join('\n');
+  const more = jsonCall('related', '<path|words>');
   const budget = { max: RELATED_BYTES, count: RELATED_CARDS, more };
-  return boundedLines({ head: [], list: cards.map(cardText), tail: [WORDS.recall], ...budget }).join('\n');
+  return boundedLines({ head: [], list: cards.map(cardText), tail: [...absent, WORDS.recall], ...budget }).join('\n');
 }
 
-module.exports = { RECALL_BYTES, RECALL_CARDS, RELATED_CARDS, recallSay, relatedText };
+module.exports = { RECALL_BYTES, RECALL_CARDS, RELATED_CARDS, recallSay, relatedText, absentLines };

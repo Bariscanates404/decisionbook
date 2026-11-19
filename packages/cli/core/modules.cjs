@@ -4,6 +4,8 @@
 'use strict';
 // PURE: modules as data. Which module a word names, what a choice leaves on, whether a package is on, and what moving between two wired
 // sets adds or removes.
+const { text: { lines: { filled } } } = require('@atlasbound/kit');
+const { WORDS, WORDS: { choice: W } } = require('../contracts/codes.cjs');
 const { serversOf, placedCommands } = require('./host.cjs');
 
 const byWord = (rows, word) => rows.find((m) => m.name === word || (m.alias || []).includes(word)) || null;
@@ -22,21 +24,21 @@ const onHere = (rows, stored) => stored ?? rows.filter((m) => !m.optIn).map((m) 
 function choose(rows, flags, stored) {
   const plain = onHere(rows, null);
   const given = ['only', 'without', 'with'].filter((key) => flags[key] !== undefined);
-  if (given.length > 1) return { refused: 'one of --only, --without or --with, not two' };
+  if (given.length > 1) return { refused: W.oneFlag };
   if (!given.length) return { on: onHere(rows, stored) };
   const found = String(flags[given[0]]).split(',').map((w) => w.trim()).filter(Boolean).map((w) => [w, byWord(rows, w)]);
   const unknown = found.find(([, m]) => !m);
-  if (unknown) return { refused: `no module is called ${unknown[0]}` };
+  if (unknown) return { refused: filled(WORDS.modules.noSuch, { word: unknown[0] }) };
   const named = (name) => found.some(([, m]) => m.name === name);
   const keep = { only: named, without: (name) => !named(name), with: (name) => named(name) || plain.includes(name) }[given[0]];
   const on = rows.map((m) => m.name).filter(keep);
-  return on.length ? { on } : { refused: 'that choice leaves no module on; uninstall takes everything out' };
+  return on.length ? { on } : { refused: W.noneLeft };
 }
 
 /** `modules on|off <name>` over the stored set -> { on } | { refused } when it would leave none. */
 function toggled(rows, stored, verb, name) {
   const on = rows.map((m) => m.name).filter((one) => (one === name ? verb === 'on' : stored.includes(one)));
-  return on.length ? { on } : { refused: `${name} is the last module on here; atlasbound uninstall takes everything out` };
+  return on.length ? { on } : { refused: filled(W.lastOn, { name }) };
 }
 
 /** What a person sees move: each hook as `event package.handler`, each command, each MCP server. */

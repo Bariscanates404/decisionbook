@@ -5,11 +5,12 @@
 // The promised surface here, from three sources in this order: the statements DecisionBook kept from the prompts it was handed,
 // DecisionBook records, and the person's journaled prompts when the composition root hands a journal (`io.heard`, handoff's); each module
 // word resolved to a file of this repository.
-const { paths: { join, dirOf, nameOf } } = require('@atlasbound/kit');
+const { paths: { join, dirOf, nameOf }, text: { lines: { shortId } } } = require('@atlasbound/kit');
 const { entries: ENTRIES } = require('../contracts/promise.json');
 const { importsOf, promisesOf } = require('../core/promise.cjs');
 const store = require('./store.cjs');
 const { keptRows } = require('./here.cjs');
+const { refOf } = require('../contracts/shapes.cjs');
 
 const STEM = /\.[^.]*$/;
 
@@ -31,9 +32,9 @@ const journalHere = async (io) => (io.heard ? io.heard() : null);
 
 async function saidHere(io, batch) {
   const web = store.readWeb(io, { batch });
-  return [...keptRows(io).map((r) => ({ text: r.statement, from: `prompt:${String(r.session ?? '').slice(0, 8)}`, at: r.at })),
-    ...web.views.flatMap((v) => [v.why, v.goal].map((text) => ({ text, from: `plan:${v.id}`, at: v.at }))),
-    ...web.decisions.flatMap((d) => [d.value, d.why].map((text) => ({ text, from: `decision:${d.key}`, at: d.at }))),
+  return [...keptRows(io).map((r) => ({ text: r.statement, from: `prompt:${shortId(r.session ?? '')}`, at: r.at })),
+    ...web.views.flatMap((v) => [v.why, v.goal].map((text) => ({ text, from: refOf('plan', v.id), at: v.at }))),
+    ...web.decisions.flatMap((d) => [d.value, d.why].map((text) => ({ text, from: refOf('decision', d.key), at: d.at }))),
     ...((await journalHere(io)) || []).map((r) => ({ text: r.text, from: `heard:${r.id}`, at: r.at }))].filter((s) => typeof s.text === 'string');
 }
 

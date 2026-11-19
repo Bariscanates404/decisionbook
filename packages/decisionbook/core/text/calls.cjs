@@ -2,25 +2,24 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-// PURE. The calls a text hands to fill and send, in the one form every text prints: the JSON on standard input as a
-// quoted heredoc, so no shell quoting applies and an apostrophe in a text is a character.
-const { text: { lines: { filled } } } = require('@atlasbound/kit');
+// PURE. The calls a text hands to fill and send, in the one form every text prints (kit's draftCall): the JSON written as a
+// draft file, then the call that reads it, so no shell quoting applies and an apostrophe in a text is a character.
+const { text: { lines: { filled } }, host: { draftCall } } = require('@atlasbound/kit');
 const { WORDS } = require('../../contracts/codes.cjs');
 const { SHAPES, shapeOf } = require('../../contracts/shapes.cjs');
-const { decision } = require('../../base/fill.cjs');
 const { skeletonOf } = require('../skeleton.cjs');
 
-/** `words`: `new`, or `add <id>`. */
-const heredocOf = (words, value) => `atlasbound decisionbook ${words} <<'JSON'\n${JSON.stringify(value)}\nJSON`;
+/** `words`: `new`, or `add <id>`; the draft is named by the plan it writes (`new` before there is one), in `session`'s drafts folder. */
+const draftedCall = (words, value, session) => draftCall(`${WORDS.call} ${words}`, words.split(' ').at(-1), JSON.stringify(value), session);
 /** The one add that supplies `records` to the plan `id`. */
-const addCall = (id, records) => heredocOf(`add ${id}`, records);
+const addCall = (id, records, session) => draftedCall(`add ${id}`, records, session);
 /** The command that shows `ref` (a plan id, or a `type:value` node); `node`: the one part of a plan to show. */
-const showCall = (ref, node) => ['atlasbound decisionbook show', ref, ...(node ? [node] : [])].join(' ');
+const showCall = (ref, node) => [WORDS.call, 'show', ref, ...(node ? [node] : [])].join(' ');
+const jsonCall = (...words) => [WORDS.call, ...words, '--json'].join(' '); // the call a bounded text's `+n more` line names
 
-/** The one record by which a person's decision replaces an earlier one; `ref`: that one's `<plan id>/<key>`. */
-function replaceLine(ref) {
-  return filled(WORDS.replaceOne, { record: JSON.stringify(decision({ key: '<key>', supersedes: [ref] })) });
-}
+/** How a person's decision replaces an earlier one: a question that names it, and their answer that places it; `ref`: that one's
+ * `<plan id>/<key>`. */
+const replaceLine = (ref) => filled(WORDS.replaceOne, { ref });
 
 /** The published type of each blank ("") field of `records`, as [field, type]. */
 const blankTypes = (records) => records.flatMap((record) => Object.keys(record)
@@ -41,10 +40,10 @@ function shapesLine(records) {
 
 /** A not-READY plan's one add of everything it still lacks, as a call to fill and send, and the shapes its blanks
  * hold. */
-function nextAdd(view, danger) {
+function nextAdd(view, danger, session) {
   const fill = skeletonOf(view, view.level.level, { rows: view.unmet.map((row) => row.id), danger });
   const records = [...fill.ai, ...fill.person];
-  return { call: addCall(view.id, records), shapes: shapesLine(records) };
+  return { call: addCall(view.id, records, session), shapes: shapesLine(records) };
 }
 
-module.exports = { heredocOf, addCall, showCall, replaceLine, shapesLine, nextAdd };
+module.exports = { draftedCall, addCall, showCall, jsonCall, replaceLine, shapesLine, nextAdd };

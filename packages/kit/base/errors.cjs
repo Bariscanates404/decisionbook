@@ -19,6 +19,17 @@ function fail(code, msg) {
   return err;
 }
 
+/** The code a call throws (`unexpected-error` for an error with none), or null where it returns: for a call whose failure is an answer. */
+function thrownCode(call) {
+  try {
+    call();
+    return null;
+    // eslint-disable-next-line no-restricted-syntax -- not silent: the code IS the answer, to the caller
+  } catch (err) {
+    return err.code || 'unexpected-error';
+  }
+}
+
 const isFail = (err, code) => Boolean(err) && err[MADE_BY_FAIL] === true && (code === undefined || err.code === code);
 
-module.exports = { fail, isFail, MSG_CAP };
+module.exports = { fail, isFail, thrownCode, MSG_CAP };

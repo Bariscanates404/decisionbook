@@ -13,7 +13,9 @@ var floor = found ? found[1] : null;
 var need = /\d+/.exec(floor);
 var have = process.versions.node;
 if (need && parseInt(have, 10) < Number(need[0])) {
-  var line = 'AtlasBound needs Node ' + need[0] + ' or newer; this is Node ' + have + '. Install it from https://nodejs.org, then run it again.';
+  var line = 'AtlasBound needs Node ' + need[0] + ' or newer; this is Node ' + have + '. Install it from https://nodejs.org, then run it again. ' +
+    'Your project can stay on its Node version: install AtlasBound with Node ' + need[0] + ' or newer (e.g. `nvm exec ' + need[0] +
+    ' npm install -g atlasbound`) and run its commands with that Node (`nvm exec ' + need[0] + ' atlasbound setup`); its hooks run that Node.';
   var hookRow = process.argv[2] === 'hook';
   process[hookRow ? 'stdout' : 'stderr'].write((hookRow ? JSON.stringify({ systemMessage: 'atlasbound: no verdict formed: ' + line }) : line) + '\n');
   process.exit(hookRow ? 0 : 1);

@@ -11,6 +11,8 @@ const { errors: { fail, isFail }, paths: { parentDir } } = require('@atlasbound/
 const validate = require('../contracts/validate.cjs');
 const { CLI_VERBS, CLI_FREE, CLI_NEXT, MODULES, under, route, tableWords, valueFlags, entryAt } = require('../contracts/verbs.cjs');
 const { isOn, onHere } = require('../core/modules.cjs');
+const { placedCommands } = require('../core/host.cjs');
+const { slashOf } = require('../core/help.cjs');
 
 const SCOPE = '@atlasbound';
 
@@ -114,10 +116,12 @@ function catalogOf(rows, modules, taken) {
     verbs, provides, modules, conflicts: [...conflicts, ...taken], valueFlags: valueFlags(verbs),
     route: (words) => route(verbs, words), under: (words) => under(verbs, words), tableWords: (words) => tableWords(verbs, words),
     free: [...CLI_FREE.map((words) => ({ words, pkg: null })), ...own('free').map(({ item, pkg }) => ({ words: item, pkg }))],
+    alone: own('freeAlone').map(({ item, pkg }) => ({ words: item, pkg })),
     next: [...CLI_NEXT.map((row) => ({ ...row, pkg: null })), ...own('next').map(({ item, pkg }) => ({ ...item, pkg }))]
       .sort((a, b) => a.step - b.step),
     tasks: verbs.flatMap((row) => row.tasks ?? []), hookConfig: [...new Set(own('hookConfig').map(({ item }) => item))],
     plain: (name) => rows.find((r) => r.name === name)?.manifest?.plain || name,
+    slash: slashOf(placedCommands(read.map((r) => ({ name: r.name, ...r.manifest })))),
     missing: missingOf(rows, modules.modules),
   });
 }

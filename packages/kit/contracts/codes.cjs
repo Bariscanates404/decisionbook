@@ -32,7 +32,8 @@ const ROWS = [
   ['shell-code-path', 'the code builds the path it writes'],
   ['shell-too-deep', 'a command string nested deeper than the reader goes'],
   ['shell-cut-short', 'the reader stopped before the end (time up, a cd too long, code too long)'],
-  // the product's own store (base/paths OWN_STORE), here and in the person's home: the write gate and the shell gate
+  ['shell-unparsed', 'a PowerShell or cmd text it cannot read: an unknown parameter or encoded text'],
+  // the product's own store (base/paths OWN_STORE), here and in the person's home: the cli port's seal (write tools) and the shell gate
   // (decisionbook) refuse it alike
   ['STORE_SEALED', 'only AtlasBound itself writes here: its state and what a person said', // a short is at most 80
     'Leave it as it is; if something in it looks wrong, say so to the person.'],

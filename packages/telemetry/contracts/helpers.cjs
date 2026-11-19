@@ -2,41 +2,51 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-// Telemetry's helper module: the small pure helpers its folds and its wall use. Nothing here decides.
-const { MAX_BREAKDOWN_EVENTS, BAND_WORDS, wireWord } = require('./rules.cjs');
+// Telemetry's helper module: the small helpers its core and steps share, each over what it is handed. What may leave is core/leave.cjs's.
+const { traced, lock: { withLock }, errors: { fail, isFail } } = require('@atlasbound/kit');
+const { PATHS, validate } = require('./shapes.cjs');
 
-/** A word as it leaves when its published list holds it, else `other`: anything not in the list never leaves as itself. */
-const closedWord = (words, word) => (words.includes(wireWord(word)) ? wireWord(word) : 'other');
+const HOUR_MS = 3600 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+/** Days from `day` to `today` (a day or a time each). */
+const daysAgo = (day, today) => (Date.parse(today) - Date.parse(day)) / DAY_MS;
+/** `n` more of `kind` in a tally; nothing for zero. */
+const addTo = (counts, kind, n) => Object.assign(counts, n > 0 ? { [kind]: (counts[kind] ?? 0) + n } : {});
+/** A JSON record of a store (the repository's or the home's), or `fallback` when it is absent or does not read. */
+const recordAt = (store, key, fallback = null) => validate.jsonOrNull(store.readText(key, { noLink: true }) ?? '') ?? fallback;
+/** A JSON record written whole, as one line. */
+const writeRecord = (store, key, value) => store.writeAtomic(key, `${JSON.stringify(value)}\n`);
+/** A report file: line 1 its bytes, as written once; line 2 its state. */
+const reportText = (line, state) => `${line}\n${JSON.stringify(state)}\n`;
+/** Random bytes as hex: a report's id, a period's id and token. */
+const randomHex = (bytes) => Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(bytes))).toString('hex');
+/** Whole minutes below `minutes`, in ms: spreads the attempts of many machines. */
+const jitterMs = (minutes) => Math.floor(Math.random() * minutes) * 60000;
+/** A trace row's host event, as its closed list will word it. */
+const hostEvent = (row) => row.ref?.event ?? 'other';
+/** A state that does not report, and why. */
+const closedState = (code, why = null) => ({ on: false, code, source: null, since: null, why });
+/** A namespace's entry of a choice, or null. */
+const choiceEntry = (choice, ns) => (Object.hasOwn(choice.modules, ns) ? choice.modules[ns] : null);
+/** An on made under the current (core, namespace) policy pair. */
+const onUnderPair = (entry, { wire, space }) => entry?.on === true && entry.core === wire.policy && entry.policy === space.policy;
 
-/** What the rules make of a trace row: its package's mark for its step (an event name or local-only), or undefined (no rule). */
-const markOf = ({ pkg, step }, { STEP_RULES }) => (Object.hasOwn(STEP_RULES, pkg) && Object.hasOwn(STEP_RULES[pkg], step)
-  ? STEP_RULES[pkg][step] : undefined);
-
-/** The word of the first bucket whose bound is above the value: [[bound, word], …] ending at Infinity. */
-const bucketOf = (value, edges) => edges.find(([bound]) => value < bound)[1];
-
-/** A rule's word dimensions: its enums that are no band (a band is a count that leaves as a word). */
-const dimsOf = (rule) => Object.entries(rule.enums).filter(([, words]) => words !== BAND_WORDS);
-
-/** A step's codes: each one it counted at least once. */
-const codesSaid = (counts) => Object.fromEntries(Object.entries(counts).filter(([, count]) => count > 0));
-
-/** `count` more of `name` in a tally. */
-const addTo = (tally, name, count) => {
-  tally[name] = (tally[name] || 0) + count;
-};
-
-/** `count` more of `name` in the event of these words on that day. */
-function tallyEvent(buckets, { event, at, words, name, count }) {
-  const key = [event, at.slice(0, 10), ...Object.values(words)].join('|');
-  if (!buckets.has(key)) buckets.set(key, { event, at, payload: { ...words } });
-  addTo(buckets.get(key).payload, name, count);
+/** The namespaces one module word names (the namespace, or a package in it); no word: none named, so all. */
+function modulesNamed(spaces, rest = []) {
+  const found = rest.slice(0, 1).map((word) => spaces.find((space) => space.ns === word || space.packages.includes(word)));
+  if (found.includes(undefined)) throw fail('telemetry-module-unknown', rest[0]);
+  return found.map((space) => space.ns);
 }
 
-/** A table's events in their first order, at most MAX_BREAKDOWN_EVENTS, and how many were cut. */
-const boundedEvents = (buckets) => {
-  const events = [...buckets.values()];
-  return { events: events.slice(0, MAX_BREAKDOWN_EVENTS), cut: Math.max(0, events.length - MAX_BREAKDOWN_EVENTS) };
-};
+/** A step of its own trace record -> its `out`. */
+const tracedOut = (io, name, fn) => (input, ctx) => traced(io, name, fn)(input, ctx).then((res) => res.out);
+/** A coded failure as a coded answer (another process holding the sender lock: busy); an uncoded one goes on. */
+function codedAnswer(err) {
+  if (!isFail(err)) throw err;
+  return { code: err.code === 'lock-held' ? 'telemetry-busy' : err.code };
+}
+/** `fn` under the one sender lock, never waited for. */
+const withSendLock = (io, fn) => withLock(io, PATHS.lock, fn, 0);
 
-module.exports = { closedWord, markOf, bucketOf, dimsOf, codesSaid, addTo, tallyEvent, boundedEvents };
+module.exports = { HOUR_MS, DAY_MS, daysAgo, addTo, recordAt, writeRecord, reportText, randomHex, jitterMs, hostEvent, closedState,
+  choiceEntry, onUnderPair, modulesNamed, tracedOut, codedAnswer, withSendLock };
