@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security or privacy vulnerability
+    url: https://github.com/Bariscanates404/decisionbook/security/advisories/new
+    about: Report sensitive security details privately. Do not open a public issue.
+  - name: Read the privacy policy
+    url: https://github.com/Bariscanates404/decisionbook/blob/main/PRIVACY.md
+    about: Learn what is stored, where it stays, and what reaches your coding session.

@@ -1,0 +1,27 @@
+name: Feature request
+description: Explain a workflow that DecisionBook or Handoff could support better.
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the problem and the outcome you need. Please do not share confidential code or company information.
+        For implementation contributions, read CONTRIBUTING.md first.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the real workflow and where it becomes difficult.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What would a useful outcome look like?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What have you tried already?
+      description: Existing commands, manual notes, or another approach. No private data is needed.

@@ -1,0 +1,44 @@
+name: Bug report
+description: Report a reproducible problem with DecisionBook or Handoff.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping improve DecisionBook and Handoff.
+        Share only a minimal, sanitised example. Do not paste private code, prompts, conversations, credentials or complete work records.
+        Security or privacy vulnerabilities belong in the repository's private vulnerability reporting form, not a public issue.
+  - type: input
+    id: version
+    attributes:
+      label: AtlasBound version
+      description: The version printed by atlasbound --version.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system, Node.js version, Claude Code version, and shell. Do not include private paths or account details.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: The smallest sequence that reproduces the issue, preferably in a disposable repository.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: Include a short, sanitised error or refusal code if available. A planned check is not a completed test.
+    validations:
+      required: true
