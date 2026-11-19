@@ -62,9 +62,9 @@ Setup adds this product's hooks and commands to the repository's local Claude Co
 | **Work records** | Plain JSON lines in `.decisionbook/`, reviewable and yours to commit with the code. |
 | **Handoff** | A per-branch note and locally kept message excerpts in your home folder, outside the repository. |
 | **Model use** | Your existing Claude Code session does the AI work. Context given to that session goes to its configured model provider under your account. |
-| **Package** | Node.js built-ins, no third-party runtime libraries and no install scripts. Dependency-free does not mean risk-free; source, release and update integrity still matter. |
+| **Package** | Node.js built-ins, no third-party runtime libraries and no install scripts. |
 
-This is a workflow guard and a work record. It does not guarantee that the agent finds every open question, interprets every answer correctly or makes the right change. See [Limits](#limits) and [Security](SECURITY.md).
+It adds a research-and-record workflow to your existing coding session. For enforcement boundaries and platform coverage, see [Limits](#limits) and [Security](SECURITY.md).
 
 ## Find your way
 
