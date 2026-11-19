@@ -1,61 +1,83 @@
-# DecisionBook and Handoff for Claude Code
+# DecisionBook + Handoff
 
-Your code has history. Your decisions should too.
+**Your code has history. Your decisions should too.**
 
-DecisionBook and Handoff keep the work behind your code: what the task was for, what the agent found in the code, the
-questions it could not answer, your answers in your own words, and how the change was checked. It all stays in plain files
-beside the code, so the next session, a teammate or a pull request reviewer starts from what was already learned.
+A local work-memory layer for Claude Code. Ground the task before the first edit, then keep the research, open questions, human answers and checks with the work.
 
-Your coding agent forgets what you decided an hour ago. **DecisionBook** makes it write a short plan and ask you before it
-edits the files you protect, and keeps your answers, as yours, in plain files beside the code. **Handoff** keeps a note of
-the work, so after `/clear` the next session starts from your decisions instead of asking you the same things again.
+[Website](https://atlasbound.dev/en/decisionbook/) · [Quick start](#quick-start) · [Example record](#what-a-plan-looks-like) · [Privacy](PRIVACY.md) · [Security](SECURITY.md)
 
-It is a layer over the way you already work: `setup` adds its own hooks and commands to this repository's local Claude Code
-settings and leaves yours alone, and `uninstall` takes them out again. It runs on your machine. The only AI involved is
-your own Claude Code session, so your code goes nowhere it does not already go. Zero third-party dependencies, nothing
-runs at install, Node 22 or newer.
+![An illustrative work record: repository research reveals an open question, the person answers, and the record becomes context for later work.](.github/assets/work-memory.svg)
 
-## Install
+*Illustration of the README example below, not a live product screen.*
 
-    npm install -g atlasbound
+Your agent can read the implementation. It cannot recover every product choice or exception from the code alone. DecisionBook gives the session a research-first process and keeps the answers it receives. Handoff brings the ongoing work into the next session.
 
-## The two-minute walk
+- **Before the change:** research the task and the affected code; bring the person the questions that evidence cannot settle.
+- **With the change:** keep the purpose, findings, questions, human answers and acceptance checks in an append-only work record.
+- **After a cleared context:** resume with the handoff note and relevant recorded decisions.
+- **When someone returns to the code:** find the earlier work by file, with its wording, sources and links.
 
-In the repository you work in:
+**Built on Node.js. No third-party runtime packages. No bundled third-party libraries. No install scripts.** The local CLI uses your existing Claude Code session; it does not start a separate recording model or require an AtlasBound account.
 
-    cd your-repository
-    atlasbound setup
+The npm package and command are named **`atlasbound`**. This repository contains the open-source **DecisionBook + Handoff** product; Bound is a separate add-on.
 
-`setup` wires six hooks and four slash commands (`/decisionbook`, `/decide`, `/handoff`, `/resume-handoff`) into this repository's
-local Claude Code settings, adds a block to `.gitignore`, and then asks you one question: what to protect. It shows what it
-would pick, for example:
+## Quick start
 
-    automatic: lib/** (6 files), tests/** (110 files), typings/** (2 files)  ->  atlasbound protect --source
-    choose: the paths the person names  ->  atlasbound protect "<path or glob>[,...]"
+**Requires:** Node.js 22 or newer, a Git repository, and Claude Code. This published release is tested on macOS and Linux; see [Limits](#limits) for platform coverage.
 
-You answer it yourself (the AI is told not to):
+Install:
 
-    atlasbound protect --source
-    atlasbound doctor           # "doctor: ok": what is installed and wired, and whether the installed files match this release
+```sh
+npm install -g atlasbound
+```
 
-Commit the `.gitignore` change; everything else setup wrote stays out of git. Now start Claude Code in the repository (or
-restart it, so it picks up the hooks) and give it a task that touches a protected file:
+Inside the repository you want to work on:
 
-1. **It plans and asks.** The product hands the agent a pre-filled plan skeleton for the area; the agent reads the code
-   itself, sends the plan with one `atlasbound decisionbook new`, and shows it to you with every open question in one
-   message, each with the answer it proposes. No code yet.
-2. **You decide.** Answer each question in a sentence of your own. A decision counts as yours only in your own whole
-   sentence, written after the plan exists. A yes written by the agent with no message of yours behind it is refused.
-   If you take its proposals as a whole ("go with your suggestions"), that counts, and each such decision is marked as
-   taken whole, so you can tell later which ones you looked at one by one.
-3. **It codes.** Once the plan is READY it is frozen and the edits go through in silence. The plan, your decisions and
-   the checks are in `.decisionbook/<date>-<title>.jsonl`, append-only, reviewable in a pull request.
-4. **Hand off when you want.** Type `/handoff`. The note keeps up to seven lines quoted from your own messages (each one
-   says which message it comes from), what is half-done and the next steps. Then `/clear`, then `/resume-handoff`: the new
-   context starts from that note and from DecisionBook's settled decisions, and does not ask again what you already
-   decided.
+```sh
+atlasbound setup
+```
 
-To take it all out again: `atlasbound uninstall` (you type the phrase it names, at your own terminal).
+Setup shows the files it suggests protecting. Review that choice, then choose those source files or name your own paths:
+
+```sh
+atlasbound protect --source
+atlasbound doctor
+```
+
+Commit the `.gitignore` change. Start a new Claude Code session so the local hooks and commands load, then give it a task touching a protected file.
+
+| Step | What happens |
+|---|---|
+| **Research and ask** | The agent investigates the code, prepares a plan and brings its open questions with proposed answers before editing protected files. |
+| **Answer in your own words** | Your answers are recorded separately from the agent's proposals. Inspect what was recorded before proceeding. |
+| **Build with the context** | A READY plan covers the protected edits. Research, decisions and acceptance checks stay in the plan file. |
+| **Continue in a fresh session** | Use `/handoff`, then `/clear`, then `/resume-handoff`. The new session receives the handoff note and settled decisions. |
+
+Setup adds this product's hooks and commands to the repository's local Claude Code settings. It preserves your other settings. To remove that setup, run `atlasbound uninstall` yourself and follow its terminal prompt. [Privacy](PRIVACY.md) explains which records remain and what `--purge` removes.
+
+## Local by design
+
+| Surface | What to know |
+|---|---|
+| **Work records** | Plain JSON lines in `.decisionbook/`, reviewable and yours to commit with the code. |
+| **Handoff** | A per-branch note and locally kept message excerpts in your home folder, outside the repository. |
+| **Model use** | Your existing Claude Code session does the AI work. Context given to that session goes to its configured model provider under your account. |
+| **Package** | Node.js built-ins, no third-party runtime libraries and no install scripts. |
+
+It adds a research-and-record workflow to your existing coding session. For enforcement boundaries and platform coverage, see [Limits](#limits) and [Security](SECURITY.md).
+
+## Find your way
+
+| I want to… | Start here |
+|---|---|
+| See the data the product keeps | [An example record](#what-a-plan-looks-like) |
+| Understand the two modules | [DecisionBook](#what-decisionbook-does) · [Handoff](#what-handoff-does) |
+| Understand what becomes useful later | [What to expect](#what-to-expect) |
+| Read the measured results and their caveats | [The long-task experiment](#one-long-task-experiment) |
+| Report a reproducible bug | [Open a bug report](https://github.com/Bariscanates404/decisionbook/issues/new/choose) |
+| Report a security problem privately | [Private vulnerability report](https://github.com/Bariscanates404/decisionbook/security/advisories/new) |
+| Contribute or ask about licensing | [Contributing](CONTRIBUTING.md) · [Licence](#licence) |
+
 
 ## What a plan looks like
 
@@ -164,12 +186,15 @@ here needs it.
 
 AGPL-3.0-only. Copyright (C) 2026 AtlasBound; see NOTICE and LICENSE.
 
-The source of this exact release is the public repository at tag `v0.25.0`: https://github.com/Bariscanates404/decisionbook. The npm package is
-the five folders of `packages/` there and the four root documents, byte for byte for every file it ships, and three files
-written when it is packed: `kit.cjs` (one line that loads the kit folder), the npm `package.json`, and `MANIFEST.json`, which
-lists every other file's sha256.
+The source of the published release is pinned at [tag `v0.25.0`](https://github.com/Bariscanates404/decisionbook/tree/v0.25.0).
+That tag contains the five package folders and release documents used to build the npm package. Packing adds `kit.cjs`,
+the npm `package.json`, and `MANIFEST.json`, which lists the other shipped files' SHA-256 digests.
+
+The README and GitHub presentation on the default branch may be updated independently of that release. Use the release
+tag when comparing published package contents; documentation changes here do not publish a new npm version.
 
 For alternative licensing terms, open a commercial-licensing enquiry in the public repository. Any alternative licence will
 be provided under a separate written agreement.
 
 Contributions: see CONTRIBUTING.md in the public repository. The names AtlasBound and DecisionBook: see NOTICE.
+
