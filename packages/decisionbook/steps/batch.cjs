@@ -10,16 +10,17 @@ const { bound, problemOf, recordProblems, shapesTold, shapeOf, nodeOf, isPlanLin
 const { anyOverlap, wordGlob } = require('../base/glob.cjs');
 const { scopeOf } = require('../core/fold.cjs');
 const { builtOnOf } = require('../core/web.cjs');
-const { questionRefused, noForkRefused, readyAgain } = require('../core/ready.cjs');
+const { questionRefused, noForkRefused, oneAnswer } = require('../core/ready.cjs');
 const { yesCovers, whoseRecord, theirWords, whyNotTheirs, unsaid, answersAreYes, PERSON, NOT_ASKED, NOT_THEIRS } = require('../core/yes.cjs');
-const { isAi, isAfter, isKeep, wordCut, asList, headsOf, isTheirs } = require('../base/text.cjs');
+const { isAi, isAfter, isKeep, wordCut, asList, isLive, holdsAlone, saidOf } = require('../base/text.cjs');
 const { FORKS, HEARD, isPointerTool } = require('../contracts/rubric.cjs');
-const { recordPlace, batchRefusal, noSuchLine } = require('../core/text/refused.cjs');
+const { recordPlace, batchRefusal, noSuchLine, theirPlan } = require('../core/text/refused.cjs');
 const { trackedNow } = require('./changed.cjs');
 const { sessionReads, sessionRead, actorOf, promptsOf } = require('./here.cjs');
 const { asideRefused, goesOn } = require('./open.cjs');
+const { teammateOf, standingLinesOf, teammatesLineRefused } = require('./teammate.cjs');
 const { planContracts } = require('./promise.cjs');
-const { planRubric, unreadyState, missingAnswer, becomeReady } = require('./ready.cjs');
+const { planRubric, stateLadder } = require('./ready.cjs');
 const { phase } = require('./phase.cjs');
 const store = require('./store.cjs');
 const trust = require('./trust.cjs');
@@ -46,10 +47,23 @@ function yesFor(io, batch, view, { said, own }) {
   if (yes.refused) return { refused: [NOT_ASKED, `${view.id}: ${yes.refused}`] };
   if (actor.who === 'terminal' || own) return yes;
   const kept = view.decisions.filter(isKeep).reduce((last, d) => (!last || isAfter(d.at, last.at) ? d : last), null);
-  const since = kept && kept.said !== said ? kept.at : view.at;
+  const since = kept && !oneAnswer(kept, said) ? kept.at : view.at;
   const heard = promptsOf(io);
   const theirs = theirWords(heard, said, since);
   return theirs === null ? { refused: unsaid(NOT_THEIRS, heard, whyNotTheirs(heard, said, since)) } : { ...yes, said: theirs };
+}
+
+/** A `compared` link is the person's answer to the lost item it names (core/lost), on a plan of this clone's own (a teammate clears
+ * theirs): at their terminal their words as typed, else words of a message they typed after the line it names (its `@<at>`) was
+ * written, so the item was before them. -> [code, detail] | null */
+async function comparedRefused(io, batch, value) {
+  if (value.rel !== 'compared') return null;
+  const teammate = await teammateOf(io, batch.id);
+  if (teammate) return theirPlan('compared-theirs', batch.id, teammate);
+  const heard = promptsOf(io);
+  const since = value.to.includes('@') ? value.to.slice(value.to.lastIndexOf('@') + 1) : null;
+  const theirs = actorOf(io).who === 'terminal' ? saidOf(value) !== '' : theirWords(heard, saidOf(value), since) !== null;
+  return theirs ? null : unsaid(NOT_THEIRS, heard, whyNotTheirs(heard, saidOf(value), since));
 }
 
 const personsBy = (sent) => (['aside', 'confirm'].includes(sent?.t) && !isAi(sent.by) ? { ...sent, by: PERSON } : sent); // judged after
@@ -63,34 +77,34 @@ function withDecider(io, batch, view, sent) {
   return { value: { ...sent, by: by ?? PERSON, ...(said !== undefined && { said }) }, refused, fresh };
 }
 
-/** On a person's line of a key `view` holds person lines of, the `at` of each of them that stands (base/text headsOf): the lines it
- * replaces, the product's own stamp, never the sender's, so two lines written apart from each other meet as rivals (core/web).
+/** The `at` of each standing person line of `d`'s key in `view` (steps/teammate standingLinesOf): the lines a person's line replaces, the
+ * product's own stamp, never the sender's, so two lines written apart from each other meet in a conflict (core/validity).
  * -> [at] | undefined */
-const revisedAt = (view, d, heads = headsOf(view.decisions.filter((o) => isTheirs(d) && isTheirs(o) && o.key === d.key
-  && (o.scope ?? null) === (d.scope ?? null)))) => (heads.length ? heads.map((o) => o.at) : undefined);
+const revisedAt = (view, d, standing = standingLinesOf(view, d)) => (standing.length ? standing.map((o) => o.at) : undefined);
 
 /** A tool's answer sent as research is stored as a pointer to what it pointed at (contracts/rubric isPointerTool). */
 const pointerOf = ({ tool, asked, answer, source }) => ({ t: 'pointer', tool, asked, answer, ...(source !== undefined && { source }) });
 
-/** A record as it is stored. A plan word in the protect verb's one reading (`src` is `src/**`, so the gate passes what
- * was typed); a confirm with what changed the plan after the person saw it (the verb's word, never the sender's) and their words
- * as stored; a decision with the commit it was made on, and `saidBy` (who said an answer the person relayed) only on theirs. */
+/** A record as it is stored. A plan word in the protect verb's one reading (`src` is `src/**`, so the gate passes what was typed); a
+ * confirm with what changed the plan after the person saw it (the verb's word, never the sender's), an aside and a compared link, with
+ * their words as stored; a decision with the commit it was made on, and `saidBy` (who said an answer the person relayed) only on theirs. */
 async function storedForm(io, value, { tracked, yes, view }) {
   if (value.t === 'research' && isPointerTool(value.tool)) return pointerOf(value);
   const planned = isPlanLink(value) ? { to: refOf('file', wordGlob(nodeOf(value.to).value, tracked)), by: undefined } : {}; // by: the gate's
   const amended = yes ? { amended: yes.amended, by: PERSON, ...(yes.said !== undefined && { said: yes.said }) } : {};
   const head = value.t === 'decision' ? { head: await io.git.head(), saidBy: value.by === PERSON ? value.saidBy : undefined,
     revises: revisedAt(view, value) } : {};
-  return { ...value, ...planned, ...amended, ...(value.t === 'aside' && { said: wordCut(value.said, HEARD.said) }), ...head };
+  const theirs = (value.t === 'aside' || value.rel === 'compared') && { said: wordCut(value.said, HEARD.said), by: PERSON }; // judged theirs
+  return { ...value, ...planned, ...amended, ...theirs, ...head };
 }
 
 /** A decision recorded as the person's on their words, as the reply says it: its words, what it replaces or keeps. -> [row] | [] */
 const theirsOf = (record) => (record.t === 'decision' && record.by === PERSON && typeof record.said === 'string' ? [{ key: record.key, said: record.said,
   ...(record.supersedes?.length && { replaces: record.supersedes }), ...(record.keeps?.length && { keeps: record.keeps }) }] : []);
 
-/** One record against the plan as the batch leaves it so far. Every reason it is refused, in one pass: its shape and
- * its type's checks (contracts/shapes), what the plan refuses of it, a yes no person gave, a cited line that is not
- * here. One that holds comes back as it will be stored, with the decisions that already stand on the files it names.
+/** One record against the plan as the batch leaves it so far. Every reason it is refused, in one pass: its shape and its type's checks
+ * (contracts/shapes), what the plan refuses of it, a yes no person gave, a cited line that is not here. One that holds comes back as it
+ * will be stored, with the decisions that already stand on the files it names (a key in a conflict as that conflict: no line holds).
  * -> { problems } | { record, existing } */
 async function judgeRecord(io, batch, sent, { tracked, own }) {
   const view = store.readPlan(io, batch.id, batch);
@@ -103,11 +117,13 @@ async function judgeRecord(io, batch, sent, { tracked, own }) {
     value.t === 'question' && questionRefused(view, decisions, value),
     noForkRefused(view, value),
     !shaped.length && asideRefused(io, view, value),
+    !shaped.length && await comparedRefused(io, batch, value),
+    await teammatesLineRefused(io, batch, value),
     yes && yes.refused,
     problemOf(() => uncited(io, value))].filter(Boolean);
   if (problems.length) return { problems };
-  const standing = decisions.filter((d) => d.state === 'active' && anyOverlap(d.files, files));
-  const existing = standing.map((d) => ({ ref: d.ref, key: d.key, scope: d.scope, value: d.value }));
+  const existing = decisions.filter((d) => isLive(d) && anyOverlap(d.files, files))
+    .map((d) => (holdsAlone(d) ? { ref: d.ref, key: d.key, scope: d.scope, value: d.value } : { ref: d.ref, conflict: d.conflict }));
   return { record: await storedForm(io, value, { tracked, yes, view }), existing, fresh };
 }
 
@@ -128,7 +144,8 @@ function answeredYes(io, batch, held) {
 async function judgeAll(io, batch, values, { tracked, besideHead }) {
   const held = [];
   const refused = [];
-  const queue = [...values];
+  const isYes = (value) => value?.t === 'confirm'; // a yes covers the plan as the write leaves it: judged and stamped after the rest
+  const queue = [...values.filter((value) => !isYes(value)), ...values.filter(isYes)];
   for (let i = 0; i < queue.length; i += 1) {
     const judged = await judgeRecord(io, batch, queue[i], { tracked, own: i >= values.length }).catch((err) => {
       if (!isFail(err)) throw err;
@@ -138,7 +155,7 @@ async function judgeAll(io, batch, values, { tracked, besideHead }) {
       store.hold(io, batch, judged.record);
       held.push({ t: judged.record.t, existing: judged.existing, record: judged.record, fresh: judged.fresh });
     } else if (i < values.length) {
-      refused.push({ place: recordPlace(i, values.length, besideHead), problems: judged.problems });
+      refused.push({ place: recordPlace(values.indexOf(queue[i]), values.length, besideHead), problems: judged.problems });
     }
     if (i === values.length - 1 && !refused.length) queue.push(...answeredYes(io, batch, held));
   }
@@ -160,25 +177,15 @@ function builtOn(io, batch, values) {
 const unmetBefore = (io, batch) => (batch.fresh ? null
   : Object.fromEntries(store.readWeb(io).views.find((view) => view.id === batch.id).unmet.map((row) => [row.id, JSON.stringify(row)])));
 
-/** Step 4: the state the write left. A complete draft becomes READY; a READY plan is frozen, and stored again only on a yes given
- * again (core/ready); a parked, closed or replaced plan is only told, never made READY again. */
+/** Step 4: the state the write left (steps/ready stateLadder). A complete draft becomes READY; a READY plan is frozen, and stored
+ * again only on a yes given again (core/ready); a parked, closed or replaced plan is only told, never made READY again. */
 async function stateAfter(io, batch, before) {
-  const left = await stateOf(io, batch.id, before);
+  const left = await stateLadder(io, await planRubric(io, batch.id), { before, asked: false });
   sessionRead(io, io.session, [batch.id], 'write'); // this session works on the plan now (steps/here worksOn)
   if (batch.fresh) phase(io, {}, batch.id, 'created');
   if (left.out.ready === true) phase(io, {}, batch.id, 'ready');
   return left;
 }
-async function stateOf(io, id, before) {
-  const judged = await planRubric(io, id);
-  const { view, n } = judged;
-  if (view.state === 'aside') return { out: { ...unreadyState(view), state: view.state }, code: 'plan-set-aside', n };
-  if (view.unmet.length) return missingAnswer(io, judged, before);
-  if (readyAgain(view)) return becomeReady(io, judged);
-  const told = { ...unreadyState(view), ready: view.state === 'ready', state: view.state, here: true };
-  return { out: told, code: 'plan-ready', n };
-}
-
 /** `batch`: { id, lines, fresh } (steps/store), for a `new` already holding its plan record; `refusedHead`: that
  * record's own problems, named with the records'. Nothing is written unless every record holds.
  * -> null where a new's file was made by another process meanwhile (steps/store commit): nothing was written. */

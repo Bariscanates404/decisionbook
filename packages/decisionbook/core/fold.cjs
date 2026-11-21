@@ -6,7 +6,7 @@
 // stale.
 const { shapeOf, isPlanLink, plannedPath } = require('../contracts/shapes.cjs');
 const { isDangerPath } = require('../contracts/rubric.cjs');
-const { isAi } = require('../base/text.cjs');
+const { isTheirs } = require('../base/text.cjs');
 
 const HEADER = ['title', 'why', 'success', 'goal', 'kind', 'level', 'tags'];
 // the records that change what will be done, by kind; written after the person last saw the plan, the yes keeps their kinds, never their
@@ -58,7 +58,8 @@ const APPLY = {
   check: (v, r) => v.checks.push({ id: r.id, text: r.text, how: r.how ?? null, command: r.command ?? null }),
   item: (v, r) => v.items.push({ kind: r.kind, text: r.text, covers: r.covers ?? [], file: r.file ?? null }),
   // by: the person's yes to the gate's ask added it (steps/gate)
-  link: (v, r) => v.links.push({ rel: r.rel, to: r.to, why: r.why ?? null, source: r.source ?? null, by: r.by ?? null }),
+  link: (v, r) => v.links.push({ rel: r.rel, to: r.to, why: r.why ?? null, source: r.source ?? null, by: r.by ?? null,
+    said: r.said ?? null }),
   waiver: (v, r) => {
     v.waiver = { reason: r.reason, by: r.by, at: r.at ?? null };
   },
@@ -76,6 +77,7 @@ const APPLY = {
   }, // never written again
   ready: (v, r) => {
     v.ready = r;
+    v.builtAt ??= r.at; // when it was first built: a READY stored again later never moves it (core/lost)
     v.stage = 'ready';
   },
   closed: (v, r) => {
@@ -117,7 +119,7 @@ const dangerSince = (view, danger) => scopeOf(view).slice(view.confirm.after).fi
 /** Each decision, and on a person's whose value is not its question's proposal, that proposal (`proposedThen`): no new field kept. Whether
  * the person took it is their AI's reading (the value is its words): the product shows both and never says the proposal was refused. */
 const withProposed = (view, decisions) => decisions.map((d) => {
-  const q = !d.proposed && !isAi(d.by) && view.questions.find((one) => one.q === d.answers);
+  const q = isTheirs(d) && view.questions.find((one) => one.q === d.answers);
   return q && q.proposal && q.proposal.trim() !== String(d.value).trim() ? { ...d, proposedThen: q.proposal } : d;
 });
 

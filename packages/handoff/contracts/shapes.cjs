@@ -14,11 +14,9 @@ const SCHEMA = Object.freeze({ note: 'handoff-note/1', session: 'handoff-session
 const STEPS = ['start', 'prompt', 'touched', 'compact', 'stop', 'handoff', 'keep', 'show', 'drop', 'debug'];
 
 // The one context notice: said once per session when the last assistant message's usage passes `percent` of the model's window; an unknown
-// window: tokens alone, at `unknownTokens`; `tailBytes` of the transcript are read.
+// window: tokens alone, at `unknownTokens`; `tailBytes` of the transcript are read (bounds.json `context`).
 const CONTEXT = Object.freeze({
-  percent: 55,
-  unknownTokens: 110000,
-  tailBytes: 4 * 1024 * 1024,
+  ...BOUNDS.context,
   reduced: WINDOWS.reduced,
   env: WINDOWS.env,
   windows: WINDOWS.windows.map((row) => ({ ...row, id: new RegExp(row.id) })),
@@ -58,12 +56,15 @@ const SHAPES = {
 const ENUMS = { noteSchema: [SCHEMA.note], sessionSchema: [SCHEMA.session] };
 const bound = createValidate({ shapes: SHAPES, enums: ENUMS, refuse: { Reply: 'reply-invalid', Drop: 'reply-invalid' }, isCode });
 
-/** Text a crash may tear or a person may edit: its value when it is `shape`, else null. */
-function shapedOrNull(text, shape) {
-  const value = text == null ? null : bound.jsonOrNull(text);
-  return value && !bound.refusal(shape, value) ? value : null;
+/** A stored text read as `shape`: its value, null where there is none, UNREADABLE where the text is not one (cut short, edited by hand,
+ * another version's). That one is never taken for none. */
+const UNREADABLE = Symbol('unreadable');
+function shaped(text, shape) {
+  if (text === null) return null;
+  const value = bound.jsonOrNull(text);
+  return value && !bound.refusal(shape, value) ? value : UNREADABLE;
 }
 /** A step's result for kit's trace: its code in `out` and counted once; `n` are counts, never a person's words. */
 const stepResult = (code, out = {}, n = {}) => ({ out: { code, ...out }, n, codes: { [code]: 1 } });
 
-module.exports = { SCHEMA, STEPS, BOUNDS, CONTEXT, SHAPES, bound, shapedOrNull, stepResult };
+module.exports = { SCHEMA, STEPS, BOUNDS, CONTEXT, SHAPES, bound, UNREADABLE, shaped, stepResult };

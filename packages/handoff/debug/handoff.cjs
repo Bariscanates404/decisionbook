@@ -13,12 +13,12 @@ const store = require('../steps/store.cjs');
 const { sessionAsked } = require('../steps/verbs.cjs');
 const { debug: W } = require('../contracts/words.json');
 
-const numbers = (list) => list.map((n) => `m${n}`).join(', ') || 'none';
+const numbers = (list) => list.map((number) => `m${number}`).join(', ') || 'none';
 
 /** A kept line and its sources: `stored` the cited numbers this session still holds, null when the line is another session's. */
 function keptRow(line, i, session) {
   const mine = session && shortId(session.session) === line.session;
-  const stored = mine ? line.cites.filter((n) => session.messages.some((m) => m.n === n)) : null;
+  const stored = mine ? line.cites.filter((number) => session.messages.some((message) => message.n === number)) : null;
   return { k: i + 1, job: line.job, cites: line.cites, session: line.session, at: line.at, stored, typed: Boolean(line.typed) };
 }
 
@@ -62,8 +62,8 @@ function noteRows(note, head) {
   const handed = filled(W.lastHandoff, { at: note.handed || 'never', since: counted(note.since, 'message') });
   const cut = (text) => clip(text, BOUNDS.kept.chars);
   return [filled(W.noteBuilt, { at: note.at, head: shaOrNone(note.head), moved, handed }),
-    ...note.kept.map(keptText), ...note.dropped.map((d) => `  dropped ${d.at}: ${cut(d.text)} (${cut(d.why)})`),
-    ...note.unmeasured.map((u) => `  not measured: ${u.what} (${shortOf(u.why)})`)];
+    ...note.kept.map(keptText), ...note.dropped.map((dropped) => `  dropped ${dropped.at}: ${cut(dropped.text)} (${cut(dropped.why)})`),
+    ...note.unmeasured.map((notMeasured) => `  not measured: ${notMeasured.what} (${shortOf(notMeasured.why)})`)];
 }
 
 function contextRow(c) {

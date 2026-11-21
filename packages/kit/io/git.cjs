@@ -61,18 +61,22 @@ const commitsOf = (text) => text.split(RS).filter(Boolean).map((chunk) => {
   return { sha, subject, body: body.trim(), files: rest.split(NUL).map((name) => name.replace(/^\n/, '')).filter(Boolean) };
 });
 
-// blame --porcelain: a header per line names its commit, a commit's first header is followed by its summary; the zero sha is a line not
-// committed yet (null)
+// blame --porcelain: a header per line names its commit, a commit's first header is followed by its author, their mail in `<>` and its
+// summary; the zero sha is a line not committed yet (null)
 const BLAME_HEAD = /^([0-9a-f]{40}) \d+ \d+/;
+const BLAME_FIELDS = { subject: 'summary ', author: 'author ', mail: 'author-mail ' };
+const NOT_COMMITTED = Object.fromEntries(['sha', ...Object.keys(BLAME_FIELDS)].map((field) => [field, null]));
 function blameOf(text) {
   const shas = [];
-  const subjects = new Map();
+  const commits = new Map();
   for (const row of text.split('\n')) {
     const head = BLAME_HEAD.exec(row);
+    const field = !head && Object.keys(BLAME_FIELDS).find((name) => row.startsWith(BLAME_FIELDS[name]));
     if (head) shas.push(head[1]);
-    else if (row.startsWith('summary ')) subjects.set(shas.at(-1), row.slice('summary '.length));
+    else if (field) commits.set(shas.at(-1), { ...commits.get(shas.at(-1)), [field]: row.slice(BLAME_FIELDS[field].length) });
   }
-  return shas.map((sha) => (/^0+$/.test(sha) ? { sha: null, subject: null } : { sha, subject: subjects.get(sha) ?? null }));
+  const mailOf = (mail) => (mail ? mail.slice(1, -1) : null);
+  return shas.map((sha) => (/^0+$/.test(sha) ? NOT_COMMITTED : { ...NOT_COMMITTED, sha, ...commits.get(sha), mail: mailOf(commits.get(sha)?.mail) }));
 }
 
 // HEAD's first-parent commits after `base` that another local or remote branch (less `branch`, its copies and a remote's HEAD) holds too.
@@ -93,7 +97,9 @@ const gitFailed = (verb, res) => fail('git-failed', `${verb}: ${res.error || res
 
 // createGit ({ proc, root, env }) rows: lsFiles { key, refused?, disk, mode, link }; statusZ { xy, key, refused?, disk, from? }; commits {
 // sha, subject, body, files }; shared { sha, ref }; tracked the paths git lists; unignored { key, by }; head, branch, author one line or
-// null; blame { sha, subject } per line of a tracked file as the work tree holds it (`line`: that line only), none before a first commit.
+// null; blame { sha, subject, author, mail } per line of a tracked file as the work tree holds it (`line`: that line only), none before a
+// first commit; me, the author mail this clone commits as, read as blame names an author (`author.email` before `user.email`, through
+// the mailmap), null where none is set.
 function createGit({ proc, root, env = {} }) {
   const child = { env: { ...env, ...CLOSED_ENV }, cwd: root, capBytes: CAP_BYTES };
   let closed = null; // once per port: the config a run reads does not change under it
@@ -116,6 +122,7 @@ function createGit({ proc, root, env = {} }) {
     // --ignore-submodules=dirty: status would start a git inside each submodule, under a config `closing` never saw.
     statusZ: async () => porcelainOf(await git(['status', '--porcelain=v1', '-z', '--untracked-files=all', '--ignore-submodules=dirty'])),
     tracked: async (keys) => (keys.length ? fieldsOf(await git(['ls-files', '-z', '--', ...keys])) : []), // no pathspec would list every file
+    gitPath: (name) => line(['rev-parse', '--git-path', name]), // where git keeps a file of its own for this checkout (a linked worktree's too)
     // the keys git would show, each with the rule that brought it back or none; check-ignore refuses --literal-pathspecs and -z without
     // --stdin
     unignored: async (keys) => {
@@ -128,6 +135,11 @@ function createGit({ proc, root, env = {} }) {
     resolves,
     branch: () => line(['symbolic-ref', '-q', '--short', 'HEAD']),
     author: async (key) => ((await head()) && (await line(['log', '-1', '--format=%an', '--', key]))) || null,
+    me: async () => {
+      const mail = (await line(['config', 'author.email'])) || (await line(['config', 'user.email']));
+      const mapped = mail ? await line(['check-mailmap', `<${mail}>`]) : null; // `Name <mail>`, or `<mail>` where no row maps it
+      return mapped ? mapped.slice(mapped.lastIndexOf('<') + 1, mapped.lastIndexOf('>')) : null;
+    },
     commits: (base, { firstParent = false } = {}) => since(base, async () => commitsOf(await git(rangeOf(base, firstParent)))),
     shared: (base, branch) => since(base, () => sharedOf(git, base, branch)),
     blame: async (key, line = null) => ((await head()) === null ? []

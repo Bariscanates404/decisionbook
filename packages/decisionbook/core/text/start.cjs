@@ -8,11 +8,13 @@
 // call; or that there is none; and what changed in the protection.
 const { text: { lines: { filled } } } = require('@atlasbound/kit');
 const { WORDS, shortOf, SHOWN: { start: shown }, branchWord } = require('../../contracts/codes.cjs');
-const { unrevised } = require('../../base/text.cjs');
+const { isShown } = require('../../base/text.cjs');
 const { scopeOf } = require('../fold.cjs');
 const { bytes, boundedLines } = require('./budget.cjs');
-const { showCall, replaceLine } = require('./calls.cjs');
+const { showCall, replaceLine, jsonCall } = require('./calls.cjs');
 const { draftWhy, asideWay } = require('./gate.cjs');
+const { NONE, openLines, leadLines } = require('./open.cjs');
+const { planHeldBy } = require('../gate.cjs');
 const { settledLine, findingLine, stepLine, openQuestionLines, parkedLines, confirmLines, assumptionLine, levelLine } = require('./records.cjs');
 
 // a READY plan's start is the whole intake a new session builds from (the decisions with the person's sentences, the files, the
@@ -43,12 +45,12 @@ function tailLines(view, decided) {
 const LIST_MIN = 160; // a list with less room than this says nothing: its heading and "+n more" would be all of it
 
 function readyPlanLines(view, branch, max) {
-  const torn = view.decisions.some((d) => d.rivals?.length); // a conflict holds it: no edit passes (core/gate)
-  const title = `Plan ${view.id} READY${torn ? ', held by a conflict,' : ''} on ${shown.branch(branchWord(branch))}: ${shown.title(view.title)}`;
+  const held = planHeldBy(view); // what holds it, as the gate reads it: no edit passes
+  const title = `Plan ${view.id} READY${held ? `, ${WORDS.held[held].title},` : ''} on ${shown.branch(branchWord(branch))}: ${shown.title(view.title)}`;
   const goal = view.goal ? [`goal: ${shown.goal(view.goal)}`] : [];
-  const top = [title, torn ? WORDS.conflictHeld : WORDS.frozen, WORDS.data, levelLine(view.level), `why: ${shown.why(view.why)}`, ...goal,
+  const top = [title, held ? WORDS.held[held].line : WORDS.frozen, WORDS.data, levelLine(view.level), `why: ${shown.why(view.why)}`, ...goal,
     `files: ${shown.files(scopeOf(view).join(', '))}`];
-  const decided = unrevised(view.decisions).map(settledLine);
+  const decided = view.decisions.filter(isShown).map(settledLine);
   const heading = filled(WORDS.settled, { call: showCall(view.id, 'decisions') });
   const settled = [...confirmLines(view.confirm, view.amended), ...(decided.length ? [heading] : [])];
   const tail = tailLines(view, decided);
@@ -65,13 +67,17 @@ function readyPlanLines(view, branch, max) {
 // whose the branch's open plan is to a session (steps/open openFor) where it is said in one line: its words and the key it is said by
 const ONE_LINE = { teammate: { words: WORDS.draftTheirs, key: 'decisionbook.draft' }, earlier: { words: WORDS.draftLeft, key: 'decisionbook.draft' } };
 /** `open`: the branch's open plan as this machine's sessions meet it; `whose` it is to the session (a teammate's draft, or one an
- * earlier session here left: one line). */
-function startText(open, branch, { max = START_BYTES, whose = 'mine' } = {}) {
-  if (!open) return WORDS.none;
+ * earlier session here left: one line); `items`: the open items (steps/touch). What leads (text/open leadLines) stands first, and no
+ * plan is asked for while it does; the plans that lost a conflict follow, in at most half the room, and the plan's lists give way. */
+function startText(open, branch, { max = START_BYTES, whose = 'mine', items = NONE } = {}) {
+  const merging = leadLines(items);
+  const lost = boundedLines({ head: [], list: openLines({ ...NONE, lost: items.lost }), tail: [], max: Math.floor(max / 2), more: jsonCall('inbox') });
+  const around = (lines) => [...merging, ...lines, ...lost].join('\n');
+  if (!open) return around(merging.length ? [] : [WORDS.none]);
   const slots = { id: open.id, branch: shown.branch(branchWord(branch)), title: shown.title(open.title),
     files: shown.openFiles(scopeOf(open).join(', ')) };
-  if (ONE_LINE[whose]) return filled(ONE_LINE[whose].words, slots);
-  return (open.state === 'draft' ? draftLines(open, branch) : readyPlanLines(open, branch, max)).join('\n');
+  if (ONE_LINE[whose]) return around([filled(ONE_LINE[whose].words, slots)]);
+  return around(open.state === 'draft' ? draftLines(open, branch) : readyPlanLines(open, branch, max - bytes([...merging, ...lost, ''])));
 }
 
 /** The start's text as the one thing said of the branch's open plan in a context (the cli's rule by key: the same text again says

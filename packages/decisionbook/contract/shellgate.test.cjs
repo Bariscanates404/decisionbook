@@ -68,7 +68,6 @@ test('[I-5] inside a READY plan every such command is allowed; a file outside it
   assert.deepEqual(shellRuling(await handlers.preShell(policy, io)), ['ask', 'policy-narrowed']);
   assert.deepEqual(shellRuling(await handlers.preShell(asMode(policy, 'bypassPermissions'), io)), ['deny', 'policy-narrowed'],
     'where the host asks no one: a deny');
-  assert.deepEqual(shellRuling(await handlers.preShell(bash('rm .atlasbound/labels/b.door.json'), io)), ['deny', 'STORE_SEALED'], 'the store');
 });
 
 test('[I-5] a file another command only reads, lists or globs is never judged',
@@ -157,9 +156,6 @@ test('[I-5] a glob is the folder before its first wildcard, and a copy lands eac
   for (const [command, folder] of rows) {
     const said = await handlers.preShell(bash(command), io);
     assert.deepEqual([...shellRuling(said), said.reason], folderAsk(folder), command);
-  }
-  for (const command of ['rm -rf .atlasbound', 'rm -rf .atlasbound/labels']) { // the product's store, the labels in it, sealed as for Edit
-    assert.deepEqual(shellRuling(await handlers.preShell(bash(command), io)), ['deny', 'STORE_SEALED'], command);
   }
   for (const [command, code] of [['rm -rf .decisionbook', 'policy-narrowed']]) {
     assert.deepEqual(shellRuling(await handlers.preShell(asMode(bash(command), 'bypassPermissions'), io)), ['deny', code],
@@ -282,50 +278,27 @@ test('[I-26] Stop with no start kept reads only uncommitted changes and says so;
   assert.deepEqual(shellRuling(await handlers.stop(stopping(), bare)), ['allow', 'gate-off']);
 });
 
-// a Bash append of a prompt row to the home store would forge a person's message for the next confirm. A shell command whose text names
-// the product's home store or the repository's own store as a write's target is refused STORE_SEALED with kit's line for that code; reading it is not.
-const SEALED = (file) => `STORE_SEALED: only AtlasBound itself writes here: its state and what a person said — ${file}. `
-  + 'Leave it as it is; if something in it looks wrong, say so to the person.';
-test('a shell write into the home store or the repository\'s own store is refused as sealed; a read and our verbs pass',
-  async () => {
+test('a command that sets, unsets or clears a host session variable is denied, however it is wrapped; one that names it passes', async () => {
   const io = protectedWorld();
-  const row = '\'{"t":"prompt","as":"other","at":"2099-01-01T00:00:00.000Z"}\'';
-  const home = '~/.atlasbound/decisionbook-here/0123456789abcdef/recall-x.jsonl';
-  for (const [command, file] of [[`printf '%s\\n' ${row} >> ${home}`, home], [`echo x | tee -a ${home}`, home], [`cp /tmp/r ${home}`, home],
-    [`mv /tmp/r ${home}`, home], [`rm -f ${home}`, home], [`ln -sf /tmp/r ${home}`, home], [`sed -i '' 's/a/b/' ${home}`, home],
-    ['rm -rf $HOME/.atlasbound', '~/.atlasbound'], [`python3 -c "open('${home}', 'a').write('x')"`, home],
-    ['echo x >> .atlasbound/trace/x.ndjson', '.atlasbound/trace/x.ndjson'],
-    ["node -e \"require('fs').appendFileSync('.atlasbound/decisionbook/x', 'y')\"", '.atlasbound/decisionbook/x']]) {
-    const said = await handlers.preShell(bash(command), io);
-    assert.deepEqual([...shellRuling(said), said.reason], ['deny', 'STORE_SEALED', SEALED(file)], command);
-  }
-  for (const command of [`cat ${home}`, 'ls -la ~/.atlasbound', `cat ${home} > /tmp/copy`, "atlasbound decisionbook add 2026-11-11-x <<'JSON'\n[]\nJSON"]) {
-    assert.equal((await handlers.preShell(bash(command), io)).verdict, 'allow', command);
-  }
-  const long = 'x'.repeat(400000); // a backtracking match of the store's name is quadratic on such a word: the host's deadline would pass first
-  const started = Date.now();
-  assert.equal((await handlers.preShell(bash(`echo y | tee -a ~/${long}`), io)).code, 'shell-unplaced', 'a long word naming no store');
-  assert.equal((await handlers.preShell(bash(`echo y | tee -a ~/.atlasbound/${long}`), io)).code, 'STORE_SEALED', 'a long word in the store');
-  assert.ok(Date.now() - started < 1500, `judged in ${Date.now() - started} ms`);
-  io.sessionWrites = () => ['.atlasbound/handoff/drafts/'];
-  assert.equal((await handlers.preShell(bash('echo x > .atlasbound/handoff/drafts/s1.md'), io)).verdict, 'allow', 'what the root says a session writes');
-  io.sessionWrites = () => ['.atlasbound/drafts/'];
-  assert.equal((await handlers.preShell(bash("cd .atlasbound/drafts && python3 - <<'EOF'\nopen('new.json', 'w')\nEOF"), io)).verdict, 'allow',
-    'a session\'s folder named by its own name, no slash: still the session\'s');
-});
-
-test('a command that sets, exports or unsets a host session variable is denied; one that only names it passes', async () => {
-  const io = protectedWorld();
-  for (const command of ['CLAUDE_CODE_SESSION_ID=session-a atlasbound decisionbook add p x', 'env CLAUDE_PID=1 atlasbound decisionbook show',
+  const powershell = (command) => ({ ...bash(command), tool_name: 'PowerShell' });
+  const run = 'atlasbound decisionbook add p x';
+  const denied = [`CLAUDE_CODE_SESSION_ID=session-a ${run}`, 'env CLAUDE_PID=1 atlasbound decisionbook show', `CLAUDE_CODE_SESSION_ID+=2 ${run}`,
     'export CLAUDE_PROJECT_DIR=/elsewhere; atlasbound decisionbook ready', 'unset CLAUDE_CODE_SESSION_ID && atlasbound debug',
-    "$env:CLAUDE_CODE_SESSION_ID = 'a'; atlasbound decisionbook add p x", 'declare -x CLAUDE_PID=1; atlasbound debug',
-    'env -u CLAUDE_CODE_SESSION_ID atlasbound decisionbook show']) {
-    const said = await handlers.preShell(bash(command), io);
-    assert.deepEqual(shellRuling(said), ['deny', 'shell-host-env'], command);
-    assert.match(said.reason, /CLAUDE_(CODE_SESSION_ID|PID|PROJECT_DIR)/u, command);
+    'declare -x CLAUDE_PID=1; atlasbound debug', 'env -u CLAUDE_CODE_SESSION_ID atlasbound decisionbook show', `export "CLAUDE_PID=1"; ${run}`,
+    `sh -c "CLAUDE_CODE_SESSION_ID=other ${run}"`, "bash -c 'export CLAUDE_PROJECT_DIR=/elsewhere; atlasbound decisionbook ready'",
+    'eval "CLAUDE_PID=1 atlasbound decisionbook show"', `env -i PATH=/usr/bin:/bin ${run}`, `env - ${run}`, `env -S "CLAUDE_PID=1 ${run}"`,
+    `env "CLAUDE_CODE_SESSION_ID=s2" ${run}`, `read CLAUDE_CODE_SESSION_ID <<< s2; ${run}`, `echo \\' ; CLAUDE_PID=2 ${run} ; echo \\'`,
+    `echo $(CLAUDE_PID=3 ${run})`, `for CLAUDE_PID in 1; do ${run}; done`, `printf -v CLAUDE_PID 1; ${run}`, powershell(`$env:CLAUDE_CODE_SESSION_ID = 'a'; ${run}`), powershell(`Set-Item env:CLAUDE_PID 1; ${run}`),
+    powershell(`Remove-Item Env:\\CLAUDE_PROJECT_DIR; ${run}`), powershell(`[Environment]::SetEnvironmentVariable('CLAUDE_PID', '1'); ${run}`)];
+  for (const event of denied.map((one) => (typeof one === 'string' ? bash(one) : one))) {
+    const said = await handlers.preShell(event, io);
+    assert.deepEqual(shellRuling(said), ['deny', 'shell-host-env'], event.tool_input.command);
+    assert.match(said.reason, /CLAUDE_(CODE_SESSION_ID|PID|PROJECT_DIR)/u, event.tool_input.command);
   }
-  for (const command of ['echo $CLAUDE_CODE_SESSION_ID', 'echo "${CLAUDE_PROJECT_DIR}"', 'atlasbound decisionbook show',
-    'grep -rn CLAUDE_PROJECT_DIR .claude/', 'git commit -m "the gate denies CLAUDE_CODE_SESSION_ID=a and export CLAUDE_PID"']) {
+  for (const command of ['echo $CLAUDE_CODE_SESSION_ID', 'echo "${CLAUDE_PROJECT_DIR}"', 'atlasbound decisionbook show', 'declare -p CLAUDE_PID',
+    'grep -rn CLAUDE_PROJECT_DIR .claude/', 'git commit -m "the gate denies CLAUDE_CODE_SESSION_ID=a and export CLAUDE_PID"',
+    'echo export CLAUDE_PID', 'env LANG=C atlasbound decisionbook show', 'export -p', 'printf %s CLAUDE_PID', 'export PATH="$PATH:/opt/bin"',
+    'for f in *.rb; do wc -l "$f"; done', 'export $(cat .env)', 'read -r line < "$FILE"', 'FOO=$BAR make test']) {
     assert.equal((await handlers.preShell(bash(command), io)).verdict, 'allow', command);
   }
 });

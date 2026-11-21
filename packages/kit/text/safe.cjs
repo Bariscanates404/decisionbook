@@ -24,4 +24,10 @@ function clip(s, max) {
   return `${last >= 0xd800 && last <= 0xdbff ? head.slice(0, -1) : head}~`;
 }
 
-module.exports = { line, block, clip, visible };
+// A value shown whole to be copied: a JSON string whose hidden characters are `\uXXXX` escapes, so none reaches the line raw and the
+// string reads back letter for letter (a scrub would hand another value).
+const ESCAPED = new RegExp(`[${ZERO_WIDTH}${BIDI_MARKS}\\u{2028}\\u{2029}\\u{7f}-\\u{9f}]`, 'gu');
+const escapeOf = (unit) => `\\u${unit.charCodeAt(0).toString(16).padStart(4, '0')}`;
+const copyable = (s) => JSON.stringify(String(s ?? '')).replace(ESCAPED, (hidden) => hidden.split('').map(escapeOf).join(''));
+
+module.exports = { line, block, clip, visible, copyable };

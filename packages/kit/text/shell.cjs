@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-// kit's shell owner, PURE: `word` quotes repository text for a shell; `writtenBy` reads the files a command writes by the rows of
-// shell.json (a target it cannot tell is `unplaced`).
+// kit's shell owner, PURE: `word` quotes repository text for a shell; `writtenBy` reads the files a command writes and the variables it
+// sets for what it runs, by the rows of shell.json (a target it cannot tell is `unplaced`); `setBy` asks that reading about names.
 const { codeWrites } = require('./shell-code.cjs');
 const win = require('./shell-win.cjs');
-const { lexIn, commandsOf, scopeCd, namedWords, movesFolder, cdTo, readWords, readBy, word, spelled } = require('./shell-words.cjs');
+const { lexIn, commandsOf, scopeCd, namedWords, assigned, movesFolder, cdTo, readWords, readBy, word, spelled } = require('./shell-words.cjs');
 const TABLE = require('./shell.json');
 const { resolveFrom, folderAfter, programOf } = require('../base/paths.cjs');
 
@@ -18,6 +18,11 @@ const DEVICES = new RegExp(TABLE.devices);
 const WIN_DEVICES = new RegExp(win.WIN.devices, 'i');
 const ITEM = { word: 'item', literal: false, subs: [], why: 'shell-handed' }; // a file a row hands the command it runs (its `item` words): no one can place it
 const TAKES = ['takes', 'out', 'chdir', 'into']; // a row's fields whose option takes an argument
+const EVERY = '*'; // every variable: an emptied environment
+const DRIVE = new RegExp(TABLE.sets.drive, 'i');
+const STATEMENTS = TABLE.sets.statements.map((source) => new RegExp(source, 'i'));
+// the variable a word names where the name is written out (`NAME`, `NAME=$value`, quoted or not); one that only expands names none here
+const variableOf = (w) => /^["']?([A-Za-z_]\w*)(?=\W|$)/.exec(w.literal ? w.word : spelled(w))?.[1] ?? [];
 const NAMES = [...TAKES, 'glued', 'script', 'when', 'unless', 'whole']; // every option a row names
 
 const wordFits = (source, text) => source !== undefined && new RegExp(source).test(text);
@@ -39,6 +44,7 @@ function written(c, w, from, by = c.name) { // `by`: the redirection or the comm
 
 function mergeRead(c, sub) {
   for (const row of sub.writes) c.found.writes.push(row);
+  c.found.sets.push(...sub.sets);
   sub.why.forEach(({ code, word: cause }) => markUnplaced(c.found, code, cause));
   c.found.unread = c.found.unread || sub.unread;
 }
@@ -132,6 +138,21 @@ function byRow(c, row, words) {
   const files = row.writes ? rowFiles(row, parts) : null;
   if (files) WRITES[row.writes](c, files, row);
   parts.opts.filter(({ name }) => wordFits(row.whole, name)).forEach(({ name }) => markUnplaced(c.found, 'shell-writes-unnamed', name));
+  setByRow(c, row, parts);
+}
+
+// what a row's options set for the command it runs (shell.json `sets`), and the command text one of them hands
+function setByRow(c, row, { opts, files }) {
+  const given = (key) => opts.filter(({ name, arg }) => arg && wordFits(row[key], name)).map(({ arg }) => arg);
+  c.found.sets.push(...given('variable').flatMap(variableOf));
+  if ([...opts.map(({ name }) => name), (files[0] || {}).word].some((name) => wordFits(row.clears, name))) c.found.sets.push(EVERY);
+  given('text').forEach((text) => textRun(c, text, 'sh'));
+}
+
+// the operands of a command that sets, exports, unsets or reads into variables, unless its option only prints them
+function setByName(c) {
+  if (!Object.hasOwn(TABLE.sets.names, c.name) || c.args.some((w) => wordFits(TABLE.sets.names[c.name] ?? undefined, w.word))) return;
+  c.found.sets.push(...c.args.filter((w) => !w.word.startsWith('-')).flatMap(variableOf));
 }
 
 // A package script (npm run x, npm test): its text and its pre and post scripts, read where package.json names them; else unplaced.
@@ -213,7 +234,8 @@ const ROWS = [ // a name's rows, every one that holds
 function byCmdlet(c, row) {
   const { files, unplaced, runs } = win.cmdletWrites(row, c.args);
   unplaced.forEach(([code, w]) => markUnplaced(c.found, code, w ? spelled(w) : c.name));
-  files.forEach(({ w, from }) => written(c, w, from));
+  const variable = (w) => (w.literal && DRIVE.exec(w.word)) || null; // a path on the env: drive is a variable, never a file
+  files.forEach(({ w, from }) => (variable(w) ? c.found.sets.push(variable(w).groups.name) : written(c, w, from)));
   runs.forEach((text) => textRun(c, text, 'powershell'));
 }
 
@@ -235,17 +257,24 @@ function readCommand({ words, redirs }, at, found) {
   const dir = c.inputs[0] && outs.some((r) => r.target.literal) ? standsIn(c) : null;
   if (dir) outs.filter((r) => r.target.literal).forEach((r) => at.made.set(resolveFrom(dir, r.target.word), c.inputs[0].word));
   const [head, ...args] = namedWords(words, at.lang);
-  // a PowerShell statement that is an expression ([IO.File]::WriteAllText(...)) is read as code
-  if (head && !head.literal && at.lang === 'powershell') codeIn({ ...c, name: at.lang }, words.map(spelled).join(' '));
+  found.sets.push(...assigned(words, at.lang));
+  // a PowerShell statement that is an expression ([IO.File]::WriteAllText(...), $env:NAME = …) is read as code
+  if (head && !head.literal && at.lang === 'powershell') expression(c, words.map(spelled).join(' '));
   if (!head || !head.literal) return;
   Object.assign(c, { name: programOf(head.word), args });
+  setByName(c);
   readersOf(c, head).forEach((read) => read(c));
   scriptRun(c, [head, ...args]);
 }
 
+function expression(c, text) {
+  codeIn({ ...c, name: c.at.lang }, text);
+  c.found.sets.push(...STATEMENTS.flatMap((re) => re.exec(text)?.groups.name ?? []));
+}
+
 // A cd list is only replaced, never changed, so a write shares it and the work stays linear; once `past()`, the rest is unread.
 function commandWrites(command, { depth, past, cd, lost, lang, scripts, file }) {
-  const found = { writes: [], unplaced: false, unread: false, why: [] };
+  const found = { writes: [], sets: [], unplaced: false, unread: false, why: [] };
   if (depth > DEPTH) markUnplaced(found, 'shell-too-deep');
   const at = { cd, lost, scopes: [], depth, past, made: new Map(), lang, scripts, file }; // `made`: the scripts its heredocs wrote
   for (const cmd of found.unplaced ? [] : commandsOf(lexIn(command, lang))) {
@@ -261,5 +290,7 @@ function commandWrites(command, { depth, past, cd, lost, lang, scripts, file }) 
  * the script file a shell runs (`sh x.sh`), null where none is read (the script is unplaced). */
 const writtenBy = (command, past = () => false, { lang = 'sh', scripts = () => null, file = () => null } = {}) => commandWrites(command, {
   depth: 0, past, cd: [], lost: false, lang, scripts, file });
+/** Of `names`, the variables a command read by `writtenBy` sets, exports, unsets or clears for what it runs; one it only reads is none. */
+const setBy = (read, names) => names.filter((name) => read.sets.includes(name) || read.sets.includes(EVERY));
 
-module.exports = { word, writtenBy, readWords, readBy };
+module.exports = { word, writtenBy, setBy, readWords, readBy };

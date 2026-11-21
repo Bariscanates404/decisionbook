@@ -8,7 +8,10 @@
 const { errors: { fail } } = require('@atlasbound/kit');
 const { closedOf, sinceHead } = require('../core/close.cjs');
 const { withProposed } = require('../core/fold.cjs');
+const { openLines } = require('../core/text/open.cjs');
+const { isShown } = require('../base/text.cjs');
 const store = require('./store.cjs');
+const { openItems } = require('./touch.cjs');
 const { WORDS } = require('../contracts/codes.cjs');
 
 /** A plan's own commits: those its close recorded, else those a close would record now; null where it names no commit it began on. */
@@ -24,9 +27,10 @@ async function pr({ rest, flags = {} }, io) {
   const web = store.readWeb(io);
   const branch = await io.git.branch();
   const views = web.views.filter((v) => (rest[0] ? v.id === rest[0] : v.branch === branch && !['aside', 'superseded'].includes(v.state)));
+  const items = await openItems(io, web);
+  const decided = (v) => withProposed(v, v.decisions.filter((d) => !d.proposed && isShown(d)));
   const plans = await Promise.all(views.map(async (v) => ({ id: v.id, title: v.title, state: v.state, why: v.why, success: v.success,
-    goal: v.goal, decisions: withProposed(v, v.decisions.filter((d) => !d.proposed && d.state !== 'revised')), checks: v.checks,
-    commits: await ownCommits(io, v) })));
+    open: openLines(items, [v.id]), goal: v.goal, decisions: decided(v), checks: v.checks, commits: await ownCommits(io, v) })));
   return { out: { branch, plans }, code: 'plan-shown', n: { plans: plans.length } };
 }
 

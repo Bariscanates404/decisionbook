@@ -88,3 +88,21 @@ test('a time switch other than said is refused before any test runs', () => {
   const res = spawnSync(process.execPath, [RUN_TESTS, 'unit', 'kit'], { encoding: 'utf8', timeout: 20000, env: { ...process.env, [TIME_VAR]: 'off' } });
   assert.deepEqual([res.status, res.stderr, res.stdout], [2, 'run-tests: KIT_TEST_TIME is said or unset, never "off"\n', '']);
 });
+
+test('the runner gives every test process a home of its own and the password-home preload, whatever home it was started from', () => {
+  const outer = path.join(os.tmpdir(), 'kit-outer-home'); // whoever runs the tests: never read, never written
+  const probe = `const os = require('node:os');
+const assert = require('node:assert/strict');
+require('node:test')('in a home of its own', () => {
+  const { HOME, PASSWD_HOME, NODE_OPTIONS } = process.env;
+  assert.ok(HOME && HOME === PASSWD_HOME && HOME !== ${JSON.stringify(outer)}, String(HOME));
+  assert.equal(os.userInfo().homedir, HOME);
+  assert.ok(NODE_OPTIONS.includes('passwd-preload.cjs'), NODE_OPTIONS);
+});\n`;
+  const { root, run } = runnerTree({ 'a.test.cjs': probe });
+  const res = run({ HOME: outer, PASSWD_HOME: '', NODE_OPTIONS: '' });
+  assert.equal(res.status, 0, res.stdout + res.stderr);
+  assert.match(res.stdout, /^tests: 1 run, 1 passed, 0 failed, 0 skipped/m);
+  assert.equal(fs.existsSync(outer), false, 'nothing was made in the home of whoever ran it');
+  fs.rmSync(root, { recursive: true, force: true });
+});

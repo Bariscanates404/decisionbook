@@ -41,7 +41,7 @@ const CLI_VERBS = [
     what: 'connect this repository to your AI session: hooks, slash commands and a .gitignore block (DecisionBook and Handoff unless you choose)' },
   { words: ['update'], run: 'update', wires: true, noWords: true, what: 'connect this repository again after you upgrade atlasbound, keeping the modules it has' },
   { words: ['modules'], run: 'modules', looks: true, noWords: true, what: 'list each module: on, off or not installed, what it does, and what you lose while it is off' },
-  { words: ['modules', 'on'], run: 'modulesSet', wires: true, what: '<module>: turn a module on here; says the hooks, commands and MCP servers it added' },
+  { words: ['modules', 'on'], run: 'modulesSet', wires: true, by: 'person', what: '<module>: turn a module on here; says the hooks, commands and MCP servers it added' },
   { words: ['modules', 'off'], run: 'modulesSet', wires: true, by: 'person', phrase: TURN_OFF,
     what: '<module>: turn a module off here: its hooks, commands, MCP servers and allow rules go, its data stays (the last one: uninstall)' },
   { words: ['uninstall'], run: 'uninstall', cleans: true, noWords: true, flags: ['--purge'], asks: true, by: 'person', phrase: 'uninstall',

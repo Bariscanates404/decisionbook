@@ -1,6 +1,6 @@
 {
   "name": "decisionbook-source",
-  "version": "0.25.2",
+  "version": "0.25.3",
   "private": true,
   "description": "The source of the npm package atlasbound: DecisionBook and Handoff for Claude Code, with their tests.",
   "license": "AGPL-3.0-only",

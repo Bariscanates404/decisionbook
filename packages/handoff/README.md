@@ -4,7 +4,7 @@ One note per branch that lets a fresh AI session continue where the last one sto
 
 **What it keeps, and where.** The product keeps the head of each message you type (at most 1,200 characters, secrets screened, at most
 60 per session; a message that is only a path or a bare slash command, such as the `C:/Program Files/Git/handoff` Git Bash makes of
-`/handoff`, asks nothing and is not kept) in your home folder, `~/.atlasbound/handoff-here/<hash of this repository>/`, so that a handoff can show them to your
+`/handoff`, asks nothing and is not kept; of `/handoff <words>` your words are kept, the command's name is not) in your home folder, `~/.atlasbound/handoff-here/<hash of this repository>/`, so that a handoff can show them to your
 AI again. The note is stored there too, and it is kept current without you: at every message and at the end of every turn it is
 rebuilt from that journal and fresh facts (no model), so a session that ends any way at all (a closed terminal, a crash, `/clear`)
 leaves the next one your last messages as you wrote them (whichever session heard them), the plan's state, your decisions with your sentences, and what

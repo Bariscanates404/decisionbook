@@ -6,7 +6,7 @@
 // file the frozen plan took in; the same for a shell command's writes and for the stop check.
 const { text: { lines: { filled } } } = require('@atlasbound/kit');
 const { WORDS, shortOf, SHOWN: { gate: shown } } = require('../../contracts/codes.cjs');
-const { isAnswered } = require('../../base/text.cjs');
+const { isAnswered, conflictsIn } = require('../../base/text.cjs');
 const { rivalText } = require('./records.cjs');
 
 /** `why`: what holds in this case; `noOne`: the host asks nobody here, so the reason says what to do instead. */
@@ -41,7 +41,7 @@ function draftWhy(draft) {
 /** Why the branch's READY plan covers no edit of a session of another task: the plan, and how the session goes on with it instead. */
 const otherTaskWhy = (plan) => filled(WORDS.otherTask, { id: plan.id, record: JSON.stringify({ t: 'resume', why: WORDS.otherTaskWhy }) });
 /** Why a plan whose person's decisions hold a conflict covers no edit: each conflict, its lines, who and their words. */
-const conflictWhy = (plan) => plan.decisions.filter((d) => d.rivals?.length).map(rivalText).join(' ');
+const conflictWhy = (plan) => conflictsIn(plan.decisions).map(rivalText).join(' ');
 /** Why the branch's draft holds no edit of a file it does not name. */
 const elsewhereWhy = (draft) => filled(WORDS.draftElsewhere, { id: draft.id });
 

@@ -19,6 +19,7 @@ const WHAT = Object.fromEntries(Object.entries(WORDS.levelWhy)
 /** What can raise a plan above a small fix, in the gate's words and order (the pack names them when the prompt names no file). */
 const RAISERS = Object.values(WHAT);
 const COUNTS = ['files', 'fanout']; // a signal that holds a count is one signal however high
+const NEVER_WAIVED = ['danger', 'hard']; // the kinds of signal no waiver lowers
 
 function signalsOf(view, danger) {
   const files = scopeOf(view);
@@ -33,7 +34,7 @@ function signalsOf(view, danger) {
       : [],
     glob: counted.filter(isGlob), micro: files.filter((f) => MICRO_PATHS.some((re) => re.test(f))) };
   const said = (kinds) => kinds.flatMap((kind) => held[kind].map((h) => `${WHAT[kind]} (${h})`));
-  const hard = said(['danger', 'hard']);
+  const hard = said(NEVER_WAIVED);
   const soft = said(['soft', 'word', 'fanout']);
   const big = said(['files', 'glob', 'micro']);
   const names = Object.keys(held).flatMap((kind) => held[kind].map((h) => [COUNTS.includes(kind) ? kind : `${kind} ${h}`, `${WHAT[kind]} (${h})`]));
@@ -62,4 +63,7 @@ function grownSince(seen, now, danger) {
   return [...rose, ...many, ...is.names.filter(([name]) => (name !== 'files' || rose.length) && !was.names.some(([held]) => held === name)).map(([, text]) => text)];
 }
 
-module.exports = { planLevel, grownSince, RAISERS };
+/** Whether the person's waiver lowers a level: one raised by soft signals alone (a name is its signal's kind, then what holds it). */
+const isWaivable = (level) => level.code === 'level-raised' && !level.names.some(([name]) => NEVER_WAIVED.includes(name.split(' ')[0]));
+
+module.exports = { planLevel, grownSince, isWaivable, RAISERS };

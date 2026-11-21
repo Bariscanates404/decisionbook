@@ -34,10 +34,11 @@ test('one write\'s cd chain is bounded: a 770 KB command asks that it was too lo
 
 test('the gate\'s own store made unreadable is no off switch: every write after it asks naming the failure', async () => {
   const { repo, env } = tableWorld(TABLE.policy);
-  const LOST = 'atlasbound: hook-lost: hook (io-read-failed: .atlasbound/cli/config.json: EACCES): a gate formed no verdict on this write, so it asks: allow it only if you meant it';
-  // the port runs past the config and says what else the closed store cost (no trace row, no said record); it reads the module
-  // choice from the same store, so the unreadable store is named for the packages too
-  const NOTE = 'atlasbound: no verdict formed by hook (io-read-failed: .atlasbound/cli/config.json: EACCES), trace (io-write-failed), packages (io-read-failed), said (io-read-failed)';
+  // the config and the install record (the module choice) are both in the store: each is what the port could not read of its own
+  // setup, named with its file in the ask; the note also says what else the closed store cost (no trace row, no said record)
+  const UNREAD = 'hook (io-read-failed: .atlasbound/cli/config.json: EACCES), packages (io-read-failed: .atlasbound/cli/installed.json: EACCES)';
+  const LOST = `atlasbound: hook-lost: ${UNREAD}: a gate formed no verdict on this write, so it asks: allow it only if you meant it`;
+  const NOTE = `atlasbound: no verdict formed by ${UNREAD}, trace (io-write-failed), said (io-read-failed)`;
   const asked = { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: LOST }, systemMessage: NOTE };
   const model = path.join(repo, 'app/models/user.rb');
   const events = [

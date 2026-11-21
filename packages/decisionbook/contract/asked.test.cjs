@@ -130,6 +130,21 @@ const KEY = 'report.export.rows';
 const mine = { t: 'decision', key: KEY, value: 'stream', why: 'large exports', by: 'Ayse', files: [EXPORT], said: 'stream the rows' };
 const decidedBy = (io, id) => planRecords(io, id).filter((r) => r.t === 'decision').map((r) => [r.value, r.by]);
 
+test('a decision typed after a slash command of the repository stands on the person\'s own first sentence', async () => {
+  const w = await askedWorld();
+  w.io.fs.writeAtomic('.claude/commands/decisionbook.md', '# /decisionbook\n');
+  await w.say(TASK);
+  const a = await w.created(draftOf('micro', [EXPORT]));
+  await w.say('/decisionbook Stream the rows, do not buffer them. Then show me the plan.');
+  await w.say('/tmp is full, send them at once.');
+  assert.equal((await w.add(a, [{ ...mine, said: 'Stream the rows' }]))[0], 'said-not-theirs', 'a part of a sentence with a negation is still refused');
+  await w.add(a, [{ ...mine, said: 'Stream the rows, do not buffer them.' }]);
+  const place = { ...mine, key: 'report.export.place', value: 'stream at once' };
+  assert.equal((await w.add(a, [{ ...place, said: 'is full' }]))[0], 'said-not-theirs', 'no /tmp command here: the word is of their clause');
+  await w.add(a, [{ ...place, said: '/tmp is full, send them at once.' }]);
+  assert.deepEqual(decidedBy(w.io, a).slice(-2), [['stream', 'the person'], ['stream at once', 'the person']]);
+});
+
 // a later message such as "thanks, also what is 2+2?" is no assent: it makes nothing the sender signed with a person's name theirs.
 test('a decision is the person\'s only on whole clauses they typed: a name, a later message or a piece of a negation is refused', async () => {
   const w = await askedWorld();

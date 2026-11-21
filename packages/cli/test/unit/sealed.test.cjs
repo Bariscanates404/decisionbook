@@ -15,7 +15,7 @@ const HOST_FILES = { settings: '.claude/settings.local.json', ignore: '.gitignor
   whole: () => ['.claude/settings.json', '.claude/commands/decide.md'] };
 const USER = require('../../contracts/host.json').hostUser;
 const throwingIo = (code) => ({ root: '/repo', home: null, run: 'r1', sessionWrites: () => [], host: { ownFiles: HOST_FILES, user: USER }, env: { get: () => null },
-  packages: { declared: () => ({ manifests: [] }) }, clock: { elapsedMs: () => 0 }, machine: { bin: '/x/atlasbound.cjs' }, catalog: { verbs: [] },
+  packages: { installed: () => ({ manifests: [] }) }, clock: { elapsedMs: () => 0 }, machine: { bin: '/x/atlasbound.cjs' }, catalog: { verbs: [] },
   fs: { keyAt: () => { throw Object.assign(new Error(code), { code }); } } });
 const WRITE = { tool_name: 'Write', tool_input: { file_path: '/repo/lib/a.cjs', content: 'x' } };
 const SHELL = { tool_name: 'Bash', tool_input: { command: 'rm lib/a.cjs' } };
@@ -26,7 +26,8 @@ function wiredIo({ configDir = null } = {}) {
   const [repo, home, config] = ['repo', 'home', 'config'].map((name) => nodeFs.realpathSync(nodeFs.mkdtempSync(path.join(os.tmpdir(), `cli-sealed-${name}-`))));
   const io = { root: repo, fs: kitIo.createFs(repo), home: kitIo.createFs(home), run: 'r1', sessionWrites: () => [], host: { ownFiles: HOST_FILES, user: USER },
     env: { get: (name) => (name === USER.env && configDir ? config : null) }, machine: { bin: '/x/atlasbound.cjs', fsAt: kitIo.createFs },
-    catalog: { verbs: [] }, clock: { elapsedMs: () => 0 }, trace: { event: () => {} } };
+    catalog: { verbs: [] }, clock: { elapsedMs: () => 0 }, trace: { event: () => {} },
+    packages: { installed: () => ({ manifests: [{ sealed: ['.decisionbook/'] }] }) } };
   io.fs.writeAtomic('.claude/settings.local.json', WIRED);
   return { io, repo, home, config };
 }
@@ -35,7 +36,7 @@ const toolAt = (file, name) => ({ Write: { file_path: file, content: OFF }, Edit
   MultiEdit: { file_path: file, edits: [{ old_string: '{', new_string: '{"disableAllHooks": true,' }] } }[name]);
 /** The seal's answer to one tool call -> [verdict, the file it names], or null where it says nothing. */
 function sealAnswer(io, tool, input, mode = 'default') {
-  const [found] = portGates(io, 'PreToolUse', { tool_name: tool, tool_input: input, cwd: io.root, permission_mode: mode }, [{ sealed: ['.decisionbook/'] }]);
+  const [found] = portGates(io, 'PreToolUse', { tool_name: tool, tool_input: input, cwd: io.root, permission_mode: mode });
   return found ? [found.verdict, /^atlasbound: own-file: (.*?): AtlasBound's own file, or a host settings file/.exec(found.reason)?.[1] ?? found.reason] : null;
 }
 
@@ -96,7 +97,7 @@ test('where the host keeps the user\'s settings in a folder its env names, those
 
 test('the seal answers nothing for a name the disk cannot hold, and lets every other disk error reach the port', () => {
   for (const payload of [WRITE, SHELL]) {
-    assert.deepEqual(portGates(throwingIo('ENAMETOOLONG'), 'PreToolUse', payload, []), [], `${payload.tool_name}: no own file is named so`);
-    assert.throws(() => portGates(throwingIo('EIO'), 'PreToolUse', payload, []), { code: 'EIO' }, `${payload.tool_name}: a disk error is never silence`);
+    assert.deepEqual(portGates(throwingIo('ENAMETOOLONG'), 'PreToolUse', payload), [], `${payload.tool_name}: no own file is named so`);
+    assert.throws(() => portGates(throwingIo('EIO'), 'PreToolUse', payload), { code: 'EIO' }, `${payload.tool_name}: a disk error is never silence`);
   }
 });

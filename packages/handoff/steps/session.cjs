@@ -4,7 +4,7 @@
 'use strict';
 // The hook steps. None blocks, none asks, none calls a model: a start says the branch's note once, a prompt keeps the head of the
 // message and measures the context, an edit is counted, a compaction rebuilds the note from facts.
-const { errors: { isFail }, paths } = require('@atlasbound/kit');
+const { errors: { isFail }, paths, host: { personWords } } = require('@atlasbound/kit');
 const { stepResult: said, CONTEXT, BOUNDS, bound } = require('../contracts/shapes.cjs');
 const { shortOf } = require('../contracts/codes.cjs');
 const { promptKind, withMessage } = require('../core/reply.cjs');
@@ -64,7 +64,7 @@ async function messageStep(event, io) {
     return said(text ? 'resume-said' : 'note-none', text ? { context: `${WORDS.resume}\n${text}` } : {});
   }
   if (kind === 'slash') return said('message-passed');
-  const session = withMessage(store.sessionOf(io, event.session_id), prompt, io.clock.now());
+  const session = withMessage(store.sessionOf(io, event.session_id), personWords(prompt, io.fs.list), io.clock.now());
   const now = contextMeasured(event, io, session.context);
   store.writeSession(io, { ...session, context: now.context });
   await rebuilt(io, session); // the note holds this message from now on, whatever ends the session

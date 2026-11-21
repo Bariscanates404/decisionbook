@@ -15,6 +15,7 @@ const { stepPath } = require('../base/text.cjs');
 const { readsByPlan } = require('./here.cjs');
 
 const pathOf = (id) => `${DIR}/${id}.jsonl`;
+const MARKER = /^(<{7}|={7}|>{7}|\|{7})( |$)/u; // a line git writes around the sides of a merge it could not finish (diff3's base too)
 // a symbolic link is refused so a committed link never carries an outside file into a view; git never commits a hard link
 const textAt = (io, key) => io.fs.readText(key, { noLink: 'symbolic' });
 
@@ -34,6 +35,8 @@ function planRows(io, id, batch = null) {
   const held = batchOf(batch, id);
   const text = textAt(io, pathOf(id)) ?? (held.fresh ? '' : null);
   if (text === null) throw fail('plan-unknown', id);
+  const markers = text.split('\n').flatMap((line, i) => (MARKER.test(line) ? [i + 1] : []));
+  if (markers.length) throw fail('plan-unmerged', filled(WORDS.mergeMarkers, { file: pathOf(id), lines: markers.join(', ') }));
   const whole = text + held.lines.join('');
   const { rows, refused } = bound.kept(whole, 'Record');
   if (!rows.length || rows[0].t !== 'plan') throw fail('record-invalid', filled(WORDS.notPlanFirst, { id }));
@@ -54,7 +57,7 @@ function plansOf(io, batch) {
       views.push(readPlan(io, id, batch));
     } catch (err) {
       if (!isFail(err)) throw err;
-      refused.push({ id, code: err.code });
+      refused.push({ id, code: err.code, ...(err.code === 'plan-unmerged' && { why: err.detail }) });
     }
   }
   return { views, refused };
@@ -78,7 +81,6 @@ function readWeb(io, { danger = null, batch = null, asked } = {}) {
     refused: [...(policy.unreadable ? [{ id: CONFIG, code: 'policy-unreadable' }] : []), ...refused] };
 }
 
-// the plan files `web` could not read, each with why: unknown, never absent
 // the plans not read whole: a file that did not read, and one with a line that did not (its line numbers named)
 const unreadPlans = (web) => [...web.refused.filter((r) => r.id !== CONFIG).map((r) => ({ file: pathOf(r.id), code: r.code })),
   ...web.views.filter((v) => v.refused.length).map((v) => ({ file: `${pathOf(v.id)}:${v.refused.map((r) => r.line).join(',')}`, code: v.refused[0].code }))];

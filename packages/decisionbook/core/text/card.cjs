@@ -21,8 +21,8 @@ function builtLine({ files, own }) {
   return `  built: ${named}${more} @ ${shas.at(-1)}${range}`;
 }
 
-const cardDecision = (d, day) => (d.rivals?.length ? `${shown.key(d.key)} ${rivalText(d)}` : `${shown.key(d.key)} = ${shown.value(d.value)} (by ${
-  deciderOf(d.by)}${agedOf(d, day)})${d.supersededBy ? ` replaced${replacedBy(d)}` : ''}`);
+const cardDecision = (d, day) => (d.conflict ? `${shown.key(d.key)} ${rivalText(d.conflict)}` : `${shown.key(d.key)} = ${shown.value(d.value)} (by ${
+  deciderOf(d.by, d.author)}${agedOf(d, day)})${d.supersededBy ? ` replaced${replacedBy(d)}` : ''}`);
 
 /** The commands that show more of a card: its decisions, the history of the file it was found by, its first
  * decision. */

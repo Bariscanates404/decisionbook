@@ -6,11 +6,11 @@
 // home, so nothing a handler writes (plans, promises, handoff drafts, receipts, the said record) lands here; the
 // copy goes unless --keep.
 const { PassThrough } = require('node:stream');
-const { errors: { fail }, paths, text: { lines: { filled } } } = require('@atlasbound/kit');
+const { errors: { fail }, paths, host: { mcpToolOf }, text: { lines: { filled } } } = require('@atlasbound/kit');
 const validate = require('../contracts/validate.cjs');
 const { WORDS: { adapters: W } } = require('../contracts/codes.cjs');
 const { serversOf } = require('../core/host.cjs');
-const { payloadsOf, mcpOf, injectView } = require('../debug/inject.cjs');
+const { payloadsOf, injectView } = require('../debug/inject.cjs');
 const { compose } = require('./compose.cjs');
 const { answer, hookInput } = require('./hook.cjs');
 
@@ -57,7 +57,7 @@ async function standingOf(io, servers) {
 
 /** An MCP call of the script: the server's reply text is said to the agent as its owner package's, when that server is wired here. */
 async function toolReply(io, servers, payload) {
-  const named = payload.hook_event_name === 'PostToolUse' && mcpOf(payload.tool_name);
+  const named = payload.hook_event_name === 'PostToolUse' && mcpToolOf(payload.tool_name);
   if (!named) return {};
   const server = servers.find((s) => s.name === named.server);
   if (!server) return { note: filled(W.notWired, { server: named.server }) };

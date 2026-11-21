@@ -9,7 +9,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { io: kitIo, testing: { memoryFs } } = require('@atlasbound/kit');
 const telemetry = require('@atlasbound/telemetry');
-// The one named exception to a black-box suite (ADR "How to replace"): the published contract files the suites and the server read,
+// The one named exception to a black-box suite: the published contract files the suites and the server read,
 // reached from the resolved entry, so `--impl` swaps them too: contracts/shapes.cjs (`WIRE`, `PATHS`; the address row is filled there as an
 // opening release fills it), contracts/wire.cjs (the report validator) and contracts/rules.cjs (the wire schema of the descriptors).
 const CONTRACT = ['shapes', 'wire', 'rules'].map((name) => require(path.join(path.dirname(require.resolve('@atlasbound/telemetry')), 'contracts',

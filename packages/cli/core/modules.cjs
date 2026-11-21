@@ -20,17 +20,17 @@ const installedOf = (rows, has) => rows.filter((m) => m.packages.some(has)).map(
 const onHere = (rows, stored) => stored ?? rows.filter((m) => !m.optIn).map((m) => m.name);
 
 /** setup's and update's choice -> { on } in the file's order | { refused } (the step names the modules). No flag: the modules on here;
- * --with: the plain set and the named. */
+ * --with: those and the named, so a module a person switched off stays off until it is named. */
 function choose(rows, flags, stored) {
-  const plain = onHere(rows, null);
+  const here = onHere(rows, stored);
   const given = ['only', 'without', 'with'].filter((key) => flags[key] !== undefined);
   if (given.length > 1) return { refused: W.oneFlag };
-  if (!given.length) return { on: onHere(rows, stored) };
+  if (!given.length) return { on: here };
   const found = String(flags[given[0]]).split(',').map((w) => w.trim()).filter(Boolean).map((w) => [w, byWord(rows, w)]);
   const unknown = found.find(([, m]) => !m);
   if (unknown) return { refused: filled(WORDS.modules.noSuch, { word: unknown[0] }) };
   const named = (name) => found.some(([, m]) => m.name === name);
-  const keep = { only: named, without: (name) => !named(name), with: (name) => named(name) || plain.includes(name) }[given[0]];
+  const keep = { only: named, without: (name) => !named(name), with: (name) => named(name) || here.includes(name) }[given[0]];
   const on = rows.map((m) => m.name).filter(keep);
   return on.length ? { on } : { refused: W.noneLeft };
 }
@@ -59,7 +59,7 @@ function changeOf(before, after) {
  * reach. */
 const offItem = (rows, reached, short) => {
   const off = rows.filter((m) => reached.some((d) => m.packages.includes(d.pkg))).map((m) => m.name);
-  return off.length ? { key: 'module-off', text: `atlasbound: module-off ${off.join(', ')}: ${short}` } : null;
+  return off.length ? { key: 'module-off', text: filled(W.offItem, { names: off.join(', '), short }) } : null;
 };
 
 module.exports = { byWord, isOn, installedOf, onHere, choose, toggled, changeOf, offItem };

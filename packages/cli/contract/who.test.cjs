@@ -45,7 +45,7 @@ for (const [row, args, code, said] of PERSON_ROWS) {
   });
 }
 
-test('a wiring that takes a module out of a set-up repository is a person\'s; the first setup and adding one are anyone\'s', () => {
+test('a wiring that takes a module out is a person\'s, and so is turning one on again; the first setup is anyone\'s', () => {
   const { repo } = setupRepo(OPEN);
   const narrowed = run(OPEN.bin, ['setup', '--only', 'decisionbook', '--target', repo]);
   assert.equal(narrowed.code, 1);
@@ -58,7 +58,9 @@ test('a wiring that takes a module out of a set-up repository is a person\'s; th
   assert.match(run(OPEN.bin, ['modules', '--target', repo]).out, /^ {2}handoff +on /m, 'no phrase: both modules still on');
   const typed = run(OPEN.bin, ['setup', '--only', 'decisionbook', '--target', repo], { env: TTY, input: 'turn off handoff\n3\n' });
   assert.equal(typed.code, 0, 'the person narrows it, past the phrase that names what goes');
-  assert.equal(run(OPEN.bin, ['modules', 'on', 'handoff', '--target', repo]).code, 0, 'turning a module on needs no person');
+  const again = run(OPEN.bin, ['modules', 'on', 'handoff', '--target', repo], { ai: true });
+  assert.ok(again.err.startsWith(refusal('modules on', 'no-terminal', ['modules', 'on', 'handoff'])), again.err);
+  assert.equal(run(OPEN.bin, ['modules', 'on', 'handoff', '--target', repo]).code, 0, 'the person turns it on again, with no phrase: nothing is taken away');
 });
 
 // [the words sent, the phrase the terminal asks for]: the acts that take a protection away
@@ -112,6 +114,7 @@ test('an act that takes a protection away waits for its typed phrase at a plain 
 const WRAPPED = [
   ['modules off', 'atlasbound modules off decisionbook'],
   ['modules off', 'tmux -L x new-session -d "env -u CLAUDECODE -u AI_AGENT atlasbound modules off decisionbook"'],
+  ['modules on', 'atlasbound modules on handoff'],
   ['protect --none', 'tmux new-session -d -s p "env -u CLAUDECODE atlasbound protect --none"; sleep 2; tmux send-keys -t p yes Enter'],
   ['uninstall', 'nohup sh -c "sleep 4; atlasbound uninstall --purge" >/dev/null 2>&1 &'],
   ['handoff drop', 'screen -dmS s sh -c \'atlasbound handoff drop 1\''],
@@ -121,7 +124,7 @@ const WRAPPED = [
   ['modules off', 'python3 -c "import pty; pty.spawn([\'atlasbound\', \'modules\', \'off\', \'handoff\'])"'],
   ['handoff drop', 'cat > /tmp/x.sh <<EOF\natlasbound handoff drop 1\nEOF\nbash /tmp/x.sh'],
 ];
-const FREE = ['atlasbound status', 'atlasbound modules on handoff', 'atlasbound protect --source', 'npm uninstall left-pad', 'git status'];
+const FREE = ['atlasbound status', 'atlasbound modules', 'atlasbound protect --source', 'npm uninstall left-pad', 'git status'];
 
 test('an AI\'s shell command that names a verb only a person runs is denied at the hook, bare or wrapped; any other passes', () => {
   const { repo } = setupRepo(OPEN);

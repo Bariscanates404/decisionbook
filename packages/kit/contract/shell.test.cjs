@@ -11,7 +11,7 @@ const assert = require('node:assert/strict');
 const kit = require('@atlasbound/kit');
 const DENIALS = require('../test/fixtures/shell-denials.json');
 
-const { writtenBy, word } = kit.text.shell;
+const { writtenBy, setBy, word } = kit.text.shell;
 /** The written spellings, each after the cds before it: 'app/x.rb' or 'app > x.rb'; 'main?' a word that is a file only where the disk holds one. */
 const writes = (command) => writtenBy(command).writes.map(({ path, cd, maybe }) => `${[...cd, path].join(' > ')}${maybe ? '?' : ''}`);
 const placing = (command) => [writes(command), writtenBy(command).unplaced];
@@ -326,6 +326,21 @@ test('[I-57] every code pattern is read in linear time, and its write is still n
   assert.ok(grows(glued(30000), glued(120000)) < 10 && grows(long(30000), long(120000)) < 10, 'a code option glued to its code, and a long option, read in linear time too');
 });
 
+test('the reader names the variables a command sets for what it runs, through every wrapper; one it only reads is none', () => {
+  const sets = (command, lang = 'sh') => writtenBy(command, undefined, { lang }).sets;
+  for (const [command, names] of [['A=1 B+=2 run', ['A', 'B']], ['export A=1 B; unset C', ['A', 'B', 'C']], ['read -r A <<< x', ['A']],
+    ['sh -c "A=1 run"', ['A']], ['eval "export A"', ['A']], ['echo $(A=1 run)', ['A']], ['env A=1 run', ['A']], ['env -u A run', ['A']],
+    ['env --unset=A run', ['A']], ['env -S "A=1 run"', ['A']], ['env -i run', ['*']], ['env - run', ['*']], ['export A=$B:/x "C=$D"', ['A', 'C']], ['export "$NAME" $(cat .env)', []],
+    ['for f in *.txt "$@"; do run; done', ['f', 'in']],
+    ['for A in 1 2; do run; done', ['A', 'in']], ['printf -v A %s x', ['A']], ['let A=1', ['A']], ['mapfile A < f', ['A']],
+    ['echo $A; echo A=1; declare -p A; export -p; git commit -m "A=1"; printf %s A; echo for A in 1', []]]) assert.deepEqual(sets(command), names, command);
+  assert.deepEqual(sets('set A=1', 'cmd'), ['A'], 'cmd sets a variable so');
+  for (const [command, names] of [["$env:A = 'x'", ['A']], ['Set-Item env:A x', ['A']], ['Remove-Item env:A', ['A']], ['New-Item -Path Env:\\A -Value x', ['A']],
+    ["[Environment]::SetEnvironmentVariable('A', 'x')", ['A']], ['Write-Output $env:A', []]]) assert.deepEqual(sets(command, 'powershell'), names, command);
+  assert.deepEqual(setBy(writtenBy('env -i run'), ['A', 'B']), ['A', 'B'], 'an emptied environment sets every name asked about');
+  assert.deepEqual(setBy(writtenBy('B=1 run'), ['A', 'B']), ['B']);
+});
+
 test('[I-57] the reader stops where the caller\'s time is up, or at a text too long or deep to read, and says so', () => {
   const values = Array.from({ length: 64 }, (_, i) => `if x: p = 'f${i}'`).join('\n'); // p may hold 64 values, so each `p + p` joins 4096
   const slow = `python3 - <<'EOF'\nopen('app/models/user.rb', 'w')\n${values}\n${'q = p + p\n'.repeat(5000)}EOF`;
@@ -336,13 +351,13 @@ test('[I-57] the reader stops where the caller\'s time is up, or at a text too l
   assert.ok(Date.now() - started < 1000, `stopped at the budget: ${Date.now() - started} ms (the whole text takes seconds)`);
   started = Date.now();
   const short = [{ code: 'shell-cut-short', word: null }];
-  assert.deepEqual(Object.values(writtenBy(`echo x > app/a.rb; ${'rm b.rb; '.repeat(20000)}`, budget(-1))), [[], true, true, short], 'past at once: nothing read, and it says so');
+  assert.deepEqual(Object.values(writtenBy(`echo x > app/a.rb; ${'rm b.rb; '.repeat(20000)}`, budget(-1))), [[], [], true, true, short], 'past at once: nothing read, and it says so');
   const long = `python3 -c "${'#'.repeat(200001)}"; echo x > app/a.rb`;
-  assert.deepEqual(Object.values(writtenBy(long)), [[{ path: 'app/a.rb', cd: [], by: '>' }], true, true, short], 'a code text too long is unread; the rest of the command is still read');
+  assert.deepEqual(Object.values(writtenBy(long)), [[{ path: 'app/a.rb', cd: [], by: '>' }], [], true, true, short], 'a code text too long is unread; the rest of the command is still read');
   assert.ok(Date.now() - started < 500, `${Date.now() - started} ms`);
-  assert.deepEqual(Object.values(writtenBy(`python3 -c "${'#'.repeat(199000)}\nopen('app/x.rb', 'w')"`)), [[{ path: 'app/x.rb', cd: [], by: 'python' }], false, false, []], 'one under the cap is read');
-  assert.deepEqual(Object.values(writtenBy(`node -e "${'{'.repeat(65)}require('fs').writeFileSync('app/x.js', 'x')"`)), [[], true, true, short], 'too deep to read');
-  assert.deepEqual(Object.values(writtenBy(`node -e "${'{'.repeat(60)}require('fs').writeFileSync('app/x.js', 'x')"`)), [[{ path: 'app/x.js', cd: [], by: 'node' }], false, false, []], 'deep but read');
+  assert.deepEqual(Object.values(writtenBy(`python3 -c "${'#'.repeat(199000)}\nopen('app/x.rb', 'w')"`)), [[{ path: 'app/x.rb', cd: [], by: 'python' }], [], false, false, []], 'one under the cap is read');
+  assert.deepEqual(Object.values(writtenBy(`node -e "${'{'.repeat(65)}require('fs').writeFileSync('app/x.js', 'x')"`)), [[], [], true, true, short], 'too deep to read');
+  assert.deepEqual(Object.values(writtenBy(`node -e "${'{'.repeat(60)}require('fs').writeFileSync('app/x.js', 'x')"`)), [[{ path: 'app/x.js', cd: [], by: 'node' }], [], false, false, []], 'deep but read');
 });
 
 test('[I-57] write forms: an option that writes what the text does not show, beside one that does not', () => {
@@ -419,7 +434,7 @@ test('[I-57] a shell given a script file reads the text the caller hands for it;
 test('[I-57] finding a written script is bounded: a cd past the path limit cuts the command short, never a silent miss', () => {
   const script = "cat > /tmp/f.py <<'EOF'\nopen('/w/app/a.rb', 'w')\nEOF\n";
   const folder = `${'a'.repeat(99)}/`.repeat(50);
-  assert.deepEqual(writtenBy(`${script}cd ${folder}; python3 /tmp/f.py`), { writes: [{ path: '/tmp/f.py', cd: [], by: '>' }], unplaced: true, unread: true, why: [{ code: 'shell-cut-short', word: null }] });
+  assert.deepEqual(writtenBy(`${script}cd ${folder}; python3 /tmp/f.py`), { writes: [{ path: '/tmp/f.py', cd: [], by: '>' }], sets: [], unplaced: true, unread: true, why: [{ code: 'shell-cut-short', word: null }] });
   assert.deepEqual(placing(`${script}cd app; python3 /tmp/f.py`), [['/tmp/f.py', 'app > /w/app/a.rb'], false], 'a short cd: the script is found and read');
   let ticks = 0;
   const clock = () => (ticks += 1) > 1000; // time passes as the reader works
@@ -433,7 +448,7 @@ test('[I-57] a target it cannot tell is unplaced, and only a write is ever named
   for (const command of ['cat app/x.rb', 'grep -rn foo app | head -5', 'git diff -- app', 'bundle exec rspec spec/x_spec.rb 2>&1 | tail -3', 'ls app # > app/x.rb', 'cd app/models && ls', 'grep -n x app/*.rb']) {
     assert.deepEqual(placing(command), [[], false], command);
   }
-  assert.deepEqual(writtenBy("cd app; grep x app/a.rb; python3 - <<EOF\nopen(p, 'w')\nEOF"), { writes: [], unplaced: true, unread: false, why: [{ code: 'shell-code-path', word: 'python' }] },
+  assert.deepEqual(writtenBy("cd app; grep x app/a.rb; python3 - <<EOF\nopen(p, 'w')\nEOF"), { writes: [], sets: [], unplaced: true, unread: false, why: [{ code: 'shell-code-path', word: 'python' }] },
     'no list of every literal: nothing but what is written, and why it cannot be placed');
   assert.deepEqual(writes('bundle exec rspec > /tmp/out.txt 2>&1'), ['/tmp/out.txt'], 'a file outside the repository is named; the caller places it');
   assert.equal(word("it's"), "'it'\\''s'", 'word is unchanged');

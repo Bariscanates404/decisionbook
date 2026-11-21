@@ -5,13 +5,13 @@
 // THE one reader and writer of the handoff's store: this repository's folder in the person's home (never the repository). It holds the
 // note of each branch, and per session the heads of the person's messages and the list of edited files.
 const { text: { lines: { shortId } } } = require('@atlasbound/kit');
-const { SCHEMA, BOUNDS, bound, shapedOrNull } = require('../contracts/shapes.cjs');
-const { noteKey, sessionKey, sessionIds } = require('../contracts/helpers.cjs');
+const { SCHEMA, BOUNDS, bound } = require('../contracts/shapes.cjs');
+const { noteKey, sessionKey, storedRecord, sessionsHere } = require('../contracts/helpers.cjs');
 
 const DAY = 86400000;
 const isSessionId = (id) => typeof id === 'string' && !bound.refusal('SessionId', { id });
 
-const readNote = (io, branch) => shapedOrNull(io.home.readText(noteKey(io, branch)), 'Note');
+const readNote = (io, branch) => storedRecord(io, noteKey(io, branch), 'Note', 'note-unreadable');
 
 /** The note replaces the one before it, which stays as the single backup. */
 function writeNote(io, branch, note) {
@@ -21,7 +21,7 @@ function writeNote(io, branch, note) {
   io.home.writeAtomic(key, `${JSON.stringify(bound.shape('Note', note), null, 2)}\n`);
 }
 
-const readSession = (io, id) => shapedOrNull(io.home.readText(sessionKey(io, id)), 'Session');
+const readSession = (io, id) => storedRecord(io, sessionKey(io, id), 'Session', 'session-unreadable');
 /** The session's record, or a new one: `head` is where it began when its start was seen, else null. */
 function sessionOf(io, id, head = null) {
   const at = io.clock.now();
@@ -35,8 +35,7 @@ function writeSession(io, session) {
 
 /** The session seen last here, or null: the journal the next session's note is brought up to. */
 function lastSession(io) {
-  const seen = sessionIds(io).map((id) => readSession(io, id)).filter(Boolean);
-  return seen.sort((a, b) => a.seen.localeCompare(b.seen)).at(-1) ?? null;
+  return sessionsHere(io).sort((a, b) => a.seen.localeCompare(b.seen)).at(-1) ?? null;
 }
 
 // an append never loses a row when two edits end together
@@ -53,16 +52,16 @@ function touchedOf(io, id) {
 /** A session not seen for `sessionDays` leaves the home store with its messages and its list of edited files. */
 function pruneSessions(io) {
   const limit = Date.parse(io.clock.now()) - BOUNDS.sessionDays * DAY;
-  const old = sessionIds(io).filter((id) => Date.parse((readSession(io, id) || { seen: io.clock.now() }).seen) < limit);
-  old.forEach((id) => ['json', 'touched'].forEach((kind) => io.home.remove(sessionKey(io, id, kind))));
+  const old = sessionsHere(io).filter((session) => Date.parse(session.seen) < limit);
+  old.forEach((session) => ['json', 'touched'].forEach((kind) => io.home.remove(sessionKey(io, session.session, kind))));
   return old.length;
 }
 
 /** Every message head kept here, oldest first: what the composition root hands DecisionBook to read a person's promises from. */
 function heardHere(io) {
   if (!io.home) return [];
-  const rows = sessionIds(io).flatMap((id) => ((readSession(io, id) || { messages: [] }).messages)
-    .map((m) => ({ id: `${shortId(id)}.${m.n}`, at: m.at, text: m.text })));
+  const rows = sessionsHere(io).flatMap((session) => session.messages
+    .map((m) => ({ id: `${shortId(session.session)}.${m.n}`, at: m.at, text: m.text })));
   return rows.sort((a, b) => a.at.localeCompare(b.at));
 }
 

@@ -5,11 +5,10 @@
 // One namespace's trace rows of one day through its handle, pure: per measured row its step and outcome, its own run time (never for a
 // step that asks a person), its codes, its failure code, its decision; the metrics its descriptors name, from `ok` rows only; and the host
 // calls that came in and never went out. A row of a local-only step, of another package or of a step nobody registered counts nothing.
-const { trace: { VERDICTS } } = require('@atlasbound/kit');
+const { trace: { VERDICTS, decisionKey } } = require('@atlasbound/kit');
 const { hostEvent } = require('../contracts/helpers.cjs');
 
-const VERDICT = /^decision_(.+)$/u;
-const decidingVerdict = (row) => Object.keys(row.n).map((name) => VERDICT.exec(name)?.[1]).find((word) => VERDICTS.includes(word));
+const decidingVerdict = (row) => VERDICTS.find((verdict) => Object.hasOwn(row.n, decisionKey(verdict)));
 
 // A deciding row is one decision: its one code, or `other` when it said several or none.
 function foldDecision(handle, step, row, codes) {

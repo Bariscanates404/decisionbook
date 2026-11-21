@@ -9,7 +9,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { makeWorld, tmp, git, setupRepo, fire, portRow, replyJson, hookDecisionOf, protect, writeFiles } = require('./support.cjs');
+const { makeWorld, makeRepo, run, tmp, git, setupRepo, fire, portRow, replyJson, hookDecisionOf, protect, writeFiles } = require('./support.cjs');
 // a Stop block also tells the person it is a check, not a crash (the host shows it as a hook error)
 const HELD = 'atlasbound: a deliberate check, not a crash: the session was held from finishing and the AI was told what to do first';
 
@@ -102,4 +102,37 @@ test('[I-71] the product\'s own files are sealed at the port: its store refused,
   const unasked = hookDecisionOf(fire(repo, portRow(repo, 'PreToolUse', 'Write'), { session_id: 's1', cwd: repo, hook_event_name: 'PreToolUse',
     permission_mode: 'bypassPermissions', ...write('.decisionbook/x.jsonl') }, { HOME: home }));
   assert.equal(unasked.permissionDecision, 'deny', 'where no one is asked, the ask is a refusal');
+});
+
+test('with DecisionBook switched off the port still seals the store, here and in the home, and the records DecisionBook keeps', () => {
+  const world = makeWorld({ real: ['handoff'] });
+  const record = 'printf x > .atlasbound/cli/installed.json';
+  const repo = makeRepo({ [FILE]: 'class X\nend\n', 'w.sh': `${record}\n`, 'package.json': JSON.stringify({ scripts: { w: record } }) });
+  const home = tmp('shellgate-home-');
+  const typed = (...args) => run(world.bin, [...args, '--target', repo], { env: { HOME: home } });
+  assert.equal(typed('setup').code, 0);
+  protect(repo, ['app/**']);
+  const ruled = (payload) => {
+    const { permissionDecision: verdict, permissionDecisionReason: why = '' } = hookDecisionOf(fire(repo, portRow(repo, 'PreToolUse', payload.tool_name),
+      { session_id: 's1', cwd: repo, hook_event_name: 'PreToolUse', permission_mode: 'default', ...payload }, { HOME: home }));
+    return [verdict, (/(?:^|; )atlasbound: own-file: /.test(why) && 'own') || (/^STORE_SEALED: [^\n]* — /.test(why) && 'sealed') || why.split(':')[1]?.trim()];
+  };
+  const write = (file) => ({ tool_name: 'Write', tool_input: { file_path: path.isAbsolute(file) ? file : path.join(repo, file), content: '{}' } });
+  const bash = (command) => ({ tool_name: 'Bash', tool_input: { command } });
+  const [SEALED, OWN, FREE] = [['deny', 'sealed'], ['ask', 'own'], [undefined, undefined]];
+  // a script the command runs is read too: what `sh w.sh` or `npm run w` writes is judged as if it were typed
+  const kept = [[bash(record), SEALED], [bash('cd .atlasbound/cli && rm installed.json'), SEALED],
+    [bash('sh w.sh'), SEALED], [bash('bash ./w.sh'), SEALED], [bash('npm run w'), SEALED],
+    [bash('printf x > ~/.atlasbound/handoff-here/forged.json'), SEALED], [bash(`printf x > ${home}/.atlasbound/handoff-here/forged.json`), SEALED],
+    [write('.atlasbound/cli/installed.json'), SEALED], [write(path.join(home, '.atlasbound', 'handoff-here', 'forged.json')), SEALED],
+    [bash('echo "{}" > .decisionbook/config.json'), OWN], [write('.decisionbook/config.json'), OWN], [bash('rm -rf .decisionbook'), OWN],
+    [bash('cat .atlasbound/cli/installed.json .decisionbook/config.json'), FREE], [write('lib/new.cjs'), FREE]];
+  const answers = () => kept.map(([payload]) => ruled(payload));
+  assert.deepEqual(ruled(bash(`echo x > ${FILE}`)), ['deny', 'plan-none'], 'DecisionBook on: its gate judges a protected file');
+  assert.deepEqual(answers(), kept.map(([, want]) => want), 'both modules on');
+  assert.equal(typed('modules', 'off', 'decisionbook').code, 0);
+  assert.deepEqual(ruled(bash(`echo x > ${FILE}`)), FREE, 'DecisionBook off: its gate does not run');
+  assert.deepEqual(answers(), kept.map(([, want]) => want), 'DecisionBook off: the seal is the port\'s, so nothing of it left with the module');
+  assert.equal(typed('modules', 'on', 'decisionbook').code, 0);
+  assert.deepEqual(ruled(bash(`echo x > ${FILE}`)), ['deny', 'plan-none'], 'on again: the policy it kept is read as the person left it');
 });

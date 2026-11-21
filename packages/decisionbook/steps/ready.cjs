@@ -6,23 +6,26 @@
 // missing row and the one add that fills them. The verb and every write (steps/batch) read the rubric and answer
 // through here.
 const { errors: { fail } } = require('@atlasbound/kit');
+const { isTheirs } = require('../base/text.cjs');
 const { scopeOf } = require('../core/fold.cjs');
-const { levelRows, readyAgain, readResearch, unreadPlanned } = require('../core/ready.cjs');
+const { unreadyState, readyAgain, readResearch, unreadPlanned } = require('../core/ready.cjs');
 const { RUBRIC, RESEARCH_NOTE } = require('../contracts/rubric.cjs');
 const { nextAdd } = require('../core/text/calls.cjs');
 const { standardsAsked, standardsN } = require('./standards.cjs');
 const { CONTRACT } = require('./promise.cjs');
 const { phase } = require('./phase.cjs');
 const store = require('./store.cjs');
+const { openLines, NONE } = require('../core/text/open.cjs');
+const { openItems } = require('./touch.cjs');
 const trust = require('./trust.cjs');
 
-/** The plan with the standards its new files are asked, and its place among the branch's plans: { web, view, n }. */
+/** The plan with the standards its new files are asked, its place among the branch's plans and the open items: { web, view, items, n }. */
 async function planRubric(io, id) {
   const asked = await standardsAsked(io, store.readPlan(io, id));
   const web = store.readWeb(io, { asked: { [id]: asked } });
   const view = web.views.find((v) => v.id === id);
   researchJudged(io, view);
-  return { web, view, n: { unmet: view.unmet.length, ...standardsN(asked, view.undecided) } };
+  return { web, view, items: await openItems(io, web), n: { unmet: view.unmet.length, ...standardsN(asked, view.undecided) } };
 }
 
 /** The research a plan asks to be READY on (every other row holds), once per judgement: `ready.research` with the records that cite a
@@ -33,15 +36,6 @@ function researchJudged(io, view) {
   const met = readResearch(view).length;
   io.trace.record({ run: io.run, step: 'ready.research', ok: true, n: { met, asked: needs, notRead: unreadPlanned(view).length },
     codes: { [met >= needs ? 'research-met' : 'research-short']: 1 }, ref: { plan: view.id, session: io.session ?? null } });
-}
-
-/** The state every answer of a plan that is not made READY holds; `was`: the level its stored READY has; `rows`: how many of the
- * rows its level asks it holds. */
-function unreadyState(view) {
-  const was = view.ready ? view.ready.level : null;
-  const asked = levelRows(view.level.level).length;
-  return { id: view.id, ready: false, code: 'plan-not-ready', level: view.level, unmet: view.unmet, parked: null, was,
-    rows: { met: asked - view.unmet.length, asked } };
 }
 
 /** Not READY. `before` (the rows a write found unmet, as they were said; none: a `new` or the `ready` verb): the reply says only
@@ -63,23 +57,38 @@ async function becomeReady(io, { web, view, n }) {
   const read = readResearch(view).length;
   const short = RESEARCH_NOTE[view.level.level] > read ? { read, needs: RESEARCH_NOTE[view.level.level] } : null;
   const out = { id: view.id, ready: true, code: 'plan-ready', level: view.level, unmet: [],
-    parked: parked ? parked.id : null, here, promised, researchNote: short };
+    parked: parked ? parked.id : null, here, promised, researchNote: short, undecided: !view.decisions.some(isTheirs) };
   return { out, code: 'plan-ready', n };
 }
+
+/** A plan whose decision lost a conflict after it edited is told with that item, nothing stored as READY again. -> the answer | null */
+function lostAnswer({ view, items, n }) {
+  const open = openLines({ ...NONE, lost: items.lost }, [view.id]);
+  return open.length ? { out: { ...unreadyState(view), code: 'plan-lost', open }, code: 'plan-lost', n } : null;
+}
+
+/** THE state a plan is left in, by `ready <id>` (`asked`) and by every write (`before`: the rows it found unmet), one ladder: told with
+ * its open item where its decision lost a conflict; a plan set aside stays aside unless asked; its missing rows; made READY (a draft, a
+ * READY plan on a yes given again, and when asked a plan parked, closed or set aside: the switch; `made`); else told as it is: a
+ * frozen READY plan is never stored again. */
+async function stateLadder(io, judged, { before, asked }) {
+  const { view, n } = judged;
+  const lost = lostAnswer(judged);
+  if (lost) return lost;
+  if (view.state === 'aside' && !asked) return { out: { ...unreadyState(view), state: view.state }, code: 'plan-set-aside', n };
+  if (view.unmet.length) return missingAnswer(io, judged, before);
+  if (readyAgain(view) || (asked && view.state !== 'ready')) return { ...await becomeReady(io, judged), made: true };
+  return { out: { ...unreadyState(view), ...leftAs(io, view, asked) }, code: 'plan-ready', n };
+}
+const leftAs = (io, view, asked) => (asked ? { ready: true, code: 'plan-ready', here: trust.confirmedHere(io, view) }
+  : { ready: view.state === 'ready', state: view.state, here: true });
 
 /** `ready <id>`: READY at the level code decides, else each missing row. */
 async function ready({ rest: [id] }, io) {
   if (!id) throw fail('plan-args', 'ready <id>');
-  const judged = await planRubric(io, id);
-  const { view, n } = judged;
-  if (view.unmet.length) return missingAnswer(io, judged);
-  // frozen: a READY plan that holds is told, never stored again
-  if (view.state === 'ready' && !readyAgain(view)) {
-    return { out: { ...unreadyState(view), ready: true, code: 'plan-ready', here: trust.confirmedHere(io, view) }, code: 'plan-ready', n };
-  }
-  const made = await becomeReady(io, judged);
-  phase(io, {}, id, 'ready');
-  return made;
+  const { made, ...left } = await stateLadder(io, await planRubric(io, id), { before: null, asked: true });
+  if (made) phase(io, {}, id, 'ready');
+  return left;
 }
 
-module.exports = { ready, planRubric, unreadyState, missingAnswer, becomeReady };
+module.exports = { ready, planRubric, stateLadder };

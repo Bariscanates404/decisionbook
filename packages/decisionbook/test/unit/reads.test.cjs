@@ -10,6 +10,7 @@ const { whyText } = require('../../core/text/why.cjs');
 const { inboxText } = require('../../core/text/inbox.cjs');
 const { prText } = require('../../core/text/pr.cjs');
 const { WORDS } = require('../../contracts/codes.cjs');
+const { keptOtherValue } = require('../../core/text/refused.cjs');
 const { bookWorld } = require('../../contract/world.cjs');
 
 const SHA = '0123456789abcdef0123456789abcdef01234567';
@@ -33,7 +34,7 @@ test('inbox: a line that none waits, or the counts and a line per row as the ste
 
 test('pr: no plan names the branch and the call; a plan with no commit it began on says its commits are not measured', () => {
   assert.equal(prText({ branch: 'feat/x', plans: [] }), 'No plan on feat/x to describe: atlasbound decisionbook pr <id> names one.');
-  const said = prText({ branch: 'feat/x', plans: [{ id: 'p1', state: 'draft', title: 'Export', why: 'slow', decisions: [], checks: [], commits: null }] });
+  const said = prText({ branch: 'feat/x', plans: [{ id: 'p1', state: 'draft', title: 'Export', why: 'slow', open: [], decisions: [], checks: [], commits: null }] });
   assert.deepEqual(said.split('\n'), ['## Export', '', 'Plan `p1` (draft)', '**Why:** slow', '', WORDS.prCommits, WORDS.prUnmeasured, '', WORDS.prFoot]);
 });
 
@@ -45,4 +46,10 @@ test('why reads <file>[:<line>]: :3 is line 3, a file git lacks is said so; line
   assert.deepEqual([three.file, three.line, three.held, asked], ['lib/a.js', 3, true, [['lib/a.js', 3]]]);
   assert.equal((await verbs.why(io, { rest: ['lib/b.js:3'] })).out.held, false);
   for (const rest of [['lib/a.js:0'], [], ['../outside.js:1']]) await assert.rejects(verbs.why(io, { rest }), { code: 'plan-args' }, rest.join(' '));
+});
+
+test('the refusal of a keep of another value hands the kept value whole, with no hidden character raw', () => {
+  const long = 'x'.repeat(200); // past every reader's cut
+  const [code, detail] = keptOtherValue({ ref: 'plan/fee', value: `100\u202e TL\u200b ${long}` });
+  assert.deepEqual([code, detail.endsWith(`; the value to copy: "100\\u202e TL\\u200b ${long}"`)], ['keep-other-value', true], detail);
 });

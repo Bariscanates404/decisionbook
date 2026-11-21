@@ -42,6 +42,9 @@ const SHAPES = {
   Doctor: { ok: 'bool', says: 'str?' },
   Payload: { session_id: 'str?', cwd: 'str?' },
   HostFile: { hooks: 'arr{}?', env: 'obj?', mcpServers: 'obj?' },
+  // .atlasbound/cli/installed.json: this machine's record of what setup wrote and of the modules chosen. Another schema word (a newer
+  // cli's) is refused, never read as this one; a record from before modules (cli-install/1) holds no `modules`: every module.
+  InstallRecord: { schema: 'installSchema?', modules: 'word[]?', files: 'obj?', servers: 'arr?', linked: 'arr?', allow: 'arr?', teamWas: 'any?' },
   // What config/1 holds that the cli reads (compose refuses a hookTraceDays of 0). Every other key is its package's and is checked once,
   // there.
   Config: { schema: 'str?', hookTraceDays: 'int?' },
@@ -69,7 +72,8 @@ const EVENTS = {
   Stop: { on: null, blocks: ['deny'], context: false, person: true },
   PreCompact: { on: 'trigger', blocks: [], context: false }, // never blocks a compaction; the reply is silence
 };
-const ENUMS = { event: Object.keys(EVENTS), verdict: ['deny', 'ask', 'allow'], by: ['person'] };
+const INSTALL_SCHEMA = 'cli-install/2'; // what this cli writes
+const ENUMS = { event: Object.keys(EVENTS), verdict: ['deny', 'ask', 'allow'], by: ['person'], installSchema: ['cli-install/1', INSTALL_SCHEMA] };
 // The port's own row, wired whatever module is on: an AI's shell command meets the gate of the verbs only a person runs (steps/person),
 // and a shell or write tool (kit's tables) the seal of the product's own files (steps/sealed).
 const PORT_GATE = { event: 'PreToolUse', matcher: [...Object.keys(SHELL_TOOLS), ...Object.keys(WRITE_TOOLS)].join('|'), timeout: 10 };
@@ -79,18 +83,21 @@ const STEPS = ['cli.verb', 'actor', 'hook.in', 'hook.handler', 'hook.out', 'hook
 const DEBUG_SCHEMA = 'ab-debug/1';
 
 // How compose opens the repository, one word per verb (argv picks it from the row): `hostRoot` the host's project directory names it,
-// `hook` reads only the hook's config keys and keeps its trace days, `looking` makes no trace folder where none is, `reading` holds the
-// trace in this process, `cleaning` lets uninstall enter a root a setup left.
+// `hook` reads only the hook's config keys and keeps its trace days, `looking` makes no trace folder (a verb that looks; one that
+// wires, until its own write made it), `reading` holds the trace in this process, `cleaning` lets uninstall enter a root a setup left
+// and makes no trace folder either.
 const MODES = {
-  work: {}, look: { looking: true }, read: { reading: true }, clean: { cleaning: true }, host: { hostRoot: true },
+  work: {}, look: { looking: true }, wire: { looking: true }, read: { reading: true }, clean: { cleaning: true }, host: { hostRoot: true },
   'host-read': { hostRoot: true, reading: true }, hook: { hostRoot: true, hook: true },
 };
 
 // config/1: every setting with its default, data. Absent from the repository's file means this value; compose freezes the result.
 const CONFIG = { schema: 'config/1', hookTraceDays: 14 };
-const CONFIG_FILE = '.atlasbound/cli/config.json';
 const STORE = '.atlasbound';
-const SAID_DIR = '.atlasbound/cli/said'; // one record per session of what its context was told (digests, never text)
+const CLI_STORE = `${STORE}/cli`; // the cli's own folder of the store: its config, its install record, what each session was told
+const CONFIG_FILE = `${CLI_STORE}/config.json`;
+const SAID_DIR = `${CLI_STORE}/said`; // one record per session of what its context was told (digests, never text)
 
-module.exports = { SHAPES, REFUSE, EVENTS, ENUMS, PORT_GATE, PORT_READ_MS, STEPS, DEBUG_SCHEMA, CONFIG, CONFIG_FILE, STORE, SAID_DIR,
+module.exports = { SHAPES, REFUSE, EVENTS, ENUMS, INSTALL_SCHEMA,
+  PORT_GATE, PORT_READ_MS, STEPS, DEBUG_SCHEMA, CONFIG, CONFIG_FILE, STORE, CLI_STORE, SAID_DIR,
   MODES };

@@ -12,7 +12,7 @@ const { jsonCall } = require('./calls.cjs');
 
 const WHY_BYTES = 6144;
 const replacedLine = (n) => filled(WORDS.whyReplaced, { plan: n.plan, line: decisionLine(n).slice('- '.length) });
-const shippedLines = (p) => [filled(WORDS.whyShipped, { id: p.id, state: p.state, title: shown.title(p.title) }),
+const shippedLines = (p) => [filled(WORDS.whyShipped, { id: p.id, state: p.state, title: shown.title(p.title) }), ...p.open,
   ...p.decisions.flatMap((d) => [decisionLine(d), ...d.then.map(replacedLine)])];
 
 /** Each commit's line, then the plans that shipped it or the line that none does; lines not committed yet last. */

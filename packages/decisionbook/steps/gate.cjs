@@ -15,6 +15,7 @@ const { contractVerdict } = require('./promise.cjs');
 const { phase } = require('./phase.cjs');
 const { worksOn } = require('./here.cjs');
 const store = require('./store.cjs');
+const { openItems } = require('./touch.cjs');
 const trust = require('./trust.cjs');
 
 // person-only: a policy write taking a glob out, any write of an existing file of a declared guarded folder, a new one not adds-only
@@ -53,7 +54,7 @@ async function preEdit(event, io, { dry = false } = {}) {
   const web = isGuarded(config, file) ? store.readWeb(io, { danger: config.danger }) : null;
   const asked = { ...config, file, mode: event.permission_mode, person, trusted: (view) => trust.isTrusted(io, view),
     ours: (view) => worksOn(io, event.session_id, view) };
-  const out = gateVerdict({ ...asked, ...(web ? { branch: await io.git.branch(), web } : {}) });
+  const out = gateVerdict({ ...asked, ...(web ? { branch: await io.git.branch(), web, items: await openItems(io, web) } : {}) });
   const said = await promised(event, io, await broughtBy(event, io, { out, web, dry }));
   if (!dry) firstWrite(io, event, said, out.plan);
   return out.code === 'plan-draft-here' ? draftAsks(said, web.views.find((view) => view.id === out.plan)) : said;

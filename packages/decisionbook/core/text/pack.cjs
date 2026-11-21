@@ -20,7 +20,7 @@ function decidedLines(decisions, more) {
   const rest = more ? [filled(WORDS.packMore, { file: shown.more(more) })] : [];
   if (!decisions.length) return rest;
   const rows = decisions.flatMap((d, i) => [...(d.from.id === decisions[i - 1]?.from.id ? [] : [sourceLine(d.from)]),
-    d.rivals?.length ? `- ${shown.key(d.key)} ${rivalText(d)}` : `- ${shown.key(d.key)} = ${shown.value(d.value)} (${deciderOf(d.by)}${agedOf(d,
+    d.conflict ? `- ${shown.key(d.key)} ${rivalText(d.conflict)}` : `- ${shown.key(d.key)} = ${shown.value(d.value)} (${deciderOf(d.by, d.author)}${agedOf(d,
       dayOf(d.from.at))})`]);
   return [WORDS.packDecided, ...rows, ...rest, `${replaceLine(WORDS.packRef)} ${WORDS.packRefAt}`];
 }
@@ -74,7 +74,7 @@ function levelLines(judged, first, session) {
   delete head.t;
   const records = fill.ai.filter((r) => r.t !== 'amend');
   const shapes = shapesLine([{ t: 'plan', ...head }, ...fill.ai, ...fill.person]);
-  return [filled(WORDS.packLevel, slots), ...smallLine, filled(WORDS.packCalls, { first: first ? `${first}; then ` : '' }), ...[shapes].filter(Boolean),
+  return [filled(WORDS.packLevel, slots), ...smallLine, filled(WORDS.packCalls, { first: first ? `${first}; then ` : '' }), WORDS.packStated, ...[shapes].filter(Boolean),
     draftedCall('new', { ...head, records }, session), addCall('<id>', fill.person, session)];
 }
 

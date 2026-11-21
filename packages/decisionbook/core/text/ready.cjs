@@ -56,9 +56,9 @@ function unmetLines(row, level, known) {
     .map((line) => `  ${line}`);
 }
 
-/** A person's standing decision this plan places nowhere (core/ready changedOf): its own key's rivals, the decision of it that it stands
- * beside, or the files of it it holds on; one line each. */
-const replacedLines = (row) => (row.changed || []).map((c) => (c.rivals?.length ? `${c.ref}: ${rivalText(c)}` : filled(WORDS.replaceHeld,
+/** A person's standing decision this plan places nowhere (core/ready changedOf): a conflict its line is in, or the files of another
+ * plan's decision it holds on; one line each. */
+const replacedLines = (row) => (row.changed || []).map((c) => (c.conflict ? `${c.ref}: ${rivalText(c.conflict)}` : filled(WORDS.replaceHeld,
   { ref: c.ref, value: shown.value(String(c.value)), files: shown.globs((c.files ?? []).join(', ')) })));
 
 /** The one add as a draft to write and the call that reads it, last; above it, what its blanks must hold where that is not free text. */
@@ -77,9 +77,15 @@ function missingLines(o) {
     ...(still.length ? [`  ${WORDS.stillUnmet} ${still.join(', ')}`] : [])];
 }
 
+/** What a plan is told once, when it is made READY: normal work grounded in little reading, and a plan with no decision of the person
+ * (a value their message set is a decision to record). */
+const madeNotes = (o) => [...(o.researchNote ? [filled(WORDS.researchNote, o.researchNote)] : []),
+  ...(o.undecided ? [WORDS.statedNote] : [])];
+
 /** A plan's state after a write or a `ready`: READY (frozen, with the contract it took on), not READY (its progress, the rows,
  * then the fill-in), or the state of a parked, closed or replaced plan, which is only told. */
 function readyLines(o) {
+  if (o.open?.length) return [filled(WORDS.lostHeld, o), ...o.open]; // never 'pass in silence' while it stands
   if (o.state && o.state !== 'ready') return [`${o.id} ${o.state}`];
   const level = WORDS.levels[o.level.level];
   const parked = o.parked ? `; parked: ${o.parked}` : '';
@@ -89,8 +95,7 @@ function readyLines(o) {
     return [`${o.id} not READY as ${level}${parked}: ${progress}`, ...missingLines(o), ...fillInLines(o.next), ...promised];
   }
   const askedOnce = o.here ? [] : [WORDS.askedOnce];
-  const note = o.researchNote ? [filled(WORDS.researchNote, o.researchNote)] : []; // normal work grounded in little reading, said once
-  return [`${o.id} READY as ${level}${parked}. ${WORDS.frozen}`, ...note, ...askedOnce, ...promised];
+  return [`${o.id} READY as ${level}${parked}. ${WORDS.frozen}`, ...madeNotes(o), ...askedOnce, ...promised];
 }
 
 module.exports = { readyLines };

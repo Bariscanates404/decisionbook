@@ -15,7 +15,7 @@ const levelSaid = async (io, id) => (await verbs.show(io, { rest: [id, 'plan'] }
 test('[I-1] a plan is one append-only file of plain JSON lines; no verb rewrites a line', async () => {
   const io = world();
   const id = await begin(io, { goal: 'fewer support tickets', tags: ['export'] });
-  assert.match(id, /^2026-11-02-report-export-is-slow$/);
+  assert.match(id, /^2026-11-02-report-export-is-slow-[0-9a-f]{4}$/);
   const first = io.fs.readText(logFile(id));
   const head = JSON.parse(first);
   assert.deepEqual([head.schema, head.t, head.id, head.why, head.goal, head.level, head.branch, head.head],
@@ -23,7 +23,8 @@ test('[I-1] a plan is one append-only file of plain JSON lines; no verb rewrites
   await added(io, id, { t: 'note', text: 'started' });
   await verbs.ready(io, { rest: [id] });
   assert.ok(io.fs.readText(logFile(id)).startsWith(first), 'earlier bytes stay');
-  assert.equal(await begin(io), `${id}-2`, 'a second plan of the same title on the same day gets its own file');
+  const second = await begin(io);
+  assert.ok(second !== id && second.startsWith('2026-11-02-report-export-is-slow-'), 'a second plan of the same title on the same day gets its own file');
 });
 
 test('[I-2] READY is a yes or no list of the rubric\'s rows at the level code decides, with no number',
@@ -100,7 +101,7 @@ test('[I-3] a decision lives in one record, valid by scope and supersedes, never
   await added(io, id, idle({ value: '30 s' }));
   await added(io, id, idle({ value: '45 s', supersedes: [`${id}/report.export.timeout`] })); // the documented change
   const states = async () => (await verbs.show(io, { rest: ['decision:report.export.timeout'] })).out.decisions.map((d) => [d.plan === id ? 'A' : 'B',
-    d.value, d.scope, d.state, d.conflicts.length]);
+    d.value, d.scope, d.state, d.meets.length]);
   assert.deepEqual(await states(), [['A', '30 s', null, 'revised', 0], ['A', '45 s', null, 'active', 0]], 'the same plan revises its own');
   const mobile = await begin(io, { title: 'Tablet and mobile export' }); // its file sorts after the first: the list is in file order
   await added(io, mobile, idle({ value: '5 s', scope: 'mobile' }));
@@ -114,7 +115,7 @@ test('[I-3] a decision lives in one record, valid by scope and supersedes, never
   await added(io, mobile, idle({ value: '60 s' })); // the same decision, naming none it replaces
   assert.deepEqual((await states()).filter(([, , , s]) => s === 'active').map(([w, v, , , c]) => [w, v, c]),
     [['A', '45 s', 1], ['B', '5 s', 0], ['B', '60 s', 1]], 'a conflict, shown');
-  const across = `- report.export.timeout CONFLICT (2 person decisions of this key across plans, none replacing another; none holds until the person says which)`;
+  const across = `- report.export.timeout CONFLICT (2 person decisions across plans, none replacing another; none holds until the person says which)`;
   assert.ok((await verbs.resume(io, { rest: [] })).text.includes(across), 'the start says the conflict, never a value as settled');
   assert.ok((await verbs.show(io, { rest: [id, 'decisions'] })).text.includes(across.replace('- ', '')));
   await added(io, id, { t: 'decision', key: 'report.export.limit', value: '10000', why: 'w', by: 'ai', files: ['src/report/export.js'] });
@@ -195,8 +196,8 @@ test('[I-6] resume is computed at read and bounded, and a stored text never star
   assert.ok((await verbs.resume(io, { rest: [] })).text.split('\n').every((line) => !line.startsWith('Plan other')),
     'a stored text never starts a line of its own');
   const picked = (await verbs.show(io, { rest: [id, 'decisions'] })).out;
-  assert.deepEqual(Object.keys(picked).sort(), ['branch', 'decisions', 'id', 'level', 'nodes', 'refused', 'seen', 'state', 'title', 'unmet'], 'get returns the chosen fields, the node map and whether it was given before');
-  assert.ok(picked.decisions.every((d) => ['state', 'scope', 'conflicts', 'supersededBy', 'by'].every((k) => k in d)),
+  assert.deepEqual(Object.keys(picked).sort(), ['branch', 'decisions', 'id', 'level', 'nodes', 'open', 'refused', 'seen', 'state', 'title', 'unmet'], 'get returns the chosen fields, the node map and whether it was given before');
+  assert.ok(picked.decisions.every((d) => ['state', 'scope', 'conflict', 'meets', 'supersededBy', 'by'].every((k) => k in d)),
     'a decision never loses its state, scope or decider');
   await assert.rejects(verbs.show(io, { rest: [id, 'everything'] }), { code: 'plan-args' });
   io.state.branch = 'main';
@@ -238,7 +239,7 @@ test('close with no own commit says nothing to record yet and records nothing; a
   assert.deepEqual([records(), (await verbs.show(io, { rest: [id] })).out.state], [before, 'ready'], 'no closed record');
   io.state.commits = [{ after: 'h0', sha: 'c2', subject: 'wip', body: `DecisionBook: ${id}`, files: ['lib/x.py'] }, ...io.state.commits];
   io.state.head = 'c2';
-  assert.deepEqual((await verbs.close(io, { rest: [id] })).text, `${id} closed: 1 own commits, 1 files, 0 tests; 1 other commits not attributed; `
+  assert.deepEqual((await verbs.close(io, { rest: [id] })).text, `${id} closed: 1 own commit, 1 file, 0 tests; 1 other commit not attributed; `
     + `commit this record: git add .decisionbook/${id}.jsonl, then git commit -m "DecisionBook: close ${id}" .decisionbook/${id}.jsonl\n`);
   assert.equal((await verbs.show(io, { rest: [id] })).out.state, 'closed');
 });
@@ -278,8 +279,9 @@ test('[I-9] decisionbook-record/1 is pinned; an unknown major is refused; a torn
   // + settles, optional (a reader of /1 ignores it)
   assert.deepEqual(decisionbook.SHAPES.research, { t: 't', tool: 'word', asked: 'str', answer: 'str', source: 'str?', settles: 'word?' });
   // + by on a link and saidBy on a decision, optional: the two fields the product sets itself are in the published table; + keeps,
-  // optional: what a person's answer keeps (a reader of /1 ignores it and reads a second decision of the key)
-  assert.deepEqual(decisionbook.SHAPES.link, { t: 't', rel: 'rel', to: 'str', why: 'str?', source: 'str?', by: 'str?' });
+  // optional: what a person's answer keeps (a reader of /1 ignores it and reads a second decision of the key); + said on a link, optional:
+  // the person's answer a compared link carries (a reader of /1 ignores it, and that link then clears no item)
+  assert.deepEqual(decisionbook.SHAPES.link, { t: 't', rel: 'rel', to: 'str', why: 'str?', source: 'str?', by: 'str?', said: 'str?' });
   assert.deepEqual(Object.keys(decisionbook.SHAPES.decision).filter((field) => ['said', 'saidBy', 'keeps'].includes(field)), ['keeps', 'said', 'saidBy']);
   await assert.rejects(added(io, id, { t: 'link', rel: 'relates', to: `plan:${id}`, by: 7 }), { code: 'record-invalid' });
 });

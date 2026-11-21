@@ -42,14 +42,14 @@ function debugText(out) {
   const promises = out.promises.map(promiseLine);
   const kept = out.kept.at ? filled(WORDS.keptAt, out.kept) : WORDS.keptNoHome;
   const journal = out.journal === 'read' ? [] : [WORDS.journal[out.journal]];
-  return [`branch ${out.branch}`, ...plans, ...refused, ...sessionLines(out), ...promises, kept, ...journal].join('\n');
+  return [`branch ${out.branch}`, ...plans, ...refused, ...out.open, ...sessionLines(out), ...promises, kept, ...journal].join('\n');
 }
 
-/** The doctor's one line: how many plans read, or which files were refused. */
-function doctorText(web) {
+/** The doctor's one line: how many plans read, or which files were refused, with what an unfinished merge left (`merging`: its lines). */
+function doctorText(web, merging) {
   const torn = tornLines(web).map((r) => `${DIR}/${r.id}.jsonl line ${r.line} (${r.code})`);
   if (!web.refused.length && !torn.length) return `${web.views.length} plans here`;
-  return `refused ${[...web.refused.map((r) => `${r.id} (${r.code})`), ...torn].join(', ')}`;
+  return `refused ${[...web.refused.map((r) => `${r.id} (${r.code})`), ...torn, ...merging].join(', ')}`;
 }
 /** Each line a plan's file holds that does not read: its plan, line and code; the plan reads without it. */
 const tornLines = (web) => web.views.flatMap((v) => v.refused.map((r) => ({ id: v.id, ...r })));

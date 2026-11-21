@@ -6,12 +6,12 @@
 const { traced, debug: { render: { columns } }, errors: { isFail }, text: { lines: { filled } } } = require('@atlasbound/kit');
 const { DEBUG_SCHEMA, CONFIG_FILE } = require('../contracts/shapes.cjs');
 const validate = require('../contracts/validate.cjs');
-const { WORDS: { doctor: W, states: SAID, manifestInvalid: MANIFEST_INVALID, toDo: TO_DO } } = require('../contracts/codes.cjs');
+const { shortOf, WORDS: { doctor: W, states: SAID, manifestInvalid: MANIFEST_INVALID, toDo: TO_DO } } = require('../contracts/codes.cjs');
 const { capabilitiesOf } = require('../core/capabilities.cjs');
 const { serversOf } = require('../core/host.cjs');
 const { probed, adviceOf, hintOf } = require('./probes.cjs');
 const { noticeOf } = require('./protect.cjs');
-const { moduleRows, moduleLine } = require('./modules.cjs');
+const { moduleRows, moduleStateOf, moduleLine } = require('./modules.cjs');
 const GONE_SHOWN = 4;
 const row = (name, state, health, says = null) => ({ name, state, health, says });
 const absent = (io, name) => (io.catalog.modules.base.includes(name) ? row(name, 'not-installed', 'problem', W.required) : row(name, 'not-installed', 'not-measured'));
@@ -19,7 +19,7 @@ const absent = (io, name) => (io.catalog.modules.base.includes(name) ? row(name,
 /** A package whose module is off here is not asked: off is a choice, not a problem. Each row says where the package was found. */
 const packageRow = (io, name) => Promise.resolve().then(async () => {
   const from = io.packages.where(name)?.from?.name ?? null;
-  if (io.packages.has(name) && !io.packages.wired(name)) return { ...row(name, io.host.chosen() ? 'off' : 'not-set-up', 'not-measured', W.notOn), from };
+  if (io.packages.has(name) && !io.packages.wired(name)) return { ...row(name, moduleStateOf(io, name), 'not-measured', W.notOn), from };
   const entry = io.packages.load(name);
   if (typeof entry.doctor !== 'function') return { ...row(name, 'installed', 'not-measured'), from };
   const res = validate.shape('Doctor', await entry.doctor(io.packages.ioFor(name)));
@@ -53,8 +53,6 @@ async function viewOf(io, { probing = true } = {}) { // `status` judges nothing,
   const missing = io.host.drift(plan);
   const owned = new Set(manifests.flatMap(namesOf));
   const host = missing.filter((d) => ![...owned].some((n) => d.name.endsWith(n)));
-  const yours = plan.desired.files.filter((f) => plan.prior.foreign.includes(f.key) && !missing.some((d) => d.name === f.key))
-    .map((f) => ({ file: f.key, ours: `${io.packages.where(f.pkg).dir}/${f.src}` })); // the person's own file where ours would go
   const packages = rows.map((r) => {
     const names = namesOf(manifests.find((m) => m.name === r.name) || {});
     return { ...r, wired: names.length ? !missing.some((d) => names.some((n) => d.name.endsWith(n))) : null };
@@ -65,14 +63,22 @@ async function viewOf(io, { probing = true } = {}) { // `status` judges nothing,
   const { verbs, provides, conflicts } = io.catalog;
   const capabilities = capabilitiesOf({ verbs, provides, manifests, entryOf: loadedEntry(io) });
   const manifestProblems = [...unread, ...conflicts];
-  const problems = problemsOf({ packages, modules, manifests: manifestProblems, missing, probes, configRefused: io.configRefused });
+  // an install record git holds is another machine's: every wiring verb refuses it (steps/setup cloneOf), so doctor says it too; where
+  // git cannot be asked, its own probe line says that
+  const recordTracked = await io.git.tracked([io.host.stateFile]).then((keys) => keys.includes(io.host.stateFile), (err) => {
+    if (!isFail(err)) throw err;
+    return false;
+  });
+  const problems = problemsOf({ packages, modules, manifests: manifestProblems, missing, probes, configRefused: io.configRefused,
+    recordTracked, record: io.host.stateFile });
   return { schema: DEBUG_SCHEMA, verb: 'doctor', root: io.root, ok: problems.length === 0, modules, packages, problems, missing, capabilities,
-    host: { wired: host.length === 0, missing: host, yours }, probes, advice, protectedPaths: await noticeOf(io) };
+    host: { wired: host.length === 0, missing: host }, probes, advice, protectedPaths: await noticeOf(io) };
 }
 
 /** The ONE list `ok` is judged from: whatever doctor saw go wrong, each with where and what it says. */
-const problemsOf = ({ packages, modules, manifests, missing, probes, configRefused }) => [
+const problemsOf = ({ packages, modules, manifests, missing, probes, configRefused, recordTracked, record }) => [
   ...(configRefused ? [{ from: 'config', name: CONFIG_FILE, says: configRefused.message }] : []),
+  ...(recordTracked ? [{ from: 'record', name: record, says: `state-tracked: ${record}: ${shortOf('state-tracked')}` }] : []),
   ...(modules.some((m) => m.state === 'on') ? [] : [{ from: 'modules', name: 'modules', says: W.noModule }]),
   ...packages.filter((p) => p.health === 'problem').map((p) => ({ from: 'package', name: p.name, says: p.says || p.state })),
   ...manifests.map((m) => ({ from: 'manifest', name: m, says: 'manifest-invalid' })),
@@ -93,15 +99,14 @@ function textOf(view, plainName) {
   const unmeasured = [...view.packages.filter((p) => p.state === 'installed' && p.health === 'not-measured'), ...view.probes.filter((p) => p.state === 'not-measured')];
   const closing = filled(W.closing, { verdict: view.ok ? 'ok' : 'problem',
     unmeasured: unmeasured.length ? filled(W.unmeasured, { names: unmeasured.map((p) => plainName(p.name)).join(', ') }) : '' });
-  const config = view.problems.filter((p) => p.from === 'config').map((p) => filled(W.config, { says: p.says }));
+  const config = view.problems.filter((p) => ['config', 'record'].includes(p.from)).map((p) => filled(W[p.from], { says: p.says }));
   const manifests = view.problems.filter((p) => p.from === 'manifest').map((p) => filled(MANIFEST_INVALID, { name: p.name }));
   const gaps = view.capabilities.filter((c) => c.state === 'capability-missing').map((c) => filled(W.gap, c));
   const answering = view.capabilities.filter((c) => c.state === 'answers').length;
   const promised = [filled(W.promised, { answering, n: view.capabilities.length }), ...gaps];
-  const yours = view.host.yours.map((y) => filled(W.yours, { file: y.file, ours: y.ours, renamed: y.file.replace(/[^/]+$/, '<name>.md') }));
   // drift is mended by update: it keeps the modules and writes this version's rows (another version's rows differ)
   const lines = [filled(W.head, { root: view.root }), ...config, ...view.modules.map(moduleLine), ...columns(packageRows), ...notWired,
-    ...yours, ...manifests,
+    ...manifests,
     ...(view.problems.some((p) => p.from === 'modules') ? [W.noModuleRow] : []),
     ...(view.missing.length ? [W.wireAgain] : []), ...(view.protectedPaths ? [view.protectedPaths] : []), ...promised, W.machine,
     ...view.probes.map((p) => `  ${p.name.padEnd(16)}${SAID[p.state] || p.state}  ${p.says}`),
@@ -141,7 +146,9 @@ async function status(_args, io) {
   const absent = io.packages.names.filter((name) => !io.packages.has(name)); // a module with no package here among them
   const head = filled(W.status, { root: io.root, wired: view.missing.length ? W.statusWiredNo : 'yes', installed: installed.map(io.catalog.plain).join(', '),
     absent: absent.map(io.catalog.plain).join(', ') || 'none' });
-  const text = `${head}${view.modules.map((m) => `${moduleLine(m)}\n`).join('')}`;
+  // it judges nothing, and still says what a package itself says is wrong (a plan file that does not read): no look is silent on it
+  const said = view.problems.filter((p) => p.from === 'package').map((p) => filled(W.statusSays, { name: io.catalog.plain(p.name), says: p.says }));
+  const text = `${head}${view.modules.map((m) => `${moduleLine(m)}\n`).join('')}${said.join('')}`;
   return { out: { root: io.root, wired: !view.missing.length, modules: view.modules, installed, absent },
     n: { installed: installed.length }, codes: {}, text };
 }

@@ -59,25 +59,16 @@ test('a module only an add-on has is unknown here, in the words any unknown modu
   assert.doesNotMatch(run(world.bin, ['help', '--all']).out, ADD_ON);
 });
 
-test('a command file of the person\'s own is kept and is no wiring fault: doctor says whose it is and where ours is', () => {
+test('a command file of the person\'s own stops setup before it writes anything; moved away, setup wires and doctor is clean', () => {
   const repo = makeRepo({ '.claude/commands/resume-handoff.md': 'my own resume\n' });
-  const clean = makeRepo();
-  assert.equal(run(world.bin, ['setup', '--target', clean]).code, 0);
   const setup = run(world.bin, ['setup', '--target', repo]);
   assert.equal(setup.code, 1);
-  assert.match(setup.out, /file-foreign \.claude\/commands\/resume-handoff\.md: a file of yours is here, it was not touched/);
-  const doctor = run(world.bin, ['doctor', '--target', repo]);
-  assert.equal(doctor.code, run(world.bin, ['doctor', '--target', clean]).code, 'as a repository with no file of its own');
-  assert.doesNotMatch(doctor.out, /NOT wired|not wired: file|^fix: /m);
-  assert.match(doctor.out, /^ {2}\.claude\/commands\/resume-handoff\.md: your own file, kept as it is; ours was not written\. For ours under another name: cp \S+\/commands\/resume-handoff\S*\.md \.claude\/commands\/<name>\.md$/m);
+  assert.match(setup.err, /^atlasbound: file-foreign: \.claude\/commands\/resume-handoff\.md \(a file of yours .* so setup wrote nothing at all/m);
   assert.equal(fs.readFileSync(path.join(repo, '.claude', 'commands', 'resume-handoff.md'), 'utf8'), 'my own resume\n');
-  // the file gone, the missing command is a wiring fault again, and setup mends it
-  fs.rmSync(path.join(repo, '.claude', 'commands', 'resume-handoff.md'));
-  const gone = run(world.bin, ['doctor', '--target', repo]);
-  assert.match(gone.out, /NOT wired/);
-  assert.match(gone.out, /^fix: atlasbound update \(/m);
-  assert.equal(run(world.bin, ['update', '--target', repo]).code, 0);
-  assert.doesNotMatch(run(world.bin, ['doctor', '--target', repo]).out, /NOT wired|your own file/);
+  assert.deepEqual(fs.readdirSync(path.join(repo, '.claude', 'commands')), ['resume-handoff.md'], 'no command of ours beside it');
+  fs.renameSync(path.join(repo, '.claude', 'commands', 'resume-handoff.md'), path.join(repo, '.claude', 'commands', 'my-resume.md'));
+  assert.equal(run(world.bin, ['setup', '--target', repo]).code, 0);
+  assert.doesNotMatch(run(world.bin, ['doctor', '--target', repo]).out, /NOT wired|^fix: /m);
 });
 
 test('the person\'s own resume.md, the name of a command the host has itself, is never touched and never named', () => {

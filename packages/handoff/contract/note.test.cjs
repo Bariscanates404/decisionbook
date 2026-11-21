@@ -103,3 +103,51 @@ test('[I-2] the note stays within its bound of lines and characters whatever the
   assert.match(text, /^STALE: /m);
   assert.match(text, /left out: the note stays on one screen/);
 });
+
+const storedKeys = (w, folder) => [...w.home.store.keys()].filter((key) => key.includes(`/${folder}/`) && !key.endsWith('.before.json'));
+const refusedBy = (code, key) => (err) => err.code === code && err.message.startsWith(`${code}: ~/${key}: `) && err.message.endsWith('repair the file or move it away');
+
+test('a note that does not read is never taken for no note: hooks and verbs refuse, naming the file, and its bytes stay', async () => {
+  const w = world();
+  await handoff.handlers.start(startEvent('s1'), w.io());
+  await say(w, 's1', ['Money math goes through lib/amount.js, never floats.']);
+  assert.equal((await keep(w, 's1', { kept: ['Money math goes through lib/amount.js, never floats [m1]'] })).out.code, 'note-kept');
+  const [key] = storedKeys(w, 'notes');
+  const backup = key.replace('.json', '.before.json');
+  const whole = w.home.store.get(key);
+  const cut = whole.trimEnd().slice(0, -1); // a hand edit that lost the last brace
+  w.home.writeAtomic(key, cut);
+  const backedUp = w.home.store.get(backup);
+  const unreadable = refusedBy('note-unreadable', key);
+  await assert.rejects(say(w, 's1', ['ok, go on with the export route']), unreadable);
+  await assert.rejects(say(w, 's1', ['and the tests too']), unreadable);
+  await assert.rejects(handoff.handlers.stop({ session_id: 's1', hook_event_name: 'Stop' }, w.io()), unreadable);
+  await assert.rejects(handoff.handlers.start(startEvent('s2'), w.io()), unreadable);
+  await assert.rejects(handoff.show(w.io('s1')), unreadable);
+  await assert.rejects(handoff.handoff(w.io('s1')), unreadable);
+  await assert.rejects(keep(w, 's1', { now: 'the export route' }), unreadable);
+  await assert.rejects(handoff.drop(w.io('s1'), { rest: ['1'] }), unreadable);
+  assert.equal(w.home.store.get(key), cut, 'nothing is written over it');
+  assert.equal(w.home.store.get(backup), backedUp, 'and it never becomes the backup of an empty note');
+  w.home.writeAtomic(key, whole); // repaired by the person: the kept line is there as before
+  assert.match((await handoff.show(w.io('s1'))).text, /k1 .*Money math goes through lib\/amount\.js, never floats/);
+});
+
+test('a session record that does not read keeps its messages: its own hooks and verbs refuse, every other session goes on', async () => {
+  const w = world();
+  await handoff.handlers.start(startEvent('s1'), w.io());
+  await say(w, 's1', ['Use the old parser.', 'Never log the token.', 'Ship on Friday.']);
+  const key = storedKeys(w, 'sessions').find((name) => name.endsWith('/s1.json'));
+  const cut = w.home.store.get(key).slice(0, 40); // a record cut short
+  w.home.writeAtomic(key, cut);
+  const unreadable = refusedBy('session-unreadable', key);
+  await assert.rejects(say(w, 's1', ['one more thing']), unreadable);
+  await assert.rejects(handoff.handoff(w.io('s1')), unreadable);
+  await assert.rejects(keep(w, 's1', { now: 'the parser' }), unreadable);
+  assert.equal(w.home.store.get(key), cut, 'no fresh record is written over it, so no kept line cites another message');
+  w.later(20 * 24 * 60); // past the days a session stays: what does not read is never the one removed
+  await handoff.handlers.start(startEvent('s2'), w.io());
+  await say(w, 's2', ['Use tabs in the fixtures.']);
+  assert.equal(w.home.store.get(key), cut);
+  assert.deepEqual(handoff.heard(w.io()).map((row) => row.text), ['Use tabs in the fixtures.'], 'the other session is heard');
+});

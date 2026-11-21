@@ -1,6 +1,6 @@
 {
   "//": "Every character bound of the texts decisionbook says, by the view that says them: a longer value is cut to its bound and marked ~ (kit's clip). A field is what the value is in that view; one value can have two bounds where two views show it, a record line and a card for one.",
-  "records": { "by": 40, "supersededBy": 120, "quote": 160, "replacing": 200, "keeps": 200, "scope": 40, "said": 240, "value": 100, "why": 80, "conflicts": 200, "key": 80, "valueAlone": 160, "answer": 160, "findingSource": 80, "file": 120, "change": 200, "verify": 80, "q": 40, "source": 120, "run": 120, "text": 160, "linkWhy": 160, "from": 120, "rel": 40, "to": 160, "question": 100, "parkedWith": 60, "parked": 200, "kinds": 80, "signals": 120 },
+  "records": { "by": 40, "supersededBy": 120, "quote": 160, "replacing": 200, "keeps": 200, "scope": 40, "said": 240, "value": 100, "why": 80, "meets": 200, "key": 80, "valueAlone": 160, "answer": 160, "findingSource": 80, "file": 120, "change": 200, "verify": 80, "q": 40, "source": 120, "run": 120, "text": 160, "linkWhy": 160, "from": 120, "rel": 40, "to": 160, "question": 100, "parkedWith": 60, "parked": 200, "kinds": 80, "signals": 120 },
   "card": { "files": 160, "sha": 100, "key": 60, "value": 60, "file": 160, "replacedBy": 100, "links": 300, "title": 100, "path": 300 },
   "pack": { "picked": 160, "more": 160, "key": 60, "value": 160, "commands": 300, "held": 600, "text": 160, "signals": 120 },
   "recall": { "files": 300, "path": 300 },
@@ -12,10 +12,10 @@
   "pr": { "said": 240, "key": 80, "value": 200, "supersededBy": 120, "proposedThen": 200, "id": 40, "text": 160, "command": 120, "subject": 100, "title": 100, "branch": 60, "why": 400, "success": 300, "goal": 300 },
   "why": { "title": 100, "subject": 100 },
   "inbox": { "q": 40, "text": 160, "proposal": 160, "title": 100, "by": 40, "said": 160, "branch": 60 },
-  "refused": { "text": 80, "file": 120, "value": 80, "by": 40, "ref": 120, "key": 80, "refs": 240 },
+  "refused": { "text": 80, "file": 120, "value": 80, "by": 40, "ref": 120, "key": 80, "refs": 240, "author": 80 },
   "protect": { "globs": 600, "ask": 300, "refusal": 200 },
   "web": { "label": 80, "linkWhy": 160 },
-  "open": { "title": 100 },
+  "open": { "title": 100, "files": 400, "value": 200, "author": 80 },
   "read": { "held": 40 },
   "store": { "stray": 40 }
 }

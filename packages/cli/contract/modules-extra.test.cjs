@@ -9,7 +9,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { makeWorld, writeFake, makeRepo, run, readSettings, traceRows } = require('./support.cjs');
+const { makeWorld, writeFake, makeRepo, run, typedYes, readSettings, traceRows } = require('./support.cjs');
 
 const TOY_ROW = { name: 'toy', title: 'a toy module', packages: ['toy', 'toy-two'], what: 'atlasbound toy', loses: 'you lose the toy verb',
   words: ['toy', 'second'] };
@@ -27,11 +27,11 @@ test('a toy module is listed, routed and wired from the row its own package brin
   assert.match(run(world.bin, ['help', '--all']).out, /atlasbound toy +say hello from the toy module/);
   const plain = run(world.bin, ['setup', '--target', repo], { plain: true });
   assert.equal(plain.code, 0, plain.err);
-  assert.match(plain.out, /^ {2}toy is installed and not wired: a plain setup leaves it off; atlasbound setup --with toy wires it$/m);
+  assert.match(plain.out, /^ {2}toy is installed and not wired: a plain setup leaves it off; the person wires it, in a terminal of their own: atlasbound setup --with toy$/m);
   assert.doesNotMatch(hooksOf(repo), /toy/, 'a plain setup wires no module an add-on brings');
-  assert.equal(run(world.bin, ['toy', '--target', repo]).out, 'atlasbound toy: module toy: off (by choice): you lose the toy verb; atlasbound modules on toy turns it back on\n');
-  assert.equal(run(world.bin, ['setup', '--with', 'toy', '--target', repo]).code, 0);
-  assert.match(hooksOf(repo), /hook SessionStart/, 'named, its hook row is wired');
+  assert.equal(run(world.bin, ['toy', '--target', repo]).out, 'atlasbound toy: module toy: off (by choice): you lose the toy verb; only the person turns it back on, in a terminal of their own: atlasbound modules on toy\n');
+  assert.equal(run(world.bin, ['setup', '--with', 'toy', '--target', repo], typedYes()).code, 0);
+  assert.match(hooksOf(repo), /hook SessionStart/, 'named by the person, its hook row is wired');
   const said = run(world.bin, ['toy', '--target', repo]);
   assert.equal(said.code, 0, said.err);
   assert.equal(said.out, 'toy says hi\n');
@@ -82,4 +82,24 @@ test('a package verb\'s cli.verb row counts the characters sent, argv and the JS
   assert.equal(plain.outChars, `toy got ${json}\n`.length);
   const [asJson, jsonSent] = sizes(['toy', '--json', '--target', repo]);
   assert.deepEqual(asJson, jsonSent, 'with --json the characters printed are the JSON\'s');
+});
+
+test('setup --with never turns a module back on that a person switched off: only the one the person names joins those on', () => {
+  const world = makeWorld({ own: true, real: ['handoff'] });
+  writeFake(world.dir, 'toy', TOY);
+  const repo = makeRepo();
+  const onHere = () => JSON.parse(run(world.bin, ['modules', '--json', '--target', repo]).out).modules.filter((m) => m.state === 'on').map((m) => m.name);
+  assert.equal(run(world.bin, ['setup', '--target', repo], { plain: true }).code, 0);
+  assert.deepEqual(onHere(), ['handoff', 'decisionbook']);
+  assert.equal(run(world.bin, ['modules', 'off', 'handoff', '--target', repo]).code, 0);
+  for (const name of ['toy', 'handoff']) { // as an AI's shell sends it: a module off here is not its to turn on, whichever it names
+    const sent = run(world.bin, ['setup', '--with', name, '--target', repo], { ai: true });
+    assert.deepEqual([sent.code, sent.err.startsWith(`atlasbound: person-only: setup turns ${name} on again (found: the AI, `), onHere()],
+      [1, true, ['decisionbook']], sent.err);
+  }
+  assert.equal(run(world.bin, ['setup', '--with', 'toy', '--target', repo], typedYes()).code, 0);
+  assert.deepEqual(onHere(), ['toy', 'decisionbook'], 'the named module is on, and handoff stays off as the person left it');
+  assert.doesNotMatch(JSON.stringify(readSettings(repo).hooks), /handoff\./, 'no hook row of handoff is wired again');
+  assert.equal(run(world.bin, ['setup', '--with', 'handoff', '--target', repo], typedYes()).code, 0);
+  assert.deepEqual(onHere(), ['toy', 'handoff', 'decisionbook'], 'named by the person, it is on again');
 });

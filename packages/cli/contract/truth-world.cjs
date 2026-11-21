@@ -57,7 +57,7 @@ const folderReason = (folder) => `DecisionBook gate: shell-unplaced: ${folder}: 
 const lostReply = (note) => ({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask',
   permissionDecisionReason: `atlasbound: hook-lost: ${note}: a gate formed no verdict on this write, so it asks: allow it only if you meant it` },
     systemMessage: `atlasbound: no verdict formed by ${note}` });
-// a write whose target is the product's own store is refused STORE_SEALED by the shell gate, as a write tool is (`human.sealed`: the file named)
+// a shell write whose target is the product's own store is refused STORE_SEALED by the port, as a write tool is (`human.sealed`: the file named)
 const sealedReply = (file) => ({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'STORE_SEALED: only '
   + `AtlasBound itself writes here: its state and what a person said — ${file}. Leave it as it is; if something in it looks wrong, `
   + 'say so to the person.' } });

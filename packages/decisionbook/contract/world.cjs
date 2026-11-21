@@ -32,7 +32,11 @@ function bookWorld({ files = {}, branch = 'feat/export', head = 'h0', commits = 
     commits: async (base) => state.commits.filter((c) => !base || c.after === base), shared: async () => [], // no other branch
     lsFiles: async () => state.tracked.map((key) => ({ key, disk: key })),
       tracked: async (keys) => state.tracked.filter((key) => keys.some((k) => key.startsWith(k))),
-    author: async (key) => authors[key] || null, statusZ: async () => state.changed.map((key) => ({ xy: ' M', key, disk: key })) };
+    author: async (key) => authors[key] || null, statusZ: async () => state.changed.map((key) => ({ xy: ' M', key, disk: key })),
+    // whose a line is (steps/open): each author of `authors` commits under a mail of their own, never the one this clone commits as
+    me: async () => 'me@world.invalid',
+    blame: async (key) => (authors[key] ? fs.readText(key).split('\n').map(() => ({ sha: 'c0', subject: null, author: authors[key],
+      mail: `${authors[key]}@world.invalid` })) : []) };
   // `actor`, the root's answer to who acts (kit's own, over a faked process): in a session no terminal, outside one the world's `terminal`
   // (a person's unless a test says no) with `above`, its ancestors' command words (null: the walk could not be done).
   // `heard`, the person's journaled prompts the root hands from handoff ({ id, at, text }); null: none handed; `absent`, why an answer

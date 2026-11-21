@@ -28,7 +28,8 @@ Every command below prints its own help: `atlasbound <command> --help`, and `atl
 Setup needs a git repository; outside one it says so and changes nothing. It wires six hooks and four slash commands
 (`/decisionbook`, `/decide`, `/handoff`, `/resume-handoff`) into this repository's local Claude Code settings, adds a block
 to `.gitignore` and the team notice row to `.claude/settings.json` ([teams and git](#teams-and-git)), and asks you what to
-protect.
+protect. A file of your own at one of those command paths (your own `.claude/commands/decisionbook.md`, say) stops setup
+before it writes anything: it names the file, and you move or rename yours and run setup again.
 
 **3. Choose what to protect.** A protected file needs a READY plan before an AI session edits it; every other file is
 edited as before.
@@ -60,7 +61,8 @@ own messages. Then `/clear` and `/resume-handoff`: the new context starts from t
 decisions.
 
 **8. Close the plan.** When the work is done, `atlasbound decisionbook close <id>` records the plan's own commits, files
-and tests, and prints the one `git commit` command for that record. The product never commits for you.
+and tests, and prints the one `git commit` command for that record. The product never commits for you. The record says who
+closed it; a teammate's plan is closed by a person in a terminal, never by an AI session.
 
 **Read what was decided** (none of these change anything):
 
@@ -79,7 +81,7 @@ but the repository lacks is listed with `fix: atlasbound update`. Restart Claude
 
 **Stop it.**
 
-- One project, one module: `atlasbound modules off <module>`, typed by you; its data stays, and `modules on` wires it back.
+- One project, one module: `atlasbound modules off <module>`, typed by you; its data stays, and `modules on`, typed by you too, wires it back.
 - One project, all of it: `atlasbound uninstall`, typed by you at your own terminal with the phrase it shows. Your plans
   in `.decisionbook/` stay unless you add `--purge`.
 - The program: `npm uninstall -g atlasbound` after uninstalling in each repository.
@@ -119,7 +121,7 @@ block but no row: setup and doctor say so, and `atlasbound setup --team-notice`,
 | `.gitignore` block | yes: commit it, so every clone ignores the same files | |
 | `.claude/settings.json` team notice row | yes: commit it, so teammates are told | |
 | `.claude/settings.local.json` (the six hooks, the allowed commands) | | yes: it names this machine's node and install |
-| `.atlasbound/` (traces, setup's record, drafts) and the slash command files | | yes: ignored (the command files in the clone's own `.git/info/exclude`) |
+| `.atlasbound/` (traces, setup's record, drafts) and the slash command files | | yes: ignored (the command files in the checkout's own `info/exclude`, where git keeps it; a linked worktree's too) |
 | Handoff notes and the excerpts of your messages | | yes: in your home folder, never in the repository |
 
 A plan file is append-only and reviewable in a pull request like any other file. The plans carry each decision in the words
@@ -146,8 +148,41 @@ keeps both lines, neither answer replaces the other, whatever their order. Where
 `pr`, the plan pack, `related`, `inbox`) names a conflict instead of a decision: each line with its number in the file, who gave
 it and their words, and that none holds until the person says which; `git blame` on those lines names who committed each. The
 plan is not READY until the person's answer is recorded as that change: in a session, the answer to a question whose
-`supersedes` names every line, typed after that question. The same value is no conflict; the same words with another value
-are. Two plans that replace one old decision under two key names are a conflict the same way.
+`supersedes` names every line, typed after that question was on record (the AI records the question first, then asks; an
+answer typed before it is refused as `conflict-unasked`). The same value is no conflict; the same words with another value
+are. Two plans that replace one old decision under two key names are a conflict the same way, and so are one person's keep of a
+decision and another person's replacement of it, in two plans or under two keys: the person's answer names both lines, under
+any key, as the answer to a question naming both. In one copy, a replacement of a decision a person keeps names their keep too.
+Two shapes of keep against change are not yet seen as a conflict; CHANGELOG (0.25.3, known limits) names them.
+
+**A plan whose decision lost a conflict.** A plan that was READY and already edited its files, whose own decision then stood
+in a conflict with another plan's and lost it (the person's answer took another value), may have left code that no longer
+matches what holds. That is one open item, said in the same line by every reader of the plan (`show`, `ready`, `close`, `pr`,
+`why`, `find`, `related`, the plan pack, the session start, `debug decisionbook`) and counted by `inbox`: the plan, the line
+that lost, the line that holds now, the files. Under that plan the gate denies `plan-lost`. Nothing changes your code by
+itself: a new plan of those files restores or adapts it. The AI tells you what the code holds and asks you; on your answer it
+writes the item's own `{"t":"link","rel":"compared",…}` record on the plan, with a short `why` (what it saw in the code) and
+your words (`said`, from a message you typed after the line that holds now was written), and that clears it; a record without
+your answer is refused, and nothing else clears it. The plan whose value the person took is
+not flagged, and two answers that met inside one plan file are that plan's own change (no item).
+
+**Two people, one task.** A plan id ends in four hex characters of the moment it was started, so two people who start the
+same task on the same day write two plan files and the merge is clean; where they disagree, the rules above show it. A
+teammate's plan stays theirs: your session plans your task beside it, and your decision never overwrites a line they wrote
+(`decision-teammates`); it goes in your own plan and names theirs, so both stand in the records. Whose a line is, git says
+(the mail your clone commits as against the commit's author, both through `.mailmap`); set it on every machine, and join
+your own mails in `.mailmap`. When you say a decision stays ("keep it at 100"),
+your AI records a keep even though no code changes; if a teammate replaced it meanwhile, the merge shows one conflict. The
+conflict names whose each line is (a teammate by their git name) and where your answer goes; your answer replaces the other
+lines and may keep the one it takes, whose plan then lost nothing. Each person clears the open item of their own plan.
+
+**A merge git could not finish.** Two people who add records to one plan on two copies of a branch append to the same file,
+and a plain merge stops with git's conflict markers in it. While a plan file holds `<<<<<<<`, `=======` or `>>>>>>>`, every
+reader, `doctor` and the gate say that file has unresolved git conflict markers at its lines, the plan covers no edit, the
+session start says to resolve the merge first (it asks for no new plan), `inbox` counts it, and the gate denies every protected
+edit (`plan-unmerged`) until you resolve the merge in git (keep each record line of both sides once). We
+recommend one line in the repository's `.gitattributes`, committed: `.decisionbook/*.jsonl merge=union`. Each record is one
+line, so git then keeps both sides' lines with no markers, and the rules above show any disagreement they carry.
 
 **Mixed versions.** A teammate on an older version may read newer records differently; CHANGELOG.md says where.
 Upgrade together where you can, and run `atlasbound update` in each repository after an upgrade.
@@ -181,7 +216,7 @@ PRIVACY.md is the full statement; this is its outline, and where the two differ,
 | `.decisionbook/config.json` `danger` | paths that make any plan naming them critical work | you, by hand; an AI edit there asks you first |
 | `.decisionbook/config.json` `answer` | your answer to setup's protect question, with how and when it was given | `atlasbound protect` writes it |
 | `.atlasbound/cli/config.json` `hookTraceDays` | how many days of hook trace files are kept (default 14, at least 1) | you, by hand |
-| `atlasbound modules`, `modules on` / `off <module>` | which modules are wired in this repository; turning one off keeps its data | `off` is yours only |
+| `atlasbound modules`, `modules on` / `off <module>` | which modules are wired in this repository; turning one off keeps its data | `on` and `off` are yours only |
 | `atlasbound telemetry on` / `off` | telemetry for your user on this machine | `on` is yours only, at a plain terminal |
 
 **Levels.** A plan runs at one of three levels: `micro` (a small fix), `normal` or `critical`. The agent proposes the level
@@ -285,8 +320,9 @@ nowhere it does not already go. The README's experiment shows what it did, and d
 
 ## Record format
 
-A plan is one file, `.decisionbook/<id>.jsonl`: one JSON object per line, appended, never rewritten. The id is the date
-and the title's words (`2026-11-04-login-times-out`; `-2`, `-3` when taken). Each line is stamped with `at`, the time it
+A plan is one file, `.decisionbook/<id>.jsonl`: one JSON object per line, appended, never rewritten. The id is the date,
+the title's words and four hex characters of the moment it was started (`2026-11-04-login-times-out-3f9a`; `-2` when taken); an id
+written by an earlier version stays as it is. Each line is stamped with `at`, the time it
 was stored. The first line is the `plan` record and carries `"schema": "decisionbook-record/1"`. Readers ignore unknown
 keys; a changed field takes a new major version, and a file of another schema is refused, not guessed at.
 
@@ -317,7 +353,7 @@ The same contract ships as data any language can read: `contracts/record.json` o
 | `aside` | `by`, `said` | the person set this open plan aside, in their own words |
 | `unlink` | `rel`, `to`, `why`, `by` | the person removed a link the product wrote |
 | `ready` | `scope[]`, `level?`, `head?` | the plan became READY and froze: its planned paths |
-| `closed` | `own[]` (`sha`, `subject?`), `files[]`, `tests[]`, `other`, `unplanned?`, `head?` | what shipped: the plan's commits, files and tests |
+| `closed` | `own[]` (`sha`, `subject?`), `files[]`, `tests[]`, `other`, `unplanned?`, `head?`, `by?` | what shipped: the plan's commits, files and tests; `by`: who closed it, set by the product |
 | `resume` | `why` | an older plan's note that a later session went on with it; read only |
 
 `plan`, `ready` and `closed` are written only by their own commands; every other type goes through

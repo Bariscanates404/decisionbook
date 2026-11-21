@@ -151,26 +151,28 @@ test('decisionbook find holds a whole word or a declared tag, never a word insid
 });
 
 // Closeout: the work is for issue 42; the hand-read answer per commit is in its comment.
-const ID = '2026-11-02-report-export-is-slow';
-const COMMITS = [
+// the commits of the work of plan `id`
+const commitsOf = (id) => [
   // own: names the id
-  { sha: 'c1', subject: `stream the rows (${ID})`, body: '', files: ['src/report/export.ts', 'test/report/export.test.ts', 'spec/report/export_spec.rb'] },
+  { sha: 'c1', subject: `stream the rows (${id})`, body: '', files: ['src/report/export.ts', 'test/report/export.test.ts', 'spec/report/export_spec.rb'] },
   { sha: 'c2', subject: 'keep the row order, fixes #42', body: '', files: ['lib/csv.rb'] }, // own: names its issue
   { sha: 'c3', subject: 'teammate tweak', body: '', files: ['src/report/format.ts'] }, // own: a planned file
-  { sha: 'c4', subject: `docs for ${ID}-2`, body: '', files: ['docs/export.md'] }, // another plan whose id only starts the same
+  { sha: 'c4', subject: `docs for ${id}-2`, body: '', files: ['docs/export.md'] }, // another plan whose id only starts the same
   { sha: 'c5', subject: 'login copy', body: '', files: ['app/login.rb'] }, // unrelated
 ].map((c) => ({ ...c, after: 'h0' }));
 
 test('[I-7] close records exactly the commits of the work, their files and their tests, and counts the rest unattributed', async () => {
-  const io = bookWorld({ commits: COMMITS });
+  const io = bookWorld();
   const id = await begin(io);
+  const COMMITS = commitsOf(id);
+  io.state.commits = COMMITS;
   await added(io, id, { t: 'link', rel: 'plans', to: 'file:src/report/**', why: 'the export' });
   await added(io, id, { t: 'link', rel: 'for', to: 'issue:42', why: 'the ticket' });
   const res = await verbs.close(io, { rest: [id] });
   assert.deepEqual(timeless(planRecords(io, id).at(-1)), { t: 'closed', head: 'h0',
     own: [{ sha: 'c1', subject: COMMITS[0].subject }, { sha: 'c2', subject: COMMITS[1].subject }, { sha: 'c3', subject: 'teammate tweak' }],
     files: ['lib/csv.rb', 'spec/report/export_spec.rb', 'src/report/export.ts', 'src/report/format.ts', 'test/report/export.test.ts'],
-      tests: ['spec/report/export_spec.rb', 'test/report/export.test.ts'], other: 2 });
+      tests: ['spec/report/export_spec.rb', 'test/report/export.test.ts'], other: 2, by: 'the person' });
   assert.equal(res.text, `${id} closed: 3 own commits, 5 files, 2 tests; 2 other commits not attributed; `
     + `commit this record: git add .decisionbook/${id}.jsonl, then git commit -m "DecisionBook: close ${id}" .decisionbook/${id}.jsonl\n`);
 });
@@ -358,8 +360,9 @@ test('close credits no line another branch holds: a branch synced to main after 
 
 test('a plan made on a detached HEAD closes on a detached HEAD only; on a branch it is refused with the detached route',
   async () => {
-  const io = bookWorld({ branch: null, commits: COMMITS });
+  const io = bookWorld({ branch: null });
   const id = await begin(io);
+  io.state.commits = commitsOf(id);
   io.state.branch = 'main';
   const message = `plan-close-off-branch: ${id}: close it on its branch detached as it was when the work was done (if it is gone: git checkout --detach <its merge>^2); HEAD: main`;
   await assert.rejects(verbs.close(io, { rest: [id] }), { code: 'plan-close-off-branch', message });

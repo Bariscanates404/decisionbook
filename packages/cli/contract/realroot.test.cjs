@@ -10,7 +10,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { hash: { sha256 } } = require('@atlasbound/kit');
-const { makeWorld, tmp, setupRepo, fire, portRow, hookDecisionOf, protect, run } = require('./support.cjs');
+const { makeWorld, makeRepo, tmp, setupRepo, fire, portRow, hookDecisionOf, protect, run } = require('./support.cjs');
 
 const FILE = 'app/x.rb';
 const PLAN = [{ t: 'research', tool: 'grep', asked: 'MAX_OPTIONS', answer: 'one constant', source: `${FILE}:1` }, { t: 'item', kind: 'feature', text: 'poll options' },
@@ -53,3 +53,28 @@ for (const hookVia of ['link', 'real']) {
     assert.deepEqual(folders, [sha256(fs.realpathSync(repo)).slice(0, 16)], 'one home folder, keyed by the real path');
   });
 }
+
+// The home is the password database's, whatever HOME says. Where HOME names another folder: a development tree (kit's test tools
+// beside it) is a test world that forgot its preload and refuses; an installed product (a published kit holds no testing folder) works
+// from the password home, as in a container, a CI runner or under sudo -E.
+test('HOME naming another folder: a development tree refuses, an installed product works from the password home', () => {
+  const world = makeWorld({ own: true, real: ['handoff'] });
+  const [passwd, moved] = [tmp('cli-passwd-'), tmp('cli-moved-')];
+  const env = { HOME: moved, PASSWD_HOME: passwd };
+  const repo = makeRepo();
+  const refused = run(world.bin, ['setup', '--target', repo], { env });
+  assert.equal(refused.code, 1, refused.out);
+  assert.match(refused.err, /^atlasbound: config-invalid: HOME is not this user's home in the password database .*a development tree reads and writes nothing/m);
+  assert.deepEqual([fs.existsSync(path.join(passwd, '.atlasbound')), fs.existsSync(path.join(moved, '.atlasbound'))], [false, false]);
+  fs.rmSync(path.join(world.dir, 'node_modules', '@atlasbound', 'kit', 'testing'), { recursive: true }); // the kit as it is published
+  const setup = run(world.bin, ['setup', '--target', repo], { env });
+  assert.equal(setup.code, 0, setup.err);
+  const said = (event, payload) => fire(repo, portRow(repo, event, payload.source ?? ''), { session_id: 's1', cwd: repo, hook_event_name: event, ...payload }, env);
+  assert.equal(said('SessionStart', { source: 'startup' }).code, 0);
+  const prompt = said('UserPromptSubmit', { prompt: 'Use tabs in the fixtures.' });
+  assert.doesNotMatch(`${prompt.out}${prompt.err}`, /config-invalid|no verdict formed/, 'the hooks form their answers');
+  const shown = run(world.bin, ['handoff', 'show', '--target', repo], { env });
+  assert.match(shown.out, /Use tabs in the fixtures\./, shown.err);
+  assert.ok(fs.readdirSync(path.join(passwd, '.atlasbound')).some((name) => name.startsWith('handoff-here')), 'the person\'s words are in the password home');
+  assert.equal(fs.existsSync(path.join(moved, '.atlasbound')), false, 'and nothing of the product under the HOME that moved');
+});

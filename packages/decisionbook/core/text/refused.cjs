@@ -5,7 +5,7 @@
 // PURE. What a writing verb says when it refuses: every refused record of a batch with its place, in one reply; what
 // the plan refuses of a question or a step; a yes or a resume no person gave; a close git cannot attribute, with each
 // route on as a condition the person checks.
-const { text: { lines: { filled, shortSha } } } = require('@atlasbound/kit');
+const { text: { lines: { filled, shortSha }, safe: { copyable } } } = require('@atlasbound/kit');
 const { WORDS, shortOf, SHOWN: { refused: shown } } = require('../../contracts/codes.cjs');
 
 /** A question asked before any research is on record. */
@@ -20,6 +20,24 @@ const settledDecision = (q, standing) => filled(WORDS.settledBy, { q: q.q, ref: 
   by: shown.by(standing.by) });
 /** A decision refused for the standing decisions it names (`refs`): which, then the way on. -> [code, detail] */
 const refusedRefs = (code, refs) => [code, `${shown.refs(refs.join(', '))}: ${shortOf(code)}`];
+
+/** Refs that name no standing decision (core/ready unstanding); of one another decision replaced, which holds in its place and how the
+ * person takes the old one back. -> [code, detail] */
+function unknownRefs(refs, decisions) {
+  const [code, detail] = refusedRefs('supersede-unknown', refs);
+  const replaced = decisions.filter((d) => refs.includes(d.ref) && d.supersededBy)
+    .map((d) => filled(WORDS.replacedSince, { ref: shown.ref(d.ref), by: shown.ref(d.supersededBy) }));
+  return [code, [detail, ...new Set(replaced)].join('. ')];
+}
+
+/** A keep whose answer says another value than the line it keeps (`kept`): that line, and its value whole, as the one string to copy
+ * (a reader cuts a long value). -> [code, detail] */
+const keptOtherValue = (kept) => ['keep-other-value',
+  `${shown.ref(kept.ref)}: ${shortOf('keep-other-value')}${filled(WORDS.valueToCopy, { value: copyable(kept.value) })}`];
+
+/** A person's decision written over a teammate's line: the line's `<plan>/<key>`, who committed it, then the way on. -> [code, detail] */
+const teammatesLine = (ref, author) => ['decision-teammates',
+  `${shown.refs(ref)} (${WORDS.cameWith} ${shown.author(author)}): ${shortOf('decision-teammates')}`];
 
 /** A record's place in its batch; one record of an add stands alone, unless a refused plan record stands beside it. */
 const recordPlace = (i, count, beside) => (count > 1 || beside ? `record ${i + 1} of ${count}` : '');
@@ -60,6 +78,10 @@ function closeElsewhere(view, here) {
   return filled(WORDS.closeElsewhere, slots);
 }
 
+/** What is refused on a teammate's plan `id` (`code`: its close by an AI session, a compared link): whose it is, and who does it instead.
+ * -> [code, detail] */
+const theirPlan = (code, id, author) => [code, `${id} (${WORDS.cameWith} ${shown.author(author)}): ${shortOf(code)}`];
+
 /** A close whose line another branch holds too (`held`: that branch and the commit both hold): git cannot tell how it
  * came to hold it, so the refusal names what is held and every route on, each behind a condition the person checks. */
 function closeHeld(view, held, head) {
@@ -75,5 +97,5 @@ function closeHeld(view, held, head) {
 
 const noSuchLine = (source) => filled(WORDS.noSuchLine, { source }); // a record cites a line its file does not have
 
-module.exports = { researchFirst, restatesTask, asksPermission, settledDecision, refusedRefs, recordPlace,
-  noSuchLine, batchRefusal, notSaid, yesOutgrown, yesUnseen, closeElsewhere, closeHeld };
+module.exports = { researchFirst, restatesTask, asksPermission, settledDecision, refusedRefs, unknownRefs, keptOtherValue, teammatesLine,
+  recordPlace, noSuchLine, batchRefusal, notSaid, yesOutgrown, yesUnseen, closeElsewhere, closeHeld, theirPlan };

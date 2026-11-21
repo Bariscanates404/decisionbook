@@ -83,14 +83,14 @@ function fieldsAsked(words) {
 // to name
 const CHECKS = {
   link: [[(v) => !RELS[v.rel] || nodeOf(v.to).type === RELS[v.rel].to, 'node-invalid', (v) => `${v.rel} points at a ${RELS[v.rel].to}`],
-    [(v) => v.why || v.source, 'link-unsourced', (v) => `${v.rel} ${v.to}`]],
+    [(v) => v.why || (v.source && v.rel !== 'compared'), 'link-unsourced', (v) => `${v.rel} ${v.to}`]], // a comparison says what the code holds
   confirm: [[(v) => !isAi(v.by), 'confirm-by-person', (v) => v.by]],
   unlink: [[(v) => !isAi(v.by), 'unlink-by-person', (v) => v.by]], // removing a link DecisionBook wrote is the person's
   aside: [[(v) => !isAi(v.by), 'aside-not-asked', (v) => v.by]], // leaving an open plan for other work is the person's
   // the refusal says what an effect is and the next step
   decision: [[effectHolds, 'decision-no-effect', (v) => `${v.key}: effect ${asList(v.effect).join(', ') || 'none'}: ${WORDS.effectIs}`],
     // a ref the person's answer both replaces and keeps is placed nowhere
-    [(v) => !asList(v.keeps).some((ref) => asList(v.supersedes).includes(ref)), 'replace-unplaced', (v) => `${v.key}: ${shortOf('replace-unplaced')}`]],
+    [(v) => !asList(v.keeps).some((ref) => asList(v.supersedes).includes(ref)), 'placed-twice', (v) => `${v.key}: ${shortOf('placed-twice')}`]],
   research: [[(v) => !v.settles || bound.shape('Cited', v), 'research-uncited', (v) => v.source]],
 };
 /** What `run` refuses, as a problem [code, detail], or null; a coded refusal it throws is that problem, a fault passes. */

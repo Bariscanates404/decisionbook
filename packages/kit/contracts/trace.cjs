@@ -5,6 +5,7 @@
 // The published trace contract, ab-trace/1: where a run's records live and the shape of one record.
 // A record's `v` is the major of this schema. `step` is an enum the package names through trace.forPackage.
 const { dayOf } = require('../base/text.cjs');
+const { OWN_STORE } = require('../base/paths.cjs');
 const SCHEMA = 'ab-trace/1';
 const SHAPES = {
   TraceRecord: { v: 'int', pkg: 'str', run: 'id', seq: 'int', step: 'step', at: 'str', ms: 'num?', ok: 'bool', in: 'digest?', out: 'digest?',
@@ -15,10 +16,11 @@ const SHAPES = {
 };
 const REFUSE = { TraceRecord: 'trace-invalid' };
 const VERDICTS = ['allow', 'ask', 'deny']; // the host's: a step whose out states one decided it, and its record counts `decision_<verdict>`
-const TRACE_DIR = '.atlasbound/trace';
+const TRACE_DIR = `${OWN_STORE}trace`;
 /** The one place a run's records live. The caller's run id is checked (shape `id`) before anything is written. */
 const tracePath = (run) => `${TRACE_DIR}/${run}.ndjson`;
 /** Hook runs share one file per UTC day (`run` still separates them), so one file per hook call never piles up. */
 const dailyPath = (at) => `${TRACE_DIR}/hooks-${dayOf(at)}.ndjson`;
 
-module.exports = { SCHEMA, SHAPES, REFUSE, VERDICTS, TRACE_DIR, tracePath, dailyPath };
+const decisionKey = (verdict) => `decision_${verdict}`; // the count a deciding step leaves (run/traced writes it, a fold reads it)
+module.exports = { SCHEMA, SHAPES, REFUSE, VERDICTS, decisionKey, TRACE_DIR, tracePath, dailyPath };

@@ -144,10 +144,12 @@ function upward(dir) {
   return chain;
 }
 
-const OWN_STORE = '.atlasbound/'; // THE product's own store, in a repository and in a person's home (the port's seal and the shell gate seal it)
+const OWN_STORE = '.atlasbound/'; // THE product's own store, in a repository and in a person's home (run/store seals it; the port asks there)
 // THE home resolver: a package's folder for this repository in the person's home. A person's words live there, never in a repository.
+/** Whether a key lies in the store; the store's own folder does. */
+const inStore = (key) => `${key}/`.startsWith(OWN_STORE);
 const hereKey = (root, pkg, ...names) => [`${OWN_STORE}${pkg}-here`, sha256(root).slice(0, 16), ...names].join('/');
 
 module.exports = { hostPath,
   pathKey, foldedKey, isKey, under, dirOf, speller, repoRel, join, childEnv, parentDir, nameOf, programOf, resolveFrom,
-  folderAfter, upward, hereKey, OWN_STORE, commandNames, windowsProgram, winFolder, windowsFolders };
+  folderAfter, upward, hereKey, OWN_STORE, inStore, commandNames, windowsProgram, winFolder, windowsFolders };

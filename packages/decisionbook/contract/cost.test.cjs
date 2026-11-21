@@ -51,8 +51,8 @@ test('an earlier session\'s READY plan is the start\'s intake: frozen, files, st
     '- report.colour; the person, 2026-11-02: "Blue, like the logo."', // the value is their sentence: said once
     '- report.cache = none (simplest; by the AI, 2026-11-02)',
     // how a person replaces one: a question that names it, with this plan's id in the name, and their answer that places it
-    `a person replaces one, never you: ask them in a question that names it ("supersedes":["${id}/<key>"]); their answer then names it too: in "supersedes" `
-      + 'where it replaces it, in "keeps" where they keep it',
+    `a person replaces one, never you: record a question naming it ("supersedes":["${id}/<key>"]), then ask; their answer, one word too, or what they say of it `
+      + 'unasked, is their decision naming it: "supersedes" if it replaces it, "keeps" if it stays, code changed or not',
     WORDS.more]);
   assert.doesNotMatch(start, /earlier session|"t":"resume"/, 'no resume is asked of a later session');
   const asked = await handlers.prompt({ hook_event_name: 'UserPromptSubmit', session_id: 's2', prompt: 'Add a CSV download to the report page' }, io);

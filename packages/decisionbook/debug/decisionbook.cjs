@@ -5,8 +5,10 @@
 // `debug decisionbook`: every plan on this branch, its state, the level code chose, what the rubric misses, the files refused. It only
 // looks.
 const { readWeb } = require('../steps/store.cjs');
+const { openItems } = require('../steps/touch.cjs');
+const { openLines } = require('../core/text/open.cjs');
 const { isTrusted } = require('../steps/trust.cjs');
-const { isAi, isAnswered, unrevised } = require('../base/text.cjs');
+const { isTheirs, isAnswered, isShown, conflictsIn, lineIn, isReplaced } = require('../base/text.cjs');
 const { sessionReads, keptRows, keptAt, begunOf, promptedSince, saidByPack } = require('../steps/here.cjs');
 const { debugText, doctorText, tornLines } = require('../core/text/debug.cjs');
 const { tracedStep } = require('../run/verbs.cjs');
@@ -23,10 +25,10 @@ async function plansHere(io, web = readWeb(io)) {
     here: v.ready ? isTrusted(io, v) : null, // no yes here: asked once at the gate
     asked: io.session ? promptedSince(io, v.at) : null, // may a confirm be the person's yes in this session
     amended: v.amended, // what changed the plan after that yes
-    // for Handoff's note: the person's standing decisions with their sentence, and the blocking questions still asked of them
-    decided: unrevised(v.decisions).filter((d) => !d.proposed && !isAi(d.by) && !d.rivals?.length)
+    // for Handoff's note: the person's decisions that stand (none replaced, none in a conflict), and the blocking questions asked of them
+    decided: v.decisions.filter((d) => isShown(d) && !isReplaced(d) && isTheirs(d) && !d.conflict)
       .map((d) => ({ key: d.key, value: d.value, ...(d.said ? { said: d.said } : {}) })),
-    open: [...v.decisions.filter((d) => d.rivals?.length).map((d) => `${d.key}: a conflict, ask the person which holds`),
+    open: [...conflictsIn(v.decisions).map((conflict) => `${lineIn(conflict, v.id).key}: a conflict, ask the person which holds`),
       ...v.questions.filter((q) => q.blocking && !isAnswered(v, q)).map((q) => `${q.q}: ${q.text}`)],
   }));
 }
@@ -43,7 +45,8 @@ async function look(_args, io) {
   const packed = [...saidByPack(io, io.session)].map((ref) => ref.slice(ref.indexOf('/') + 1)); // the keys the pack said
   // of the session: flags, never a prompt's words
   const session = { session: io.session || null, began: begunOf(io, io.session), read: sessionReads(io, io.session) };
-  const head = { schema: 'ab-debug/1', verb: 'decisionbook', branch, plans, refused: web.refused };
+  const open = openLines(await openItems(io, web)); // every plan's, any branch: what the gate and the readers hold on
+  const head = { schema: 'ab-debug/1', verb: 'decisionbook', branch, plans, refused: web.refused, open };
   const out = { ...head, ...session, promises, journal, kept, packed };
   return { out, code: 'plan-shown', n: { promises: promises.length } };
 }
@@ -55,7 +58,8 @@ async function decisionbook(io, args) {
 
 async function bookDoctor(io) {
   const web = readWeb(io);
-  return { ok: !web.refused.length && !tornLines(web).length, says: doctorText(web) };
+  const { merge } = await openItems(io, web);
+  return { ok: !web.refused.length && !tornLines(web).length, says: doctorText(web, openLines({ merge, unread: [], lost: [] })) };
 }
 
 module.exports = { decisionbook, bookDoctor, plansHere };

@@ -6,12 +6,12 @@
 // checks, commits), each value on its line through kit's clip; never a prompt or a chat.
 const { text: { lines: { filled, shortSha } } } = require('@atlasbound/kit');
 const { WORDS, SHOWN: { pr: shown }, branchWord } = require('../../contracts/codes.cjs');
-const { isAi } = require('../../base/text.cjs');
+const { isAi, isReplaced } = require('../../base/text.cjs');
 const { deciderOf, rivalText } = require('./records.cjs');
 
-const whose = (d) => (!isAi(d.by) && d.said ? ` (${deciderOf(d.by)}: "${shown.said(d.said)}")` : ` (by ${deciderOf(d.by)})`);
-const decisionMd = (d) => (d.rivals?.length ? [`- **${shown.key(d.key)}** ${rivalText(d)}`] : [`- **${shown.key(d.key)}**: ${shown.value(d.value)}${
-  whose(d)}${d.state === 'superseded' ? filled(WORDS.prReplaced, { ref: shown.supersededBy(d.supersededBy) }) : ''}`,
+const whose = (d) => (!isAi(d.by) && d.said ? ` (${deciderOf(d.by, d.author)}: "${shown.said(d.said)}")` : ` (by ${deciderOf(d.by, d.author)})`);
+const decisionMd = (d) => (d.conflict ? [`- **${shown.key(d.key)}** ${rivalText(d.conflict)}`] : [`- **${shown.key(d.key)}**: ${shown.value(d.value)}${
+  whose(d)}${isReplaced(d) ? filled(WORDS.prReplaced, { ref: shown.supersededBy(d.supersededBy) }) : ''}`,
 ...(d.proposedThen ? [`  - ${filled(WORDS.proposedThen, { proposal: shown.proposedThen(d.proposedThen) })}`] : [])]);
 const criterionMd = (c) => `- ${shown.id(c.id)}: ${shown.text(c.text)}${c.command ? ` (\`${shown.command(c.command)}\`)` : ''}`;
 function commitsMd(commits) {
@@ -22,7 +22,7 @@ const FIELDS = [['why', WORDS.prWhy], ['success', WORDS.prSuccess], ['goal', WOR
 const parts = (p) => [[WORDS.prDecisions, p.decisions.flatMap(decisionMd)], [WORDS.prChecks, p.checks.map(criterionMd)]]
   .flatMap(([heading, lines]) => (lines.length ? ['', heading, ...lines] : []));
 
-const planMd = (p) => [`## ${shown.title(p.title)}`, '', filled(WORDS.prPlan, { id: p.id, state: p.state }),
+const planMd = (p) => [`## ${shown.title(p.title)}`, '', filled(WORDS.prPlan, { id: p.id, state: p.state }), ...p.open,
   ...FIELDS.filter(([field]) => p[field]).map(([field, words]) => filled(words, { [field]: shown[field](p[field]) })),
   ...parts(p), '', WORDS.prCommits, ...commitsMd(p.commits), ''];
 

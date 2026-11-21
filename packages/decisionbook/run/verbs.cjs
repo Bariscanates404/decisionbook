@@ -19,7 +19,9 @@ const { why } = require('../steps/why.cjs');
 const { pr } = require('../steps/pr.cjs');
 const stop = require('../steps/stop.cjs');
 const { protect } = require('../steps/protect.cjs');
-const { bookConfig } = require('../steps/store.cjs');
+const { bookConfig, readWeb } = require('../steps/store.cjs');
+const { openItems } = require('../steps/touch.cjs');
+const { openLines } = require('../core/text/open.cjs');
 const { CONFIG, DIR } = require('../contracts/shapes.cjs');
 const { writtenText, closedText } = require('../core/text/state.cjs');
 const { showText, nodeText, foundText } = require('../core/text/show.cjs');
@@ -29,19 +31,19 @@ const { whyText } = require('../core/text/why.cjs');
 const { prText } = require('../core/text/pr.cjs');
 const { protectLine, protectText } = require('../core/text/protect.cjs');
 
-const planHelp = async () => ({ out: { says: WORDS.plan }, code: 'plan-shown' });
+const planHelp = async (_args, io) => ({ out: { says: WORDS.plan, open: openLines(await openItems(io, readWeb(io)), []) }, code: 'plan-shown' });
 const notice = async (_args, io) => ({ out: { line: protectLine(bookConfig(io)) }, code: 'protect-shown' });
-const shownText = (o) => (o.node ? nodeText(o.node, o.links, o.decisions) : showText(o));
+const shownText = (o) => (o.node ? nodeText(o.node, o.links, o.decisions, o.open) : showText(o));
 
 // verb: [its step, what does it, the text of its answer]
 const VERBS = {
-  plan: ['decisionbook.plan', planHelp, (o) => o.says],
+  plan: ['decisionbook.plan', planHelp, (o) => [o.says, ...o.open].join('\n')],
   create: ['decisionbook.create', create, writtenText],
   add: ['decisionbook.add', addRecords, writtenText],
   ready: ['decisionbook.ready', ready, writtenText],
   close: ['decisionbook.close', close, closedText],
   show: ['decisionbook.show', read.showNode, shownText],
-  find: ['decisionbook.find', read.findWords, (o) => foundText(o.hits, o.refused)],
+  find: ['decisionbook.find', read.findWords, foundText],
   related: ['decisionbook.related', recall.related, relatedText],
   pack: ['decisionbook.pack', planPack, (o) => o.text], // `decisionbook plan <path|words>`
   resume: ['decisionbook.resume', read.resume, (o) => o.text],

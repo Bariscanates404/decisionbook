@@ -3,9 +3,9 @@
     "name": "handoff"
   },
   "caps": {
-    "pipeline": 868,
+    "pipeline": 883,
     "debug": 92,
-    "tests": 801
+    "tests": 869
   },
   "traceAs": {
     "run/steps.cjs": "every hook handler (start, prompt, touched, compact) and every verb (handoff, keep, show, drop) as one traced step of its own name",

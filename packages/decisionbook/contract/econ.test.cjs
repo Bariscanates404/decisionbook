@@ -47,8 +47,8 @@ test('without the person yes the same call leaves a draft and names the missing 
 test('a refused record in new writes nothing, not even the plan, and says so', async () => {
   const io = world();
   const bad = [{ t: 'question', q: 'Q1', text: 'which page size?', decides: 'report.page', whyNotCode: 'a rule', blocking: true }];
-  await assert.rejects(econStart(io, { records: bad }), (err) => err.code === 'research-first' && /^research-first: nothing written: 2026-11-02-report-export-is-slow: /.test(err.message));
-  assert.equal(io.fs.exists('.decisionbook/2026-11-02-report-export-is-slow.jsonl'), false, 'no file');
+  await assert.rejects(econStart(io, { records: bad }), (err) => err.code === 'research-first' && /^research-first: nothing written: 2026-11-02-report-export-is-slow-[0-9a-f]{4}: /.test(err.message));
+  assert.equal(io.fs.list('.decisionbook'), null, 'no file');
 });
 
 test('the first full show of a session ends with the node map, and a second bare show gives head and map only', async () => {

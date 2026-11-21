@@ -66,7 +66,7 @@ function leftoversRemove(args, io) {
   const left = leftoversOf(io);
   if (!left?.found) return leftovers(args, io);
   if (left.running.earlier.length || left.unlisted) return stillRunning(left);
-  const backup = `${BACKUP}/${io.clock.now().replace(/[:.]/g, '-')}`;
+  const backup = `${BACKUP}/${io.clock.now().replaceAll(':', '-').replaceAll('.', '-')}`;
   const keep = (key, text) => io.home.writeAtomic(`${backup}/${key.split('/').pop()}`, text);
   const { fs, settings, state, said } = left.places;
   // a host file: its copy as it was, then the file without the leftovers

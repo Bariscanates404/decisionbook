@@ -145,15 +145,21 @@ Below, "you" are the person the records call `the person`, and "the AI" is your 
 - A decision is valid by scope and `supersedes`, never by date. Your decision replaces another person's decision when it names it in
   `supersedes`; the AI's never does (`supersede-theirs`), and the AI's own decision of a key a person decided in the same plan is
   refused (`decision-theirs`: ask the person, or send it as a proposal); an AI line that a merge put after a person's never takes its place. Your answer to a question that names standing decisions places each one: in
-  `supersedes` (replaced) or `keeps` (kept, nothing replaced); one in neither is refused (`replace-unplaced`). Your answer may also
+  `supersedes` (replaced) or `keeps` (kept, nothing replaced); one in neither is refused (`replace-unplaced`), one in both too
+  (`placed-twice`), and only your answer keeps one (`keep-theirs`). Your answer may also
   keep a standing decision the question did not name; a keep only, it needs no `effect`. Every ref in `supersedes` or `keeps` is
-  `<plan id>/<key>` of a standing decision of another plan, as a question's are, else refused (`supersede-unknown`). A change of a decision
+  `<plan id>/<key>` of a standing decision, this plan's own or another plan's, as a question's are, else refused (`supersede-unknown`, naming the line that
+  replaced it where one did; a keep may name a replaced decision beside the line that replaced it: it is taken back). A keep under the
+  key it keeps in that decision's own plan is refused (`keep-own-key`), and so is a READY plan's own value said again under its key naming no line: that is a keep too. A person's line that a teammate wrote (git's author of the commit
+  that holds it, against the author mail this clone commits as, both through `.mailmap`) is never written over (`decision-teammates`), and an AI session never closes a
+  teammate's plan (`plan-close-theirs`) nor clears its lost item (`compared-theirs`); a `closed` record's `by` says who closed it. The
+  answer that ends a conflict names every line of it, in `supersedes`, or the one line whose decision it takes in `keeps`. A change of a decision
   of the same plan is its key written again naming its own `<plan id>/<key>` in `supersedes`: it replaces the lines of that key before it.
   Person decisions of one key in one plan where none names it so (a `git merge` that kept both sides' lines, or one written again with
-  no `supersedes`) and that differ in value and in words are a conflict: every reader of the key (show, pr, the pack, cards, inbox)
+  no `supersedes`) and that differ in value are a conflict: every reader of the key (show, pr, the pack, cards, inbox)
   shows each line with who and their words, says that none holds until the person says which, and the plan is not READY until the
-  person's answer is recorded as that change (`ready-replace-unasked`). The same value byte for byte, or the same words written again,
-  is no conflict. A decision of yours beside
+  person's answer is recorded as that change (`ready-replace-unasked`). Only the same value byte for byte is no conflict; the same
+  words with another value are one. A decision of yours beside
   another person's of the same key and scope that names it nowhere holds READY, one line each (`ready-replace-unasked`); so does a person's
   standing decision of a READY or closed plan on a file this plan edits (its own files, else its plan's), until your answer replaces or keeps
   it, a blocking question names it, or a `non-goal` item covering it says why this change leaves it. A file the plan only reads places nothing.

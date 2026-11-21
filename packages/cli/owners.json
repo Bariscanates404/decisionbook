@@ -3,10 +3,10 @@
     "name": "cli"
   },
   "caps": {
-    "pipeline": 3598,
-    "debug": 294,
-    "tests": 10438,
-    "spawns": 2974
+    "pipeline": 3675,
+    "debug": 291,
+    "tests": 11248,
+    "spawns": 3270
   },
   "slow": [
     "contract/hook.test.cjs"

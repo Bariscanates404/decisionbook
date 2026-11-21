@@ -5,11 +5,11 @@
 // PURE. One test per rubric row: the rows a view does not hold at its level; READY is an empty list, there is no score.
 const { RUBRIC, UI_PATHS, FORKS, higher } = require('../contracts/rubric.cjs');
 const { shortOf } = require('../contracts/codes.cjs');
-const { researchFirst, restatesTask, asksPermission, settledDecision, refusedRefs } = require('./text/refused.cjs');
+const { researchFirst, restatesTask, asksPermission, settledDecision, unknownRefs } = require('./text/refused.cjs');
 const { asksLeave, refOf } = require('../contracts/shapes.cjs');
 const { globCovers, globsOverlap, anyOverlap, tooBroad, isGlob } = require('../base/glob.cjs');
-const { personAnswers, isAnswered, isAi, holdsAlone, isAfter, isKeep, alike, ofKind, stepPath, wordSet, isStanding, forkQuestions, yesAgain,
-  mentions, asList } = require('../base/text.cjs');
+const { personAnswers, isAnswered, isTheirs, holdsAlone, isLive, isKeeping, isDecided, conflictsIn, lineIn, isAfter, isKeep, alike, ofKind,
+  stepPath, wordSet, forkQuestions, yesAgain, mentions, asList } = require('../base/text.cjs');
 const { scopeOf, seenView, dangerSince } = require('./fold.cjs');
 const { planLevel } = require('./level.cjs');
 
@@ -46,10 +46,15 @@ const noFork = (v, n) => {
   const unread = asked.length >= n ? [] : scopeOf(v).filter((glob) => !own.some((i) => globCovers(glob, stepPath(i.file))));
   return said.length > 0 && { waiting: asked.filter((q) => !isAnswered(v, q)).map((q) => q.q), unread, asked: asked.length };
 };
-// a keep answer newer than the person's yes, in other words than it: what the plan was to replace they kept since, so that yes covers
-// nothing (core/gate); one yes and keep quoting the same message is one answer
-const yesTakenBack = (v) => Boolean(v.confirm)
-  && v.decisions.some((d) => isKeep(d) && isAfter(d.at, v.confirm.at) && d.said !== v.confirm.said);
+// a yes in the words of a keep quotes the keep's own message (those words were found in it when the keep was written): the two are one
+// answer of the person, and that yes needs no later words (steps/batch yesFor, which writes it after the keep)
+const oneAnswer = (keep, yesSaid) => keep.said === yesSaid;
+// a keep answer written after the person's yes, of a decision a question or a decision of the plan names to replace: what the plan was
+// to replace they kept since, so that yes covers nothing (core/gate). A record keeps no mark of its message, so the order decides, never
+// the words: one word typed twice is two answers. A keep of any other line stands beside the plan
+const namedToReplace = (v) => [...v.questions, ...v.decisions].flatMap((record) => asList(record.supersedes));
+const yesTakenBack = (v) => Boolean(v.confirm) && v.decisions
+  .some((d) => isKeep(d) && isAfter(d.at, v.confirm.at) && d.keeps.some((ref) => namedToReplace(v).includes(ref)));
 const SAYS = { answers: (v, n) => ({ forks: forksOf(v), needs: n, ...noFork(v, n) }),
   replaces: (v) => ({ changed: v.changed }),
   research: (v, n) => ({ read: readResearch(v).length, needs: n, notRead: unreadPlanned(v) }),
@@ -100,14 +105,14 @@ const unmet = (view, level, danger) => levelRows(level).filter((row) => !HOLDS[r
 // of another plan's); not a question that names it as what it asks the person to replace (`supersedes`), nor the question it answers
 // (sent again), and it must stand
 const settledBy = (view, decisions, q) => decisions.filter((d) => d.plan !== view.id || d.answers !== q.q)
-  .find((d) => holdsAlone(d) && !isAi(d.by) && !asList(q.supersedes).includes(d.ref)
+  .find((d) => holdsAlone(d) && isTheirs(d) && !asList(q.supersedes).includes(d.ref)
   && ((d.key === q.decides && (!d.files.length || !scopeOf(view).length || anyOverlap(d.files, scopeOf(view))))
     || (d.plan !== view.id && [d.ref, refOf('decision', d.key)].some((name) => mentions(q.text, name)))));
 
-// THE reading of a `supersedes`/`keeps` ref: another plan's standing decision (or one this plan's READY replaced), or a decision of this
-// plan (its documented change: core/web) -> refs naming none
-const unstanding = (view, decisions, refs) => asList(refs).filter((ref) => !decisions.some((d) => d.ref === ref
-  && (d.plan === view.id || d.state === 'active' || String(d.supersededBy).startsWith(`${view.id}/`))));
+// THE reading of a `supersedes`/`keeps` ref: another plan's standing decision or a person's keep of one (or one this plan's READY replaced,
+// or one replaced by a decision named beside it: taken back from it), or a decision of this plan (core/web) -> refs naming none
+const unstanding = (view, decisions, refs) => asList(refs).filter((ref) => !decisions.some((d) => d.ref === ref && (d.plan === view.id
+  || isLive(d) || isKeeping(d) || String(d.supersededBy).startsWith(`${view.id}/`) || asList(refs).includes(d.supersededBy))));
 function questionRefused(view, decisions, q) {
   if (!view.research.length) return ['research-first', researchFirst(view.id)];
   const field = FORKS.TASK.find((name) => view[name] && alike(q.text, view[name], FORKS.RESTATE));
@@ -115,7 +120,7 @@ function questionRefused(view, decisions, q) {
   const named = newPathsOf(view, []).find((path) => asksLeave(q.text, path)); // leave to edit a file the plan names is no fork
   if (named) return ['question-permission', asksPermission(q, named)];
   const unknown = unstanding(view, decisions, q.supersedes);
-  if (unknown.length) return refusedRefs('supersede-unknown', unknown);
+  if (unknown.length) return unknownRefs(unknown, decisions);
   const settled = settledBy(view, decisions, q);
   return settled ? ['question-settled', settledDecision(q, settled)] : null;
 }
@@ -135,28 +140,32 @@ function newPathsOf(v, tracked) {
   return [...new Set([...scopeOf(v), ...v.steps.map((s) => stepPath(s.file))])].filter((p) => !isGlob(p) && !tracked.includes(p));
 }
 const undecidedOf = (rows, decisions) => rows
-  && rows.filter((row) => !decisions.some((d) => d.key === row.key && isStanding(d) && !isAi(d.by)));
+  && rows.filter((row) => !decisions.some((d) => d.key === row.key && isDecided(d) && isTheirs(d)));
 
-/** The person's standing decisions draft `v` places before READY: one of its own keys with rivals (core/web: only their answer, as the
- * key's documented change, ends them), one of another plan a person's decision of `v` stands beside in conflict (only one may stand), and
- * one that holds on a file `v` edits (`holdsOn`: its files once its plan stands), unless a person's answer here replaces or keeps it, a
- * blocking question names it (its answer will: core/yes), or a non-goal item covers it (why this change leaves it).
- * -> [{ ref, value, key | files | rivals }] */
+/** The person's standing decisions draft `v` places before READY: each conflict a person's line of `v` is in (core/validity: only their
+ * answer ends it), and one of another plan that holds on a file `v` edits (`holdsOn`: its files once its plan stands), unless a
+ * person's answer here replaces or keeps it, a blocking question names it (its answer will: core/yes), or a non-goal item covers it
+ * (why this change leaves it). -> [{ ref, conflict } | { ref, value | conflict, files }] */
 function changedOf(v, decisions, holdsOn) {
-  // what a reader needs of a decision whose key holds a conflict (core/text/records rivalText)
-  const conflictOf = ({ ref, plan, key, value, said, saidBy, source, line, by, rivals }) => ({ ref, plan, key, value, said, saidBy, source,
-    line, by, rivals });
-  const theirs = (d) => !isAi(d.by) && !d.proposed;
-  const mine = decisions.filter((d) => d.plan === v.id && theirs(d));
-  const rivals = mine.filter((d) => d.rivals.length).map(conflictOf); // a conflict holds a READY plan too: it covers no edit (core/gate)
-  if (v.stage !== 'draft') return rivals;
+  const mine = decisions.filter((d) => d.plan === v.id && isTheirs(d));
+  const contested = conflictsIn(mine).map((conflict) => ({ ref: lineIn(conflict, v.id).ref, conflict })); // it holds a READY plan too
+  if (v.stage !== 'draft') return contested;
   const asked = v.questions.filter((q) => q.blocking).flatMap((q) => q.supersedes);
-  const placed = [...mine.flatMap((d) => [...d.supersedes, ...d.keeps, ...d.rivals.map((o) => o.ref)]), ...asked,
-    ...ofKind(v, 'non-goal').flatMap((i) => i.covers)]; // one beside a decision of `v` is in its conflict (rivals), said there
-  const held = decisions.filter((o) => o.plan !== v.id && o.state === 'active' && theirs(o) && !placed.includes(o.ref))
-    .map((o) => ({ ...(o.rivals.length ? conflictOf(o) : { ref: o.ref, value: o.value }),
+  const placed = [...mine.flatMap((d) => [...d.supersedes, ...d.keeps, ...(d.conflict?.refs ?? [])]), ...asked,
+    ...ofKind(v, 'non-goal').flatMap((i) => i.covers)]; // a line in a conflict with one of `v` is said there
+  const held = decisions.filter((o) => o.plan !== v.id && isLive(o) && isTheirs(o) && !placed.includes(o.ref))
+    .map((o) => ({ ref: o.ref, ...(o.conflict ? { conflict: o.conflict } : { value: o.value }),
       files: scopeOf(v).filter((f) => anyOverlap([f], holdsOn(o))) }));
-  return [...rivals, ...held.filter((o) => o.files.length)];
+  return [...contested, ...held.filter((o) => o.files.length)];
+}
+
+/** The state every answer of a plan that is not made READY holds; `was`: the level its stored READY has; `rows`: how many of the
+ * rows its level asks it holds. */
+function unreadyState(view) {
+  const was = view.ready ? view.ready.level : null;
+  const asked = levelRows(view.level.level).length;
+  return { id: view.id, ready: false, code: 'plan-not-ready', level: view.level, unmet: view.unmet, parked: null, was,
+    rows: { met: asked - view.unmet.length, asked } };
 }
 
 // after a write a complete draft becomes READY; a READY plan is frozen, and stored again only when it holds a yes newer than its READY
@@ -164,5 +173,5 @@ function changedOf(v, decisions, holdsOn) {
 // higher level and holds that level's rows now
 const readyAgain = (v) => v.state === 'draft' || (v.state === 'ready' && (yesAgain(v) || v.level.level !== v.ready.level));
 
-module.exports = { unmet, yesTakenBack, levelRows, levelAt, unstanding, questionRefused, noForkRefused, newPathsOf, undecidedOf, changedOf,
-  readyAgain, readResearch, unreadPlanned };
+module.exports = { unmet, yesTakenBack, oneAnswer, unreadyState, levelRows, levelAt, unstanding, questionRefused, noForkRefused, newPathsOf,
+  undecidedOf, changedOf, readyAgain, readResearch, unreadPlanned };

@@ -47,9 +47,10 @@ test('setup\'s choice with no flag: never set up, every module that is not optIn
   assert.deepEqual(core.choose(ROWS, {}, ['decisionbook']), { on: ['decisionbook'] }, 'an off module stays off');
 });
 
-test('setup --with: the plain set and the named modules, whatever was stored; with --only or --without it is refused', () => {
-  assert.deepEqual(core.choose(ROWS, { with: 'extra' }, null), { on: ['extra', 'handoff', 'decisionbook'] });
-  assert.deepEqual(core.choose(ROWS, { with: 'extra' }, ['decisionbook']), { on: ['extra', 'handoff', 'decisionbook'] });
+test('setup --with: the modules on here and the named, so one switched off stays off; with --only or --without it is refused', () => {
+  assert.deepEqual(core.choose(ROWS, { with: 'extra' }, null), { on: ['extra', 'handoff', 'decisionbook'] }, 'never set up: the plain set and the named');
+  assert.deepEqual(core.choose(ROWS, { with: 'extra' }, ['decisionbook']), { on: ['extra', 'decisionbook'] }, 'handoff, switched off, stays off');
+  assert.deepEqual(core.choose(ROWS, { with: 'handoff' }, ['decisionbook']), { on: ['handoff', 'decisionbook'] }, 'named, it is on again');
   assert.equal(core.choose(ROWS, { with: 'nope' }, null).refused, 'no module is called nope');
   for (const flags of [{ only: 'db', without: 'extra' }, { with: 'extra', only: 'db' }, { with: 'extra', without: 'handoff' }]) {
     assert.equal(core.choose(ROWS, flags, null).refused, 'one of --only, --without or --with, not two', Object.keys(flags).join(' '));

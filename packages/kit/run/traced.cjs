@@ -6,24 +6,25 @@
 // can leak.
 const { digest } = require('../base/hash.cjs');
 const { isFail } = require('../base/errors.cjs');
-const { VERDICTS } = require('../contracts/trace.cjs');
+const { VERDICTS, decisionKey } = require('../contracts/trace.cjs');
 
 const errOf = (knows, err) => (isFail(err) && knows(err.code) ? { code: err.code, msg: err.message } : { code: 'unexpected-error', msg: (err && err.name) || 'Error' });
-const decided = (out) => (VERDICTS.includes(out?.verdict) ? { [`decision_${out.verdict}`]: 1 } : {}); // the one rule: every gate counted, none twice
+// the one rule: every gate counted, none twice
+const decided = (out) => (VERDICTS.includes(out?.verdict) ? { [decisionKey(out.verdict)]: 1 } : {});
 
 function traced(io, step, fn) {
-  return async (input, ctx) => {
-    const t0 = io.clock.elapsedMs();
-    const head = { run: ctx.run, step, in: digest(input), ref: ctx.ref || null };
+  return async (input, runAndRef) => {
+    const startedMs = io.clock.elapsedMs();
+    const head = { run: runAndRef.run, step, in: digest(input), ref: runAndRef.ref || null };
     try {
-      const res = io.trace.result(await fn(input, io, ctx));
-      const ref = res.ref || ctx.ref ? { ...ctx.ref, ...res.ref } : null;
-      const ms = io.clock.elapsedMs() - t0;
-      const n = { ...res.n, ...decided(res.out) };
-      io.trace.record({ ...head, ms, ok: !res.err, out: digest(res.out), n, codes: res.codes, ref, err: res.err ?? null });
-      return res;
+      const result = io.trace.result(await fn(input, io, runAndRef));
+      const ref = result.ref || runAndRef.ref ? { ...runAndRef.ref, ...result.ref } : null;
+      const counts = { ...result.n, ...decided(result.out) };
+      io.trace.record({ ...head, ms: io.clock.elapsedMs() - startedMs, ok: !result.err, out: digest(result.out), n: counts,
+        codes: result.codes, ref, err: result.err ?? null });
+      return result;
     } catch (err) {
-      io.trace.record({ ...head, ms: io.clock.elapsedMs() - t0, ok: false, err: errOf(io.trace.knows, err) });
+      io.trace.record({ ...head, ms: io.clock.elapsedMs() - startedMs, ok: false, err: errOf(io.trace.knows, err) });
       throw err;
     }
   };

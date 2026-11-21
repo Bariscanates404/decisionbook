@@ -7,9 +7,12 @@ const { errors: { fail }, text: { lines: { filled } } } = require('@atlasbound/k
 const { shortOf, WORDS: { modules: W, states: SAID, manifestInvalid: MANIFEST_INVALID } } = require('../contracts/codes.cjs');
 const core = require('../core/modules.cjs');
 const { reached, wakes } = require('../core/hooks.cjs');
-const { firstRun } = require('./setup.cjs');
+const { firstRun, cloneOf } = require('./setup.cjs');
+const { onlyThePerson, typedBy, typedOrRefused } = require('./person.cjs');
+const { TURN_OFF } = require('../contracts/verbs.cjs');
 
-/** The modules a wiring verb leaves on, or module-refused: an unknown word, two flags, one asked for and not installed, none left on. */
+/** The modules a wiring verb leaves on, or module-refused: an unknown word, two flags, one asked to be on (--with, modules on) whose
+ * package is not on disk, none left on. */
 function modulesChosen(io, { words, rest, flags }) {
   const rows = io.catalog.modules.modules;
   const names = rows.map((m) => m.name); // a module's short alias still works, but is not offered: atlasbound modules lists none
@@ -19,17 +22,29 @@ function modulesChosen(io, { words, rest, flags }) {
   const got = words[0] === 'modules' ? toggledFor(rows, stored, verb, rest) : core.choose(rows, flags, stored);
   if (got.refused) throw fail('module-refused', `${got.refused}; ${named}`);
   const there = core.installedOf(rows, io.packages.has);
-  const asked = flags.with !== undefined ? got.on : words[0] === 'modules' && verb === 'on' ? [core.byWord(rows, rest[0]).name] : [];
-  const absent = asked.filter((name) => !there.includes(name) && core.byWord(rows, name).optIn);
+  // the modules this verb is asked to turn on: the one `modules on` names, and what --with adds to the modules on here
+  const asked = verb === 'on' ? [core.byWord(rows, rest[0]).name]
+    : flags.with !== undefined ? got.on.filter((name) => !core.onHere(rows, stored).includes(name)) : [];
+  const absent = asked.filter((name) => !there.includes(name));
   if (absent.length) throw fail('module-refused', filled(W.notInstalled, { names: absent.join(', '), named }));
   if (!got.on.some((name) => there.includes(name))) throw fail('module-refused', filled(W.noneInstalled, { names: got.on.join(', '), named }));
   return got.on;
 }
 
-/** The modules wired here that a wiring to `on` would take out, the installed ones only: taking one out is the person's. */
-function takenOut(io, on) {
+/** A wiring to `on` that moves the choice stored here is the person's, the installed modules only: taking one out (`out`) is their grave
+ * act, past the phrase that names the modules, as `modules off` is; turning on again one that is off by that choice (`back`) needs them
+ * at their terminal, as `modules on` does. A record git holds is another machine's choice: refused as that, first (steps/setup cloneOf). */
+async function choiceByPerson(io, verb, on, argv) {
+  const stored = io.host.chosen();
   const there = core.installedOf(io.catalog.modules.modules, io.packages.has);
-  return (io.host.chosen() ?? []).filter((name) => there.includes(name) && !on.includes(name));
+  const moved = (from, to) => from.filter((name) => there.includes(name) && !to.includes(name));
+  const out = moved(stored ?? [], on);
+  const back = stored ? moved(on, stored) : [];
+  if (out.length || back.length) await cloneOf(io);
+  if (back.length) onlyThePerson(io, `${verb} turns ${back.join(', ')} on again`, argv);
+  if (!out.length) return;
+  onlyThePerson(io, `${verb} takes ${out.join(', ')} out`, argv, true);
+  await typedOrRefused(typedBy(io, [TURN_OFF, ...out].join(' ')));
 }
 
 function toggledFor(rows, stored, verb, rest) {
@@ -53,6 +68,8 @@ function moduleRows(io) {
   });
 }
 
+// the state of the module a package belongs to, as moduleRows says it
+const moduleStateOf = (io, pkg) => moduleRows(io).find((r) => core.byWord(io.catalog.modules.modules, r.name).packages.includes(pkg)).state;
 const SAYS = { off: 'loses', 'not-installed': 'loses', 'not-set-up': 'what' }; // the module's own words a row says beside its state
 /** doctor's and status's line of one module. */
 const moduleLine = (m) => filled(W.line, { name: m.name, state: SAID[m.state], loses: m.loses ? `: ${m.loses}` : '' });
@@ -68,8 +85,9 @@ async function modules(_args, io) {
 }
 
 /** `modules on|off <name>`: the same writer over the new set; says exactly what it added or took out. Off takes only what setup wrote. On
- * runs setup's first run for the packages it wires, so the module is there as after setup --with. */
+ * runs setup's first run where a package it wires brings one; it asks no question of setup's own again (protect is one command). */
 async function modulesSet(args, io) {
+  const clone = await cloneOf(io);
   const before = io.packages.declared().manifests;
   const { manifests, problems } = io.packages.declared(args.on);
   // what stays is each turned-off package's own declaration (keptStores), read before anything is written
@@ -79,7 +97,7 @@ async function modulesSet(args, io) {
   const declared = Object.fromEntries(gone.flatMap(([entry]) => Object.entries(entry.keptStores ?? {})));
   const there = io.host.present({ here: Object.keys(declared), home: gone.flatMap(([entry, own]) => entry.homeStores?.(own) ?? []) });
   const kept = [...there.here.map((key) => [key, declared[key]]), ...there.home.map((key) => [`~/${key}`, shortOf('module-kept-home')])];
-  io.host.write(io.host.plan(manifests, io.packages, args.on));
+  io.host.write(io.host.plan(manifests, io.packages, args.on), clone);
   const change = core.changeOf(before, manifests);
   const verb = args.words[1];
   const moved = Object.entries(change).flatMap(([said, kinds]) => Object.entries(kinds).flatMap(([what, names]) => names.map((name) => `  ${said} ${what.slice(0, -1)} ${name}`)));
@@ -102,8 +120,8 @@ const offLine = (io, pkg) => moduleRows(io).filter((r) => W.turnsOn[r.state] && 
  * never a verdict. A row the wired `manifests` plan too (the port's own gate) is no off module's. */
 function offOf(io, { known, results, event, payload, manifests }) {
   if (!known || results.length || wakes(manifests, event, payload)) return null;
-  const off = io.packages.declared(io.catalog.modules.modules.map((m) => m.name)).manifests.filter((m) => !io.packages.wired(m.name));
+  const off = io.packages.installed().manifests.filter((m) => !io.packages.wired(m.name));
   return core.offItem(io.catalog.modules.modules, reached(off, event, payload), shortOf('module-off'));
 }
 
-module.exports = { modulesChosen, takenOut, moduleRows, moduleLine, modules, modulesSet, offOf, offLine };
+module.exports = { modulesChosen, choiceByPerson, moduleRows, moduleStateOf, moduleLine, modules, modulesSet, offOf, offLine };

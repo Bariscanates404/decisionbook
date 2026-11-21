@@ -6,7 +6,7 @@
 // and words that settle it. Fragments of a clause are the first cases.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { said: { clausesOf, notTheirs, isAbout, intends } } = require('@atlasbound/kit');
+const { said: { clausesOf, notTheirs, isAbout, intends }, host: { personWords }, errors: { fail } } = require('@atlasbound/kit');
 
 // an answer given as a list item is that whole item; the question it quotes back is the asker's sentence, not theirs
 test('a list item is the person\'s whole; its quoted opening may be left out', () => {
@@ -126,3 +126,29 @@ test('two forms of one word are one word: an ending aside, in English and in Tur
   assert.deepEqual([isAbout('discount', 'discover'), isAbout('format', 'formal'), isAbout('İkinci soru', 'ikinci')], [false, false, true]);
 });
 
+
+const TYPED = "/handoff RETRY'a dokunma. Sıradaki iş: ayarlara log seviyesi eklemek, şimdilik sadece aklında tut.";
+const inRepository = (folder) => (folder === '.claude/commands' ? ['handoff.md', 'notes.txt', '.md'] : null); // the one command held here
+
+test('a slash command the person typed is the host\'s word: their sentence is the words after it', () => {
+  const words = personWords(TYPED, inRepository);
+  assert.equal(words, "RETRY'a dokunma. Sıradaki iş: ayarlara log seviyesi eklemek, şimdilik sadece aklında tut.");
+  assert.equal(theirs("RETRY'a dokunma.", TYPED), 'fragment', 'read with the command, their first sentence is a piece of another');
+  assert.equal(theirs("RETRY'a dokunma.", words), null);
+  assert.equal(theirs('Sıradaki iş: ayarlara log seviyesi eklemek, şimdilik sadece aklında tut.', words), null);
+  for (const piece of ["RETRY'a", 'dokunma', 'log seviyesi']) assert.equal(theirs(piece, words), 'fragment', piece);
+  assert.equal(personWords('/handoff', inRepository), '', 'a command alone: no words of theirs');
+  assert.equal(personWords('  /handoff\n  keep the v1 API', inRepository), 'keep the v1 API');
+});
+
+test('a sentence that opens with a slash word the repository holds no command for is theirs whole', () => {
+  const whole = ['/tmp klasörünü silme.', '/tmp/notes.txt dosyasını silme.', '/handoffs listesini silme.', '/handoff/eski klasörünü silme.',
+    '/../handoff klasörünü silme.', 'RETRY için /handoff yazma.', '/ handoff', '/Handoff RETRY\'a dokunma.', '/handoff.md dosyasını silme.',
+    '/notes dosyasını silme.', '/notes.txt dosyasını silme.', '~/handoff dosyasını silme.', 'handoff RETRY\'a dokunma.', ''];
+  for (const sentence of whole) assert.equal(personWords(sentence, inRepository), sentence, sentence);
+  assert.equal(theirs('/tmp klasörünü silme.', personWords('/tmp klasörünü silme.', inRepository)), null);
+  assert.equal(theirs('klasörünü silme.', personWords('/tmp klasörünü silme.', inRepository)), 'fragment', 'the path is a word of their sentence');
+  assert.equal(personWords(TYPED, () => null), TYPED, 'a repository with no command: every word is theirs');
+  assert.equal(personWords(TYPED, () => { throw fail('io-read-failed', 'commands'); }), TYPED, 'a folder that does not read holds no command');
+  assert.equal(personWords('ok go on', () => assert.fail('listed')), 'ok go on', 'no slash opens it: the folder is not read');
+});

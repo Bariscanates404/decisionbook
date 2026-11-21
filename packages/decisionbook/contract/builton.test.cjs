@@ -20,7 +20,7 @@ const linksIn = (io, id) => io.fs.readText(logFile(id)).trim().split('\n').map((
 const showLinks = async (io, id) => (await verbs.show(io, { rest: [id, 'links'] })).out.links.filter((l) => ['built-on',
   'used-by'].includes(l.rel)).map((l) => [l.from, l.rel, l.to, l.why]);
 const states = async (io) => (await verbs.show(io, { rest: ['decision:policy.scope'] })).out.decisions.map((d) => [d.plan, d.scope, d.state,
-  d.conflicts.length]);
+  d.meets.length]);
 
 /** An earlier plan (Reply controls: plans status.rb), then a later one (Reply requests, on its own branch: plans reply.rb), the work of session s1. */
 async function chain(over = {}) {
@@ -126,7 +126,7 @@ test('[I-3] one bare key in two plans of other files is no conflict and no link;
   await added(io, older, layout('right of the title'));
   assert.equal((await handlers.recall(readOf(STATUS, 's1'), io)).code, 'recall-given', 'the earlier plan\'s card was read');
   await added(io, newer, layout('a new fourth tab'));
-  const conflicts = async (key) => (await verbs.show(io, { rest: [`decision:${key}`] })).out.decisions.filter((d) => d.state === 'active').map((d) => d.conflicts);
+  const conflicts = async (key) => (await verbs.show(io, { rest: [`decision:${key}`] })).out.decisions.filter((d) => d.state === 'active').map((d) => d.meets);
   assert.deepEqual([await conflicts('layout'), linksIn(io, newer)], [[[], []], []], 'other files: two decisions that never meet');
   assert.ok(!(await verbs.show(io, { rest: [newer, 'decisions'] })).text.includes('CONFLICT'));
   await added(io, newer, { ...SCOPE, value: 'the reply author decides', files: [REPLY] });

@@ -16,7 +16,7 @@ const KEY = 'history.limit';
 const limitAsk = (q, decides, text) => ({ t: 'question', q, text, decides, whyNotCode: 'a product choice', proposal: '100', blocking: true });
 const limit = (value, more = {}) => ({ t: 'decision', key: KEY, value, why: 'theirs', by: 'the person', said: `Keep ${value}.`,
   answers: 'Q1', effect: [`file:${FILE}`], ...more });
-const CONFLICT = 'CONFLICT (2 person decisions of this key in this plan, none replacing another; none holds until the person says which)';
+const CONFLICT = 'CONFLICT (2 person decisions in this plan, none replacing another; none holds until the person says which)';
 
 /** A draft whose person decided limit=100; `sides`: the records each copy of the file added, laid one after the other as a merge does. */
 async function limitWorld(sides, before = [], order = sides.map((side, i) => i)) {
@@ -62,6 +62,15 @@ test('two documented changes of one line from two branches: every reader names t
   await added(io, id, limit('50', { said: 'We go with 50.', supersedes: [`${id}/${KEY}`] })); // the person's answer
   assert.deepEqual(await holds(io), [['100', 'revised'], ['50', 'revised'], ['200', 'revised'], ['50', 'active']]);
   assert.equal(await waitsForAnswer(io, id), false);
+});
+
+test('a write on the files of a key in conflict is told the conflict, never one of its lines as the decision that stands', async () => {
+  const side = (value) => (id) => [limit(value, { supersedes: [`${id}/${KEY}`], files: [FILE] })];
+  const { io, id } = await limitWorld([side('50'), side('200')]);
+  const { text } = await added(io, id, { t: 'decision', key: 'history.shape', value: 'a ring buffer', why: 'read in the store', by: 'ai',
+    effect: [`file:${FILE}`], files: [FILE] });
+  for (const part of ['decisions already on these files', CONFLICT, '"Keep 50."', '"Keep 200."']) assert.ok(text.includes(part), text);
+  assert.doesNotMatch(text, /history\.limit = (50|200)/, text);
 });
 
 test('a side that changed its answer twice meets the other side\'s answer as a rival, whichever side the merge lays last', async () => {
@@ -116,9 +125,11 @@ test('a READY plan whose key two branches changed covers no edit until the perso
   assert.deepEqual([plan.state, plan.unmet, plan.decided.some((d) => d.key === KEY)], ['ready', ['ready-replace-unasked'], false]);
   const start = (await verbs.resume(io, { rest: [] })).text;
   assert.ok(start.includes('held by a conflict') && !start.includes('pass in silence'), start);
+  io.state.commits = [{ sha: 'c1', subject: 'keep 200 states', body: '', files: [FILE], after: 'h0' }]; // it edited under one of the two
   await added(io, id, limit('50', { said: 'We go with 50.', supersedes: [`${id}/${KEY}`] }));
   assert.equal((await handlers.preEdit({ ...editEvent(FILE), session_id: 's1' }, io)).code, 'gate-in-scope');
   assert.equal(planRecords(io, id).filter((r) => r.t === 'confirm').length, 1, 'the yes it had covers it again');
+  assert.doesNotMatch((await verbs.show(io, { rest: [id] })).text, /^open: /m, 'two answers of ONE plan file: its own change, no open item');
 });
 
 test('in a session an answer ending a conflict answers the replace question naming its lines, in words typed after it', async () => {
@@ -131,10 +142,14 @@ test('in a session an answer ending a conflict answers the replace question nami
   await say(early);
   assert.equal(await sent(limit('75', { said: early, answers: undefined, supersedes: [ref] })), 'conflict-unasked', 'never shown the conflict');
   const again = { ...limitAsk('Q1', KEY, 'How many past states?'), supersedes: [ref] }; // the old question sent again, now naming the lines
-  assert.equal(await sent([again, limit('75', { said: early, supersedes: [ref] })]), 'said-not-theirs', 'asked as a replace question only now');
+  const oneCall = await added(io, id, [again, limit('75', { said: early, supersedes: [ref] })]).then(() => 'written', (err) => err.message);
+  assert.ok(oneCall.startsWith('conflict-unasked: nothing written: record 2 of 2: ') && oneCall.includes(`${ref}: this answer ends a conflict, and no `
+    + 'replace question naming every line of it was on record before the person typed these words: record that question first, in a call of its own')
+    && !oneCall.includes('quotes the person'), `the question and the answer in one call: their words, said as typed too early, never as not theirs\n${oneCall}`);
   await added(io, id, { t: 'question', q: 'Q3', text: 'Two answers stand, 50 and 200: which holds?', decides: KEY, whyNotCode: 'theirs',
     blocking: true, supersedes: [ref] });
-  assert.equal(await sent(limit('75', { said: early, answers: 'Q3', supersedes: [ref] })), 'said-not-theirs', 'typed before it was asked');
+  assert.equal(await sent(limit('75', { said: early, answers: 'Q3', supersedes: [ref] })), 'conflict-unasked', 'typed before it was asked');
+  assert.equal(await sent(limit('75', { said: 'Limiti 80 yap.', answers: 'Q3', supersedes: [ref] })), 'said-not-theirs', 'words they never typed');
   await say('75 olsun, ikisi de değil.');
   assert.equal(await sent(limit('75', { said: '75 olsun, ikisi de değil.', answers: 'Q3', supersedes: [ref] })), 'written');
   assert.equal(await waitsForAnswer(io, id), false);

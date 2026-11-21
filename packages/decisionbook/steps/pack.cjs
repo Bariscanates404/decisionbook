@@ -6,12 +6,15 @@
 // (`decisionbook plan`).
 const { errors: { isFail } } = require('@atlasbound/kit');
 const { RELATED_CARDS, absentLines } = require('../core/text/recall.cjs');
+const { openLines } = require('../core/text/open.cjs');
 const { packOf } = require('../core/pack.cjs');
 const { untouchedOf } = require('../core/recall.cjs');
 const { workFiles, namedFiles, areaOf } = require('./area.cjs');
 const { sessionRead, sessionAdd } = require('./here.cjs');
 const { researchWhere } = require('./host.cjs');
+const { markTeammates } = require('./teammate.cjs');
 const store = require('./store.cjs');
+const { openItems } = require('./touch.cjs');
 
 /** The earlier plans of the work `text` names (its files and its words) and the files the session touched and the branch changed, the
  * best RELATED_CARDS as the walk ranks them, each with what it built and why it was picked; `named`: its files; `absent`: what was not
@@ -22,8 +25,11 @@ async function areaFor(io, text, session) {
   const files = await workFiles(io, web, { text, session, branch });
   const { cards, n } = await areaOf(io, web, { files, text, branch }, RELATED_CARDS);
   const viewOf = (card) => ({ ...web.views.find((v) => v.id === card.id), built: card.built ? card.built.files : [], picked: card.picked });
-  return { files, named: namedFiles(io, text), n, views: cards.slice(0, RELATED_CARDS).map(viewOf),
-    absent: absentLines({ found: cards.length, unread: store.unreadPlans(web), untouched: untouchedOf(web, files) }) };
+  const views = cards.slice(0, RELATED_CARDS).map(viewOf);
+  await markTeammates(io, views.flatMap((v) => v.decisions)); // the pack says whose each decision is
+  return { files, named: namedFiles(io, text), n, views,
+    open: openLines(await openItems(io, web)),
+    absent: absentLines({ found: cards.length, untouched: untouchedOf(web, files) }) }; // a plan not read is an open item
 }
 
 /** The pack; a record that later uses one of its plans is linked to it as read through `door`. A coded failure of the walk packs no
@@ -37,8 +43,8 @@ async function packFor(io, { text, session, door }) {
     area.absent = absentLines({ unread: [{ file: store.pathOf('*'), code: err.code }] }); // never "no record here": none was read
   }
   const first = await researchWhere(io, text);
-  const { views, files: seeds, named, absent } = area;
-  const pack = packOf({ views, seeds, named, words: text, danger: store.dangerOf(io), first, absent, session });
+  const { views, files: seeds, named, absent, open } = area;
+  const pack = packOf({ views, seeds, named, words: text, danger: store.dangerOf(io), first, absent, open, session });
   sessionRead(io, session, pack.ids, door);
   if (pack.refs.length) sessionAdd(io, session, { t: 'packed', refs: pack.refs }); // a file card of this session does not say them again
   return { pack, n: { ...area.n, packed: 1, packChars: pack.text.length } };

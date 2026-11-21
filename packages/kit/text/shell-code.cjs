@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-// kit's shell owner, PURE: the files inline code's write calls open, each path valued where its call stands; a value that is no literal is
+// part of text/shell, PURE: the files inline code's write calls open, each path valued where its call stands; a value that is no literal is
 // unplaced, too long or deep is `unread`.
 // A sure assignment sets its name for the rest of the block, any other adds a value; a function's parameters stay in its body, so a write
 // there is placed once per call.

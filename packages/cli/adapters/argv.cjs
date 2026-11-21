@@ -6,7 +6,7 @@
 // on stderr (with --json also `{"error": {code, message, next}}` on stdout), exit 1, or exit 2 with the usage line for a command typed
 // wrong.
 const { traced, errors: { fail, isFail }, paths, text: { secrets, lines: { filled } } } = require('@atlasbound/kit');
-const { HELP_FLAGS, VERSION_FLAGS, DEBUG_SAYS, TURN_OFF, entryAt } = require('../contracts/verbs.cjs');
+const { HELP_FLAGS, VERSION_FLAGS, DEBUG_SAYS, entryAt } = require('../contracts/verbs.cjs');
 const { shortOf, WORDS: { adapters: W } } = require('../contracts/codes.cjs');
 const { DEBUG_SCHEMA } = require('../contracts/shapes.cjs');
 const { overview, everyCommand, groupHelp, wrap } = require('../core/help.cjs');
@@ -21,7 +21,7 @@ const { debugWho } = require('../debug/who.cjs');
 const { debugInject } = require('./inject.cjs');
 const { leftovers, leftoversRemove } = require('../steps/leftovers.cjs');
 const { draftGiven, dropDraft, draftKept } = require('../steps/drafts.cjs');
-const { modulesChosen, takenOut, modules, modulesSet, offLine } = require('../steps/modules.cjs');
+const { modulesChosen, choiceByPerson, modules, modulesSet, offLine } = require('../steps/modules.cjs');
 const { isPersons, onlyThePerson, phraseOf, typedBy, typedOrRefused } = require('../steps/person.cjs');
 
 const INTERRUPTS = Object.freeze({ SIGHUP: 129, SIGINT: 130, SIGTERM: 143 }); // 128 + the signal, what a shell reports
@@ -145,17 +145,13 @@ function verbOf(io, row, args, { ask, inChars, draft }) {
   } : fn];
 }
 
-/** Before the traced step: a refused root or module choice must not receive even a trace file. A wiring that takes a module out is the
- * person's grave act, as `modules off` is (its own row says so): at a plain terminal, past the phrase that names the modules. */
+/** Before the traced step: a refused root or module choice must not receive even a trace file, and a wiring that moves the choice
+ * stored here is the person's (steps/modules choiceByPerson), as the rows of `modules on` and `modules off` say of theirs. */
 async function wiringArgs(io, row, args, argv) {
   if (!row.wires) return args;
   io.host.refusal();
   const on = modulesChosen(io, args);
-  const out = isPersons(row, args.flags) ? [] : takenOut(io, on);
-  if (out.length) {
-    onlyThePerson(io, `${row.words.join(' ')} takes ${out.join(', ')} out`, argv, true);
-    await typedOrRefused(typedBy(io, [TURN_OFF, ...out].join(' ')));
-  }
+  if (!isPersons(row, args.flags)) await choiceByPerson(io, row.words.join(' '), on, argv);
   return { ...args, on };
 }
 
@@ -182,7 +178,7 @@ function modeOf(row, targeted) {
   if (row.reads) return host ? 'host-read' : 'read';
   if (host) return 'host';
   if (row.cleans) return 'clean';
-  return row.looks ? 'look' : 'work';
+  return (row.wires && 'wire') || (row.looks ? 'look' : 'work');
 }
 
 // a verb's words; its JSON word not given, the JSON is the draft --file names (steps/drafts), else what standard input holds; a terminal

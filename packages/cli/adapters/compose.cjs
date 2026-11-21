@@ -9,7 +9,7 @@ const { io: kitIo, errors: { fail, isFail }, paths: { parentDir, nameOf, upward,
   child: { handedStop, selfCheck }, person: { createActor }, text: { lines: { filled } } } = require('@atlasbound/kit');
 const { isCode, WORDS: { adapters: W } } = require('../contracts/codes.cjs');
 const validate = require('../contracts/validate.cjs');
-const { CONFIG, CONFIG_FILE, STEPS, STORE, MODES } = require('../contracts/shapes.cjs');
+const { CONFIG, CONFIG_FILE, STEPS, MODES } = require('../contracts/shapes.cjs');
 const { PRODUCT } = require('../contracts/verbs.cjs');
 const { createFinder } = require('./packages.cjs');
 const { createHost, refuseStrayRoot, projectEnv, sessionEnv, pidEnv, sessionWrites: HOST_OPEN } = require('./host.cjs');
@@ -20,7 +20,6 @@ const { installFacts } = require('../steps/doctor.cjs');
 
 const CLI_DIR = parentDir(__dirname);
 const SELF = Object.freeze({ node: process.execPath, bin: `${CLI_DIR}/bin/atlasbound.cjs` }); // this install: the one place that spells either
-const NAMES_PRODUCT = new RegExp(`"name"\\s*:\\s*"${PRODUCT}"`);
 let FINDER = null;
 /** The packages of this install, found once per process: argv routes with its table before any repository is opened. */
 const finder = () => {
@@ -28,12 +27,12 @@ const finder = () => {
   return FINDER;
 };
 
-/** The nearest folder above the cli whose manifest names the product, and that manifest's text; any other package.json on the way is not
- * parsed, so a stranger's broken file cannot stop a verb. */
+/** The nearest folder above the cli whose manifest's own `name` is the product, and that manifest's text; a package.json on the way
+ * that does not parse is no product root, so a stranger's broken file cannot stop a verb. */
 function productRoot() {
   for (const dir of upward(CLI_DIR)) {
     const text = kitIo.createFs(dir).readText('package.json');
-    if (text !== null && NAMES_PRODUCT.test(text)) return { dir, text };
+    if (text !== null && Object(validate.jsonOrNull(text)).name === PRODUCT) return { dir, text };
   }
   return null;
 }
@@ -117,9 +116,11 @@ function repositoryOf(start, hostStarted, swap) {
   return { root, boundFrom };
 }
 
-/** A verb that only looks makes no trace folder where no setup holds one; one that reads the trace keeps its records in this process
- * (a debug verb reads them back). */
-const recordsFsOf = (fs, looking) => (looking && fs.list(STORE) === null ? { ...fs, append: () => {} } : fs);
+/** Looking, cleaning and diagnostic children append only to a local trace folder setup created. A verb that reads the trace keeps
+ * its new records in this process. */
+const recordsFsOf = (fs, quiet) => (!quiet ? fs
+  : { ...fs, append: (...row) => (fs.list(TRACE_DIR) === null ? undefined : fs.append(...row)) });
+const digitsOf = (text) => [...text].filter((char) => char >= '0' && char <= '9').join('');
 /** Never HOME: env must not be able to point telemetry's consent at a forged record. The user's alone. */
 const userHomeFs = () => (kitIo.env.userHome() ? kitIo.createFs(kitIo.env.userHome(), { private: true }) : null);
 const selfOf = () => ({ hostPid: Number.parseInt(kitIo.env.get(pidEnv), 10) || null, writer: nameOf(kitIo.env.userHome() || '') || null,
@@ -176,8 +177,10 @@ function compose({ start, mode = 'work', replay }) {
   const fs = kitIo.createFs(root, { hold: how.reading ? TRACE_DIR : null });
   refuseStrayRoot({ fs, env: kitIo.env, root, cleaning: Boolean(how.cleaning) });
   const { config, configRefused, keepDays } = configRead(fs, Boolean(how.hook));
-  const tracer = kitIo.createTrace({ fs: recordsFsOf(fs, how.looking), clock: kitIo.clock, keepDays, self: selfCheck(kitIo.env) });
-  const run = `${how.hook ? 'hook' : 'cli'}-${kitIo.clock.now().replace(/\D/g, '')}-${process.pid}`;
+  const self = selfCheck(kitIo.env);
+  const records = recordsFsOf(fs, how.looking || how.cleaning || self);
+  const tracer = kitIo.createTrace({ fs: records, clock: kitIo.clock, keepDays, self });
+  const run = `${how.hook ? 'hook' : 'cli'}-${digitsOf(kitIo.clock.now())}-${process.pid}`;
   const trace = tracer.forPackage('cli', { steps: STEPS, isCode });
   const { catalog } = finder();
   const host = createHost({ fs, proc: kitIo.proc, env: kitIo.env, root, self: SELF, fsAt: kitIo.createFs, modules: catalog.modules });
@@ -185,14 +188,13 @@ function compose({ start, mode = 'work', replay }) {
   const stdio = { in: process.stdin, out: process.stdout, err: process.stderr };
   const actor = createActor({ env: kitIo.env, proc: kitIo.proc, input: stdio.in, said: actorRows(trace, run) });
   const terminal = createTerminal({ ...stdio, person: () => actor().who === 'terminal' });
-  let whole = null; // the io this compose returns: doctor reads it whole
-  const facts = () => installFacts(whole);
+  const facts = () => installFacts(whole); // asked while a verb runs, after `whole` below is made
   const shared = everyonesIo({ opened: { root, boundFrom, fs, start }, run, config, trace, found, actor, stdio, swap, facts });
   const loader = finder().loader(found, { shared, tracer });
   // a child its starter bounded (the one process handed a stop) says in its starter's row how it ended; null = its verb ran whole
   const childEnded = (code) => (handedStop(kitIo.env) ? loader.answer('childEnded', { pid: process.pid, code }) : null);
-  whole = Object.freeze({ ...shared, trace, host, terminal, machine: machineOf(), packages: Object.freeze({ ...found, ...loader, catalog }),
-    catalog, answer: loader.answer, configRefused, childEnded });
+  const whole = Object.freeze({ ...shared, trace, host, terminal, machine: machineOf(),
+    packages: Object.freeze({ ...found, ...loader, catalog }), catalog, answer: loader.answer, configRefused, childEnded });
   return whole;
 }
 

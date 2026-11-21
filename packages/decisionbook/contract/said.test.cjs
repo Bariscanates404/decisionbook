@@ -50,7 +50,7 @@ async function saidWorld({ home, asks = [jupiterAsk('Q1', 'calc.presets', 'Jüpi
   };
   const decided = () => planRecords(io, id).filter((r) => r.t === 'decision');
   const states = async (key = 'inputs') => (await verbs.show(io, { rest: [`decision:${key}`] })).out.decisions.filter((d) => d.state !== 'revised')
-    .map((d) => [d.plan === old ? 'old' : 'new', d.state, d.conflicts.length]);
+    .map((d) => [d.plan === old ? 'old' : 'new', d.state, d.meets.length]);
   const edit = async () => ruling(await handlers.preEdit({ ...editEvent(LESSON), session_id: 's1' }, io));
   return { io, old, id, ref, say, add, refused, decided, states, edit };
 }
@@ -105,9 +105,32 @@ test('a keep after a replace takes it back: the old decision stands again, and t
   await w.say('Hayır, eski karar kalsın.');
   await w.add([inputsAnswer('Hayır, eski karar kalsın.', { value: OLD, keeps: [w.ref] })]);
   assert.deepEqual([await w.states(), await w.edit()], [[['old', 'active', 0], ['new', 'kept', 0]], ['deny', 'plan-yes-taken']]);
+  // the session's start and the inbox read the gate's own answer: held, never "edits pass in silence"
+  const told = async () => [(await verbs.resume(w.io, {})).text, (await verbs.inbox(w.io, {})).text];
+  const [start, inbox] = await told();
+  assert.ok(start.includes('READY, held: their yes was taken back,') && !start.includes('pass in silence'), start);
+  assert.ok(inbox.includes('READY, held: their yes was taken back, not closed'), inbox);
   await w.say('Evet, böyle devam et.');
   await w.add([{ t: 'confirm', by: '', said: 'Evet, böyle devam et.' }]);
   assert.deepEqual(await w.edit(), ['allow', 'gate-in-scope']);
+  const [freed, counted] = await told();
+  assert.ok(freed.includes('pass in silence') && !counted.includes('held'), 'their yes again frees it in every reader');
+});
+
+test('a keep written after the yes takes it back: where only a decision named the kept line, and in the yes\'s word typed again', async () => {
+  const replaced = 'Evet, eski kararı değiştiriyorum: Jüpiter düğmesi olmasın.';
+  const named = await saidWorld(); // no question names the old decision: the plan's own decision is what was to replace it
+  await named.say(`1. ${replaced}`);
+  assert.equal(stateOf(await named.add([inputsAnswer(replaced, { supersedes: [named.ref] })])), 'READY');
+  await named.say('Hayır, eski karar kalsın.');
+  await named.add([inputsAnswer('Hayır, eski karar kalsın.', { value: OLD, keeps: [named.ref] })]);
+  const twice = await saidWorld({ asks: [] }); // "Tamam." answers the replace; a later "Tamam." settles the AI's proposal to keep after all
+  await askToReplace(twice);
+  await twice.say('Tamam.');
+  assert.equal(stateOf(await twice.add([inputsAnswer('Tamam.', { supersedes: [twice.ref] })])), 'READY');
+  await twice.say('Tamam.');
+  assert.equal(stateOf(await twice.add([inputsAnswer('Tamam.', { value: OLD, keeps: [twice.ref] })])), 'ready-no-confirm');
+  assert.deepEqual([await named.edit(), await twice.edit()], [['deny', 'plan-yes-taken'], ['deny', 'plan-yes-taken']]);
 });
 
 test('a keep and a replace of one decision, merged from two copies of the plan, are a conflict in either order', async () => {
@@ -132,7 +155,8 @@ test('an answer to a question that names decisions places each one in supersedes
   const [w, said] = [await saidWorld({ asks: [] }), 'Evet, eski karar kalsın.'];
   await askToReplace(w);
   await w.say(said);
-  for (const more of [{}, { supersedes: [w.ref], keeps: [w.ref] }]) assert.equal((await w.refused([inputsAnswer(said, more)]))[0], 'replace-unplaced');
+  assert.equal((await w.refused([inputsAnswer(said, {})]))[0], 'replace-unplaced', 'placed nowhere');
+  assert.equal((await w.refused([inputsAnswer(said, { supersedes: [w.ref], keeps: [w.ref] })]))[0], 'placed-twice', 'nor in both');
   assert.match((await w.refused([inputsAnswer(said, {})]))[1], /"supersedes":\["<ref>"\] where their answer replaces it, "keeps":\["<ref>"\] where they keep it/u);
   assert.equal((await w.refused([inputsAnswer(said, { supersedes: [w.ref, 'decision:inputs'] })]))[0], 'supersede-unknown', 'read as a keep is');
 });
@@ -146,7 +170,7 @@ test('a keep, its question naming the decision or not, needs no effect, replaces
     const ref = `${w.old}/outputs`;
     await w.add([{ ...jupiterAsk('Q1', decides, 'Faz açısı kalksın mı?', 'kaldır'), ...(named && { supersedes: [ref] }) }]);
     assert.match((await w.refused([keepOf(key, said, ['decision:outputs'])])).join(' '), /^supersede-unknown .*decision:outputs: .*<plan id>\/<key>/u);
-    assert.match((await w.refused([keepOf(key, said, [ref], { by: 'ai' })])).join(' '), /^replace-unplaced (?!.*asks the person)/u);
+    assert.match((await w.refused([keepOf(key, said, [ref], { by: 'ai' })])).join(' '), /^keep-theirs (?!.*asks the person)/u);
     const kept = await w.add([keepOf(key, said, [ref])]);
     assert.deepEqual([w.decided().map((d) => [d.by, d.said, d.keeps, d.supersedes ?? []]), confirms(w), stateOf(kept), await w.edit(),
       kept.text.includes(`, keeps ${ref}`)], [[['the person', said, [ref], []]], 0, 'ready-no-confirm', ['deny', 'plan-draft-here'], true]);
@@ -207,7 +231,7 @@ test('an AI decision cannot replace a person\'s; a person\'s beside one of the s
   await w.say('Evet, Jüpiter eklensin.');
   const beside = await w.add([inputsAnswer('Evet, Jüpiter eklensin.')]);
   assert.equal(stateOf(beside), 'ready-replace-unasked');
-  assert.ok(beside.text.includes('CONFLICT (2 person decisions of this key across plans') && beside.text.includes(`"${OLD}"`), beside.text);
+  assert.ok(beside.text.includes('CONFLICT (2 person decisions across plans') && beside.text.includes(`"${OLD}"`), beside.text);
   assert.equal((await w.refused([inputsAnswer('Evet, Jüpiter eklensin.', { supersedes: [w.ref] })]))[0], 'conflict-unasked', 'not asked');
   await askToReplace(w);
   await w.say('Evet, eski kararı değiştiriyorum.');
@@ -260,7 +284,7 @@ test('a question parked with the person is answered only in their typed words; n
   assert.equal((await w.refused([answer('Bora: mor.', { supersedes: [w.ref] })]))[0], 'supersede-theirs', 'a colleague\'s answer replaces no person\'s');
   assert.equal((await w.refused([answer('Bora: mor değil, mavi.', { value: 'mavi' })]))[0], 'decision-theirs', 'nor stands beside it as a rival');
   assert.equal((await w.refused([{ t: 'decision', key: 'inputs', value: NEW, why: 'mine', by: 'ai', keeps: [w.ref], effect: ['check:AC-1'] }]))[0],
-    'replace-unplaced', 'keeps is the person\'s answer only');
+    'keep-theirs', 'keeps is the person\'s answer only');
 });
 
 test('a keep is no yes the product writes; the AI may record the yes from the keep\'s own message, in one write or after', async () => {

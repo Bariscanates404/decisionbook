@@ -1,0 +1,8 @@
+{
+  "$comment": [
+    "Where the AI host reads a repository's slash commands from, as data, read only by contracts/host.cjs: `/name` is the file `name` + `ending` in `folder`.",
+    "JSON because no AI host's name may be a literal in code."
+  ],
+  "folder": ".claude/commands",
+  "ending": ".md"
+}

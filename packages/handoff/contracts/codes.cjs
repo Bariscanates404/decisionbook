@@ -14,6 +14,8 @@ const ROWS = [
   ['note-kept', 'now, next and the kept lines were written into the note'],
   ['note-shown', 'the note as stored'],
   ['note-none', 'this branch has no note here yet'],
+  ['note-unreadable', 'this branch\'s note is there and does not read as a note, so nothing is written over it: repair the file or move it away'],
+  ['session-unreadable', 'this session\'s record is there and does not read, so nothing is written over it: repair the file or move it away'],
   ['note-said', 'the note of this branch was said to the new context'],
   ['resume-said', 'the note was given on /resume-handoff'],
   // a reply to the fill-in: all of it is written, or none
@@ -22,7 +24,8 @@ const ROWS = [
   ['kept-uncited', 'a kept line ends with the number of the message it comes from, as [m3] or [m3, m17]'],
   ['kept-cites-unknown', 'a kept line names a message number that is not in the list'],
   ['kept-not-quoted', 'a kept line holds the person\'s own words from the message it names: whole clauses of it (a sentence, a list ' +
-    'item, a part they set off with a comma or a joining word), and a sentence that holds a negation only whole; a piece is not theirs'],
+    'item, a part they set off with a comma or a joining word), and a sentence that holds a negation only whole; a piece is not theirs, ' +
+    'nor is a line with words of yours beside theirs: a one-word answer is kept alone ("keep it [m3]"), and what it answered goes in now'],
   ['kept-too-many', 'more new kept lines than one handoff takes'],
   ['kept-over-cap', 'the kept list would pass its cap: drop the least needed in the same reply'],
   ['done-unproven', 'done, complete, finished or works is said only beside a commit that exists here'],

@@ -12,9 +12,9 @@
     "slack": 20,
     "why": 200,
     "title": 120,
-    "pipeline": 3573,
+    "pipeline": 3736,
     "debug": 57,
-    "tests": 6921
+    "tests": 7043
   },
   "slow": [
     "contract/hard.test.cjs",
@@ -25,6 +25,7 @@
     "run/traced.cjs": "the writer of every step's record; a record of itself would be one per record",
     "run/child.cjs": "the starter of a background child, inside its caller's step: the caller's records say what it did",
     "run/person.cjs": "the answer to who acts, told to the composition root with every answer: the cli writes its row (step actor) in one format",
-    "run/store.cjs": "the seal's answer, inside the step of the gate that asks: that gate writes the coded row (STORE_SEALED)"
+    "run/store.cjs": "the seal's answer, inside the step of the gate that asks: that gate writes the coded row (STORE_SEALED)",
+    "run/scripts.cjs": "the two readers a gate hands the shell reader, inside the step of the gate that reads the command"
   }
 }

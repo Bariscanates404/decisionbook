@@ -45,3 +45,19 @@ test('the pack of a prompt naming no file is laid out as normal work and names w
   const named = (await verbs.pack(io, { rest: ['lib/sched/parse.js'] })).text.split('\n').find((l) => l.startsWith('this task runs as'));
   assert.ok(named.startsWith('this task runs as small fix (from its files and words, as the gate decides); '), named);
 });
+
+test('a level a soft signal raised says so in every full reply, with the person\'s way to lower it; a danger zone has none', async () => {
+  const io = bookWorld({ files: FILES });
+  writeConfig(io, { protect: ['lib/**'], danger: ['lib/pay/**'] });
+  const risky = { ...head, why: 'the payment service showed errors', level: 'micro', records: plans('lib/sched/parse.js') };
+  const made = await verbs.create(io, { rest: [wire(risky)] });
+  const raised = 'level: critical work (proposed small fix: the level runs higher than proposed: code decides, going up is free: a risk word (payment)); '
+    + 'only the person lowers it: where they say it is not that risky, record {"t":"waiver","reason":"<why it is not that risky>","by":"",'
+    + '"said":"<their own words, copied from their message>"}';
+  assert.equal(made.text.split('\n')[0], raised, 'the new says why and how');
+  assert.equal((await verbs.ready(io, { rest: [made.out.id] })).text.split('\n')[0], raised, 'and so does ready, each time it is asked');
+  const waived = await verbs.add(io, { rest: [made.out.id, wire({ t: 'waiver', reason: 'one constant, no payment code', by: 'Ayse' })] });
+  assert.ok(!waived.text.includes('level: critical work'), `their waiver lowered it: ${waived.text}`);
+  const zone = await verbs.create(io, { rest: [wire({ ...head, level: 'normal', records: plans('lib/pay/charge.js') })] });
+  assert.ok(!zone.text.includes('only the person lowers it'), 'a danger zone is never waived, so no waiver is offered');
+});

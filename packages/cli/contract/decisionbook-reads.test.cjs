@@ -121,3 +121,13 @@ test('pr: a pull request description in Markdown from the plan records only: goa
     'the branch\'s plans in order; one set aside is no part of its work');
   assert.match(branch, /\n### Commits\n- not measured: the plan names no commit it began on\n\n## Export format\n/, 'a plan with no start commit');
 });
+
+test('status and the bare decisionbook verb name a plan file that does not read, and nothing of it once it reads again', () => {
+  const file = path.join(given.repo, '.decisionbook', `${FORMAT}.jsonl`);
+  const whole = fs.readFileSync(file, 'utf8');
+  fs.writeFileSync(file, `${whole}{"t":"note","text":"cut\n`); // a line cut short, as a stopped write or a hand edit leaves it
+  assert.match(ab('status').out, new RegExp(`^ {2}decisionbook: refused \\.decisionbook/${FORMAT}\\.jsonl line 4 \\(record-invalid\\)$`, 'm'));
+  assert.ok(ab('decisionbook').out.includes(`a record could not be read: .decisionbook/${FORMAT}.jsonl:4 (record-invalid); what it holds is unknown`));
+  fs.writeFileSync(file, whole);
+  for (const said of [ab('status').out, ab('decisionbook').out]) assert.doesNotMatch(said, /refused|could not be read/);
+});

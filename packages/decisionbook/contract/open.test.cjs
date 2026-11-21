@@ -129,7 +129,7 @@ test('[I-32] a draft an earlier session here left stops no unrelated task: one l
     assert.ok(!/Finish this plan|set aside|there is none/.test(start + textOf(told)), `${start}\n${textOf(told)}`);
   }
   const other = { title: 'AU to km', why: 'lessons convert', success: 'one helper', kind: 'feature', level: 'micro' };
-  assert.equal(await w.create([link('ortak/fizik.js', 'the helper')], other), `2026-11-02-au-to-km`, 'its plan opens beside the draft');
+  assert.match(await w.create([link('ortak/fizik.js', 'the helper')], other), /^2026-11-02-au-to-km-[0-9a-f]{4}$/, 'its plan opens beside the draft');
   const on = await w.say('In lib/option.js the deprecated warning should name the option.');
   assert.deepEqual([on.code, /the work in progress here\. Finish this plan/.test(textOf(on))], ['prompt-earlier', true], 'a message on its file: the draft whole');
 });
@@ -225,7 +225,7 @@ test('[I-32] an open plan is never dropped silently: a new is refused beside it,
   assert.deepEqual([set.out.state.state, planRecords(w.io, id).at(-1).by, w.codes('decisionbook.add')['plan-set-aside']], ['aside', 'the person', 1]);
   assert.equal(set.text.trim().split('\n').at(-1), `${id} aside`);
   const made = await w.create([], other);
-  assert.match(made, /readme-typo$/, 'now the other work is planned');
+  assert.match(made, /readme-typo-[0-9a-f]{4}$/, 'now the other work is planned');
   assert.ok(!textOf(await w.enter('s3')).includes(id), 'the plan set aside is no session\'s work in progress');
   // a READY plan an earlier session left: the same rule. READY is the freeze, so a resume record of this session lifts nothing
   // (it is history); only the session that made the plan READY plans beside it

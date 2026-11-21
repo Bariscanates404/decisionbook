@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-// kit's shell owner, PURE: inline code's blocks and statement ends by shell.json `code`; a statement is `sure` only after statements read
+// part of text/shell, PURE: inline code's blocks and statement ends by shell.json `code`; a statement is `sure` only after statements read
 // in full or whose body it saw open.
 const { code: CODE } = require('./shell.json');
 

@@ -3,9 +3,9 @@
     "name": "decisionbook"
   },
   "caps": {
-    "pipeline": 4604,
-    "debug": 61,
-    "tests": 6853
+    "pipeline": 4947,
+    "debug": 65,
+    "tests": 7431
   },
   "traceAs": {
     "steps/trust.cjs": "inside the traced steps that keep or read a yes here: decisionbook.add, decisionbook.ready, decisionbook.gate, decisionbook.trust, decisionbook.session (run/verbs)",
@@ -25,7 +25,6 @@
     "steps/area.cjs": "inside decisionbook.related, decisionbook.pack, decisionbook.prompt and decisionbook.recall (run/verbs), whose n it fills (n.built: cards with a built line)",
     "steps/changed.cjs": "inside decisionbook.start, decisionbook.stop and decisionbook.shell (run/verbs), whose n says what git named",
     "steps/shell.cjs": "inside decisionbook.shell (run/verbs); n counts the writes read, the files judged, unplaced writes, folders and a cut",
-    "steps/sealed.cjs": "inside decisionbook.shell (run/verbs, through steps/shell); its refusal is the shell row's code STORE_SEALED and n.sealed",
     "steps/stop.cjs": "inside decisionbook.start and decisionbook.stop (run/verbs); n says whether a start was kept and the files changed",
     "steps/host.cjs": "inside the traced handlers that read a host event (decisionbook.gate, decisionbook.trust, decisionbook.recall, decisionbook.shell)",
     "steps/here.cjs": "the person's home rows, inside the traced steps that keep or read them (decisionbook.add, decisionbook.gate, decisionbook.trust, decisionbook.start, decisionbook.stop, decisionbook.recall)",
@@ -35,6 +34,7 @@
     "steps/phase.cjs": "writes the plan.phase rows itself (created, READY, the first allowed write), beside the traced step that reached the phase: decisionbook.create, decisionbook.add, decisionbook.ready, decisionbook.gate, decisionbook.prompt",
     "steps/inbox.cjs": "inside the traced step decisionbook.inbox (run/verbs); n counts the rows of this branch and the pulled ones",
     "steps/why.cjs": "inside the traced step decisionbook.why (run/verbs); n counts the commits blamed and the closed plans that list them",
+    "steps/teammate.cjs": "inside the traced steps that ask whose a plan or a line is: decisionbook.create, decisionbook.add, decisionbook.close and every reader that names a conflict (run/verbs)",
     "steps/pr.cjs": "inside the traced step decisionbook.pr (run/verbs); n counts the plans described"
   }
 }

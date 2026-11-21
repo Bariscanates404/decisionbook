@@ -14,5 +14,6 @@
   "debug": { "by": 120, "branch": 120 },
   "age": { "minutes": 120, "hours": 2880 },
   "sessionDays": 14,
-  "touchedBytes": 262144
+  "touchedBytes": 262144,
+  "context": { "percent": 55, "unknownTokens": 110000, "tailBytes": 4194304 }
 }

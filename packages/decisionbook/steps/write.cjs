@@ -21,7 +21,7 @@ async function create({ rest }, io) {
   const values = [].concat(records);
   refuseSecrets([asked, ...values], (i) => (i ? `record ${i} of ${values.length}` : WORDS.thePlan));
   const branch = await io.git.branch();
-  await newBesideOpen(io, branch, values.filter(isPlanLink).map(plannedPath));
+  await newBesideOpen(io, branch, values.filter(isPlanLink).map(plannedPath), values);
   const head = await io.git.head();
   for (;;) { // ends: each turn another process took an id, and `taken` then hands a later one
     const id = planIdOf(String(asked.title || ''), io.clock.now(), store.taken(io));

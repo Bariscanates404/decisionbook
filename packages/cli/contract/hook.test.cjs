@@ -7,7 +7,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { makeWorld, makeRepo, run, tmp, readSettings, commandsFor, fire, editOf, traceRows } = require('./support.cjs');
+const { makeWorld, makeRepo, run, tmp, readSettings, commandsFor, fire, editOf, traceRows, setupRepo, protect, portRow, hookDecisionOf } = require('./support.cjs');
 
 const hook = (event, matcher, handler) => ({ event, matcher, handler, timeout: 15 });
 const fake = (hooks, handlers) => ({ manifest: { hooks }, body: `{ handlers: ${handlers} }` });
@@ -246,4 +246,25 @@ test('a cli config that does not read: the hook still writes its coded rows, doc
   } finally {
     fs.chmodSync(config, 0o644);
   }
+});
+
+test('an install record that does not read is a gate that formed no verdict: a write asks, naming the file, as with a config', () => {
+  const { repo } = setupRepo(makeWorld());
+  protect(repo);
+  const record = path.join(repo, '.atlasbound', 'cli', 'installed.json');
+  const whole = fs.readFileSync(record, 'utf8');
+  const said = (tool, input) => fire(repo, portRow(repo, 'PreToolUse', tool), { ...editOf(repo, 'lib/z.cjs'), tool_name: tool, tool_input: input });
+  const edit = () => said('Edit', editOf(repo, 'lib/z.cjs').tool_input);
+  assert.match(hookDecisionOf(edit()).permissionDecisionReason, /^DecisionBook gate: plan-none: lib\/z\.cjs: /, 'the gate, while the record reads');
+  fs.writeFileSync(record, '{');
+  const lost = /^atlasbound: hook-lost: packages \(host-invalid: \.atlasbound\/cli\/installed\.json: [^)]+\): /;
+  for (const reply of [edit(), said('Bash', { command: 'echo x > lib/z.cjs' }), said('Write', { file_path: record, content: '{}' })]) {
+    const decision = hookDecisionOf(reply);
+    assert.deepEqual([decision.permissionDecision, lost.test(decision.permissionDecisionReason)], ['ask', true], reply.out);
+  }
+  const read = replyOf(said('Bash', { command: 'cat lib/z.cjs' }));
+  assert.deepEqual([read.hookSpecificOutput, /^atlasbound: no verdict formed by packages \(host-invalid: /.test(read.systemMessage)], [undefined, true],
+    'a command that only reads keeps the visible line alone');
+  fs.writeFileSync(record, whole);
+  assert.equal(hookDecisionOf(edit()).permissionDecision, 'deny', 'repaired, the gate judges again');
 });

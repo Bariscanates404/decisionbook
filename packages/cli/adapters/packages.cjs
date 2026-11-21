@@ -138,6 +138,8 @@ function packagesOf({ rows, fsAt }, { provides, modules }, { chosen, trace, run 
     return { manifests: listed.filter((r) => r.manifest).map((r) => ({ name: r.name, ...r.manifest })),
       problems: listed.filter((r) => r.problem).map((r) => `${r.name} (${r.problem.code})`) };
   }
+  // each installed package's manifest, its module on here or not: what stays whatever is switched off (a seal, a store)
+  const installed = () => declared(modules.modules.map((m) => m.name));
   const absent = (what) => {
     const by = provides[what];
     if (by && wired(by.pkg)) return null;
@@ -146,8 +148,8 @@ function packagesOf({ rows, fsAt }, { provides, modules }, { chosen, trace, run 
   const where = (name) => (has(name) ? { dir: rowOf(name).dir, from: rowOf(name).from } : null);
   // one data file `rel` of every package on disk, as text, read without loading its code: how a package reads what the others declare
   const dataOf = (rel) => rows.filter((r) => r.dir).map((r) => ({ name: r.name, text: fsAt(r.dir).readText(rel) }));
-  return { names: rows.map((r) => r.name), has, wired, declared, absent, where, dataOf, manifestOf: (name) => rowOf(name)?.manifest ?? null,
-    readFrom: (name, key) => fsAt(rowOf(name).dir).readText(key) };
+  return { names: rows.map((r) => r.name), has, wired, declared, installed, absent, where, dataOf,
+    manifestOf: (name) => rowOf(name)?.manifest ?? null, readFrom: (name, key) => fsAt(rowOf(name).dir).readText(key) };
 }
 
 /** Loading by directory: a package's entry, its io (the shared io, the answers its manifest `needs`, its own trace words), and one answer

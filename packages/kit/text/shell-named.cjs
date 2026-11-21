@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-// kit's shell owner, PURE: whether a command's TEXT names a verb of a product, through any wrapper. Not a parse: quotes and backslashes
+// part of text/shell, PURE: whether a command's TEXT names a verb of a product, through any wrapper. Not a parse: quotes and backslashes
 // are taken out and the text is cut into words at whatever is no letter, digit, `_`, `/` or `-`, so a verb in a multiplexer's command
 // string, an interpreter's -c (glued to its code: `off'.split()`), a heredoc or a file the same command writes and runs reads like one
 // typed bare. Named limit: a command whose text never holds the name or the verb (built or decoded at run time) is not seen.

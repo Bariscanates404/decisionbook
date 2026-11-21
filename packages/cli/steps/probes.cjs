@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-// doctor's machine check, one row per probe; the gate probe asks as its own session, so `hooks firing` never counts doctor's own question.
 const { paths, trace: { TRACE_DIR }, child: { SELF_ENV }, text: { lines: { filled } } } = require('@atlasbound/kit');
 const validate = require('../contracts/validate.cjs');
 const { STORE } = require('../contracts/shapes.cjs');
@@ -16,11 +15,12 @@ const { platformOf } = require('../core/windows.cjs');
 const { leftoversOf } = require('./leftovers.cjs');
 const { leftoverSaid, alsoSaid, nextSaid, leftoversLine } = require('../core/leftovers.cjs');
 
+const SELF_CHECK = { [SELF_ENV]: '1' };
 const SESSION = 'atlasbound-doctor-probe';
 const WAIT_MS = 15000; // a child answers at once, 15 s is a slow cold start; asked in turn, five stuck ones hold doctor ~75 s
 const HOME_PROBE = '.atlasbound-doctor-probe';
 const STORE_DEPTH = 3; // ~/.atlasbound, a package's folder, a repository's folder in it: the folders kit's private fs makes
-const HOOK_IN = '"step":"hook.in"';
+const HOOK_IN = 'hook.in'; // the trace step of what the host sent the port
 
 const measured = (says) => ({ state: 'measured', says });
 const failed = (says) => ({ state: 'failed', says });
@@ -50,7 +50,7 @@ async function pathsProbe(io) {
 
 /** the top-most folder of the product's home store (a package's folder, a repository's in it) open to others than the user, or null. */
 function widerStore(fs) {
-  const folders = [[paths.OWN_STORE.replace(/\/$/u, ''), STORE_DEPTH]]; // breadth first, so the top-most is named
+  const folders = [[paths.OWN_STORE.slice(0, -1), STORE_DEPTH]]; // breadth first, so the top-most is named
   for (const [key, depth] of folders) {
     const mode = fs.modeOf(key);
     const names = fs.list(key);
@@ -92,9 +92,9 @@ async function onPathProbe(io) {
 function hooksProbe({ fs }, { plan }) {
   if (!portCommands(plan.settings).length) return unmeasured(W.noHookRow);
   for (const day of (fs.list(TRACE_DIR) || []).filter((name) => name.startsWith('hooks-')).reverse()) {
-    const lines = (fs.readText(`${TRACE_DIR}/${day}`) || '').split('\n').filter((line) => line.includes(HOOK_IN) && !line.includes(SESSION));
-    const at = lines.length ? /"at":"([^"]+)"/.exec(lines[lines.length - 1]) : null;
-    if (at) return measured(filled(W.fired, { at: at[1] }));
+    const fired = (fs.readText(`${TRACE_DIR}/${day}`) || '').split('\n').map((line) => validate.jsonOrNull(line)) // a line that reads
+      .filter((row) => row && row.step === HOOK_IN && row.ref?.session !== SESSION); // and is no question of doctor's own
+    if (fired.length) return measured(filled(W.fired, { at: fired.at(-1).at }));
   }
   return unmeasured(W.notFired);
 }
@@ -103,7 +103,7 @@ function hooksProbe({ fs }, { plan }) {
  * nothing here yet, said in its own instructions. */
 async function handshakeOf(io, server, handshake) {
   const asked = `${handshake}${JSON.stringify({ ...validate.jsonOrNull(handshake), id: 2, method: 'tools/list', params: {} })}\n`; // the server's envelope
-  const res = await ask(io, io.machine.exec, [io.machine.bin, ...server.args], { stdin: asked });
+  const res = await ask(io, io.machine.exec, [io.machine.bin, ...server.args], { stdin: asked, marks: SELF_CHECK });
   if (!res.stdout.trim()) return { problem: filled(W.noAnswer, { name: server.name, why: whyNot(res) }) };
   const [init, list] = res.stdout.trim().split('\n').map((line) => validate.json(line).result);
   const { name, version } = init?.serverInfo ?? {};
@@ -144,7 +144,7 @@ async function gateProbe(io, { plan, manifests }) {
   if (!gates.length) return unmeasured(W.noGate);
   const payload = { session_id: SESSION, cwd: io.root, hook_event_name: 'PreToolUse', tool_name: 'Edit', tool_input: { file_path: `${io.root}/${io.host.gateProbe}`, old_string: '', new_string: '' } };
   const { cmd, args } = platformOf(io.machine).portRun(io.machine, command, ['hook', 'PreToolUse']);
-  const res = await ask(io, cmd, args, { stdin: JSON.stringify(payload), marks: { [SELF_ENV]: '1' } }); // its rows are the self-check's
+  const res = await ask(io, cmd, args, { stdin: JSON.stringify(payload), marks: SELF_CHECK }); // its rows are the self-check's
   if (res.code !== 0) return failed(filled(W.hookSilent, { why: whyNot(res) }));
   const reply = res.stdout.trim() ? validate.json(firstLine(res.stdout)) : {};
   if (reply.systemMessage) return failed(reply.systemMessage.replace(`${PRODUCT}: `, ''));
@@ -155,7 +155,7 @@ async function gateProbe(io, { plan, manifests }) {
 /** Setup keeps the files that name this machine out of git by name (in the team's block or this clone's own); git is asked whether it
  * does, and a rule that brings one back (a nested `!*`) is named. */
 async function ignoredProbe(io, { plan }) {
-  const named = [...plan.desired.ignore, ...plan.desired.exclude].filter((entry) => !/[!*?[]/.test(entry) && io.fs.exists(entry));
+  const named = [...plan.desired.ignore, ...plan.desired.exclude].filter((entry) => ![...'!*?['].some((char) => entry.includes(char)) && io.fs.exists(entry));
   if (!named.length) return unmeasured(W.noIgnored);
   const loose = await io.git.unignored(named);
   if (!loose.length) return measured(filled(W.ignored, { n: named.length }));

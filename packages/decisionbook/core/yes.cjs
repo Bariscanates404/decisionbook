@@ -7,15 +7,17 @@
 // their own AI's reading, written in `value`; the product reads no meaning. It checks one thing on a record made as theirs in an AI
 // session: its `said` is whole clauses of a message they typed in this session (kit's one test over the sealed prompt rows).
 const { person: { saidAfter }, said: { notTheirs } } = require('@atlasbound/kit');
-const { isAi, saidOf, isAnswered, personAnswers, isAfter, isKeep, personsOwn, unsealed, sealKey, wordCut, asList } = require('../base/text.cjs');
+const { isAi, saidOf, isAnswered, personAnswers, isAfter, isKeep, isTheirs, personsOwn, sameSlot, isLive, isKeeping, unsealed, sealKey,
+  wordCut, asList, refsNamed, namedInConflict, conflictsIn } = require('../base/text.cjs');
 const { HEARD } = require('../contracts/rubric.cjs');
 const { foldPlan, planChange } = require('./fold.cjs');
 const { grownSince } = require('./level.cjs');
 const { unstanding } = require('./ready.cjs');
-const { notSaid, yesOutgrown, yesUnseen, refusedRefs } = require('./text/refused.cjs');
+const { notSaid, yesOutgrown, yesUnseen, refusedRefs, unknownRefs, keptOtherValue } = require('./text/refused.cjs');
 
 const NOT_ASKED = 'confirm-not-asked'; // a confirm that is no yes of the person's
 const NOT_THEIRS = 'said-not-theirs'; // a record made as the person's whose words they did not type in this session
+const UNASKED = 'conflict-unasked'; // an answer ending a conflict that no question on record showed the person before they typed it
 const PERSON = 'the person'; // the one `by` the product writes for a person
 const AI = 'ai'; // the AI's `by`, and why a record is not the person's: an AI's own
 const UNSEEN = ['amend', 'task', 'check']; // the plan's goal, tasks and checks: a yes covers them only once the person saw them
@@ -36,9 +38,7 @@ function yesCovers({ actor, rows, view, danger }) {
 
 /** `said` as it is stored, where it is whole clauses of one of the person's prompts `heard` in this session (after `since`, where
  * given); else null. A prompt row keeps its clauses sealed, so this is kit's test over their digests. */
-function theirWords(heard, said, since = null) {
-  return whyNotTheirs(heard, said, since).includes(null) ? wordCut(said, HEARD.said) : null;
-}
+const theirWords = (heard, said, since = null) => (whyNotTheirs(heard, said, since).includes(null) ? wordCut(said, HEARD.said) : null);
 /** Per message of theirs here (after `since`), in the order typed: kit's reason `said` is not theirs there, or null where it is. */
 const whyNotTheirs = (heard, said, since = null) => (heard || []).filter((row) => !since || isAfter(row.at, since))
   .map((row) => notTheirs(said, unsealed(row.said), sealKey));
@@ -55,19 +55,19 @@ function notPersons(view, record) {
 
 /** A person's answer: each ref in its `supersedes` or `keeps` read as a question's (core/ready), and each its question names placed. */
 function refsUnplaced(view, decisions, record) {
-  const placed = [...asList(record.supersedes), ...asList(record.keeps)];
+  const placed = refsNamed(record);
   const unknown = unstanding(view, decisions, placed);
   const unplaced = (view.questions.find((q) => q.q === record.answers)?.supersedes ?? []).filter((ref) => !placed.includes(ref));
-  return (unknown.length && refusedRefs('supersede-unknown', unknown)) || (unplaced.length && refusedRefs('replace-unplaced', unplaced)) || null;
+  return (unknown.length && unknownRefs(unknown, decisions)) || (unplaced.length && refusedRefs('replace-unplaced', unplaced)) || null;
 }
 
 /** Whose a decision, a waiver or an unlink is: one not the person's replaces no person's decision of `decisions` (the web's) and keeps
  * none; at their terminal as typed; an unlink after their prompt since `new`; else on their words -> { by, said?, fresh? } | { refused } */
 function whoseRecord({ actor, record, view, decisions, heard }) {
   const other = isAi(record.by) ? { by: AI } : notPersons(view, record);
-  if (other) return othersOwn(other, record, decisions.filter((d) => !d.proposed && !isAi(d.by)).map((d) => d.ref), view);
-  const unnamed = record.t === 'decision' && !isKeep(record) && unplacedLines(view, decisions, record, actor.who !== 'terminal');
-  if (unnamed) return { refused: refusedRefs(...unnamed) };
+  if (other) return othersOwn(other, record, decisions.filter(isTheirs).map((d) => d.ref), view);
+  const unnamed = record.t === 'decision' && unplacedLines(view, decisions, record, actor.who !== 'terminal');
+  if (unnamed) return { refused: unnamed };
   if (actor.who === 'terminal') return { by: PERSON }; // their own act at their terminal: what they typed stands as typed
   return record.t === 'unlink' ? { by: saidAfter(actor, view.at) === 'yes' ? PERSON : AI } : onTheirWords(record, view, decisions, heard);
 }
@@ -76,36 +76,50 @@ function whoseRecord({ actor, record, view, decisions, heard }) {
 function othersOwn(other, record, theirs, view) {
   const replaces = asList(record.supersedes).filter((ref) => theirs.includes(ref));
   if (replaces.length) return { refused: refusedRefs('supersede-theirs', [...new Set(replaces)]) };
-  if (asList(record.keeps).length) return { refused: refusedRefs('replace-unplaced', record.keeps) };
-  const over = record.t === 'decision' && !record.proposed && view.decisions.some((d) => d.key === record.key
-    && (d.scope ?? null) === (record.scope ?? null) && !d.proposed && !isAi(d.by));
+  if (asList(record.keeps).length) return { refused: refusedRefs('keep-theirs', record.keeps) };
+  const over = record.t === 'decision' && !record.proposed && view.decisions.some((d) => sameSlot(d, record) && isTheirs(d));
   return over ? { refused: refusedRefs('decision-theirs', [`${view.id}/${record.key}`]) } : other;
 }
+/** Words not theirs after `since`: their own from before the replace question of the conflict they end (`ended`: its refs) are unasked. */
+const wordsRefused = (heard, said, since, ended) => (ended.length && theirWords(heard, said) !== null
+  ? refusedRefs(UNASKED, ended) : unsaid(NOT_THEIRS, heard, whyNotTheirs(heard, said, since)));
 /** In an AI session: the person's on their words (a waiver's after `new`, an answer ending a conflict after its replace question), each
  * ref placed; `fresh`: words after `new`. */
 function onTheirWords(record, view, decisions, heard) {
-  const ends = decisions.some((d) => asList(record.supersedes).includes(d.ref) && d.rivals.length);
-  const since = (record.t === 'waiver' && view.at) || (ends && view.questions.find((q) => q.q === record.answers)?.at) || null;
+  const ended = [...new Set(conflictsIn(namedInConflict(record, decisions)).flatMap((conflict) => conflict.refs))];
+  const since = (record.t === 'waiver' && view.at) || (ended.length > 0 && view.questions.find((q) => q.q === record.answers)?.at) || null;
   const said = theirWords(heard, saidOf(record), since);
-  if (said === null) return { refused: unsaid(NOT_THEIRS, heard, whyNotTheirs(heard, saidOf(record), since)) };
+  if (said === null) return { refused: wordsRefused(heard, saidOf(record), since, ended) };
   const unplaced = record.t === 'decision' && refsUnplaced(view, decisions, record);
   return unplaced ? { refused: unplaced } : { by: PERSON, said, fresh: theirWords(heard, saidOf(record), view.at) !== null };
 }
 
-/** The write never makes a conflict, only a merge does: a person's decision of a key this plan holds a person's line of (one it is not
- * compatible with: core/web) names its own `<plan>/<key>`, and one answering a conflict (this plan's line in one, or a line it names)
- * names every line of it; in a session it answers the replace question naming them all, so the person saw the conflict first.
- * -> [code, every ref it must name] | null */
+/** A READY plan's own value said again under its key, naming no line: a keep that would take the line's place, and a merge reads none. */
+const ownValueAgain = (view, record, decisions, own) => view.stage !== 'draft' && !refsNamed(record).length
+  && decisions.some((d) => d.ref === own && isLive(d) && personsOwn(d) && d.value === record.value);
+/** The write never makes a conflict, only a merge does: a person's decision of a key this plan holds a person's line of (one of another
+ * value) names its own `<plan>/<key>`, and one answering a conflict (this plan's line in one, or a line it names, under any key, a keep's
+ * line or not) names every line of it: replaced, or the one line whose decision it takes as it is kept (that plan lost nothing); in a
+ * session it answers the replace question naming them all, so the person saw the conflict first.
+ * -> [code, detail: every ref it must name] | null */
 function unplacedLines(view, decisions, record, inSession) {
   const named = asList(record.supersedes);
-  const ofSlot = (d) => d.key === record.key && (d.scope ?? null) === (record.scope ?? null) && d.state === 'active' && personsOwn(d);
+  const own = `${view.id}/${record.key}`;
+  if (asList(record.keeps).includes(own) || ownValueAgain(view, record, decisions, own)) return refusedRefs('keep-own-key', [own]);
+  const ofSlot = (d) => !isKeep(record) && sameSlot(d, record) && isLive(d) && personsOwn(d);
   const differs = (d) => d.value !== record.value; // the same words with another value differ too
-  const involved = decisions.filter((d) => ofSlot(d) && (d.plan === view.id ? differs(d) || d.rivals.length : named.includes(d.ref)));
-  const lines = involved.flatMap((d) => [d, ...d.rivals]).filter((o) => o.plan !== view.id || differs(o)); // its own words again: no rival
-  const needed = [...new Set(lines.map((o) => o.ref))];
-  if (needed.some((ref) => !named.includes(ref))) return ['decision-unnamed', needed];
+  const involved = [...decisions.filter((d) => ofSlot(d) && (d.plan === view.id ? differs(d) || d.conflict : named.includes(d.ref))),
+    ...namedInConflict(record, decisions)];
+  const lines = involved.flatMap((d) => d.conflict?.lines ?? [d]).filter((o) => o.plan !== view.id || differs(o)); // its own words: none
+  const keeps = decisions.filter((k) => isKeeping(k) && !k.supersededBy && asList(k.keeps).some((ref) => named.includes(ref)));
+  const needed = [...new Set([...lines, ...keeps].map((o) => o.ref))];
+  const every = [...new Set([...lines, ...keeps])];
+  const taken = asList(record.keeps).filter((ref) => every.filter((o) => o.ref === ref).length === 1); // a ref of one line of it
+  const other = every.find((o) => taken.includes(o.ref) && o.value !== record.value); // a keep of a decision the answer does not take
+  if (other) return keptOtherValue(other);
+  if (taken.length > 1 || !needed.every((ref) => named.includes(ref) || taken.includes(ref))) return refusedRefs('decision-unnamed', needed);
   const shown = asList(view.questions.find((q) => q.q === record.answers)?.supersedes); // the replace question it answers
-  return inSession && involved.some((d) => d.rivals.length) && needed.some((ref) => !shown.includes(ref)) ? ['conflict-unasked', needed] : null;
+  return inSession && involved.some((d) => d.conflict) && needed.some((ref) => !shown.includes(ref)) ? refusedRefs(UNASKED, needed) : null;
 }
 
 /** Whether setting a plan aside is the person's: at their terminal, or on their own words of this session. */
@@ -121,4 +135,4 @@ function answersAreYes(view, added) {
   return brought.length ? wordCut([...new Set(brought.map((r) => r.said).filter(Boolean))].join(' '), HEARD.said) : null;
 }
 
-module.exports = { yesCovers, whoseRecord, theirWords, whyNotTheirs, unsaid, asideOwn, answersAreYes, PERSON, NOT_ASKED, NOT_THEIRS };
+module.exports = { yesCovers, whoseRecord, theirWords, whyNotTheirs, unsaid, asideOwn, answersAreYes, PERSON, AI, NOT_ASKED, NOT_THEIRS };

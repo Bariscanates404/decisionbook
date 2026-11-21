@@ -69,9 +69,14 @@ function inRecord(io, text, why, ref) {
     ...(why ? { err: { code: 'hook-input-invalid', msg: why } } : {}) });
 }
 
-/** Why no gate could judge this event: a config that does not read, an input that is no hook event, or one naming no tool or target. */
-function unjudgedOf(io, event, payload) {
-  const config = io.configRefused ? [`hook (${io.configRefused.message})`] : [];
+/** The wired packages' manifests, or why they cannot be told (`unread`: an install record that does not read names its file). */
+const wiredOf = (io) => Promise.resolve().then(() => ({ ...io.packages.declared(), unread: [] }))
+  .catch((err) => ({ manifests: [], problems: [], unread: [`packages (${isFail(err) ? err.message : err.name})`] }));
+
+/** Why no gate could judge this event: a config or an install record that does not read (`setup`: what it could not read), an input
+ * that is no hook event, or one naming no tool or target. */
+function unjudgedOf(io, event, payload, setup) {
+  const config = [...(io.configRefused ? [`hook (${io.configRefused.message})`] : []), ...setup];
   if (!payload || !Object.hasOwn(EVENTS, event)) return [...config, 'hook (hook-input-invalid)'];
   const gap = core.inputGap(event, payload);
   return gap ? [...config, `hook (hook-input-invalid: ${gap})`] : config;
@@ -86,19 +91,18 @@ async function answer(io, event, text, { payload, why }) {
     notes.add(`${what} (${err.code || err.name})`);
   });
   const ref = { event, session: (payload && payload.session_id) || null };
-  // a payload or a config that cannot be read is a gate that formed no verdict: no handler runs, it asks like the failure path, and both
-  // rows are written
-  const unread = unjudgedOf(io, event, payload);
+  // a payload, a config or an install record that cannot be read is a gate that formed no verdict: no handler runs, it asks like the
+  // failure path, and both rows are written
+  const { manifests, problems, unread: setup } = await wiredOf(io);
+  const unread = unjudgedOf(io, event, payload, setup);
   const known = !unread.length;
-  unread.forEach((note) => notes.add(note));
+  [...unread, ...problems].forEach((note) => notes.add(note));
   await noting(() => inRecord(io, text, why, ref), 'trace');
-  const { manifests, problems } = await noting(() => io.packages.declared(), 'packages').then((v) => v || { manifests: [], problems: [] });
-  problems.forEach((p) => notes.add(p));
   const reached = (known ? core.reached(manifests, event, payload) : []).filter(() => call.heard);
   const results = await Promise.all(reached.map((d) => runOne(io, d, payload, ref)));
   results.forEach((r) => r.note && notes.add(r.note));
   const lost = await askedFor(io.clock, event, payload, [...unread, ...results.filter((r) => r.note && !r.decision).map((r) => r.note)]);
-  const own = known ? await noting(() => portGates(io, event, payload, manifests), 'port') : null; // a person's verbs, the product's own files
+  const own = known ? await noting(() => portGates(io, event, payload), 'port') : null; // a person's verbs, the product's own files
   const merged = core.merge([...results.map((r) => r.decision), ...(own || []), lost].filter(Boolean));
   const off = await noting(() => offOf(io, { known, results, event, payload, manifests }), 'packages');
   const told = (await noting(() => toldOf(io, { event, payload, items: merged.items, off }), 'said')) || { ...sayNow(new Map(), merged.items), plain: [] };

@@ -71,7 +71,7 @@ test('approvals sit in the password database\'s home, and only while HOME names 
   assert.equal(withEnv({ HOME: undefined }, env.stateHome), real, 'no HOME: the password database alone');
   const planted = { HOME: '/planted', ATLASBOUND_HOME: '/planted', USERPROFILE: '/planted' };
   assert.throws(() => withEnv(planted, env.stateHome), (e) => refused(e) && /HOME is not this user's home/.test(e.message));
-  assert.equal(withEnv(planted, env.userHome), realHome, 'the writer\'s name still comes from the password database');
+  assert.throws(() => withEnv(planted, env.userHome), (e) => refused(e) && /HOME is not this user's home/.test(e.message), 'the home itself, the same way');
   // And in a fresh process that starts with them set: a home read once at load would pass the case above.
   const script = "const { env } = require('@atlasbound/kit').io; try { env.stateHome(); } catch (e) { process.stdout.write(e.code); }";
   const res = spawnSync(process.execPath, ['-e', script], { cwd: __dirname, encoding: 'utf8', env: { PATH: process.env.PATH, ...planted } });
@@ -128,15 +128,15 @@ test('withEnv leaves no key behind', () => {
   assert.equal(env.get('TOY_LEAK'), null);
 });
 
-test('userHome reads the password database: HOME and ATLASBOUND_HOME cannot move it', () => {
+test('userHome reads the password database: no variable moves it, and a HOME naming another folder is refused, never followed', () => {
   const real = os.userInfo().homedir;
-  const seen = withEnv({ HOME: '/forged', ATLASBOUND_HOME: '/forged', USERPROFILE: '/forged' }, env.userHome);
-  assert.equal(seen, real);
-  assert.notEqual(seen, '/forged');
-  // And in a fresh process that starts with them set.
-  const script = `process.stdout.write(require('@atlasbound/kit').io.env.userHome())`;
-  const res = spawnSync(process.execPath, ['-e', script], { cwd: __dirname, encoding: 'utf8', env: { PATH: process.env.PATH, HOME: '/forged', ATLASBOUND_HOME: '/forged' } });
-  assert.equal(res.stdout, real);
+  assert.equal(withEnv({ HOME: real, ATLASBOUND_HOME: '/forged', USERPROFILE: '/forged' }, env.userHome), real);
+  assert.equal(withEnv({ HOME: undefined }, env.userHome), real, 'no HOME: the password database alone');
+  assert.throws(() => withEnv({ HOME: '/forged' }, env.userHome), refused, 'neither followed nor ignored');
+  // And in a fresh process that starts with it set: the rest of this process's env goes with it, a test world's password home too.
+  const script = "try { require('@atlasbound/kit').io.env.userHome(); } catch (e) { process.stdout.write(e.code); }";
+  const res = spawnSync(process.execPath, ['-e', script], { cwd: __dirname, encoding: 'utf8', env: { ...process.env, HOME: '/forged', ATLASBOUND_HOME: '/forged' } });
+  assert.equal(res.stdout, 'config-invalid', res.stderr);
 });
 
 test('realOf: where a host path really leads, and null for a PATH entry with nothing there', () => {

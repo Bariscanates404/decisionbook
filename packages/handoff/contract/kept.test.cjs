@@ -7,7 +7,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const handoff = require('@atlasbound/handoff');
-const { world, startEvent, compactEvent, say, keep, saidAtStart, shaOf } = require('./world.cjs');
+const { errors: { fail } } = require('@atlasbound/kit');
+const { world, startEvent, promptEvent, compactEvent, say, keep, saidAtStart, shaOf } = require('./world.cjs');
 
 const DECISION = 'Money math goes through lib/amount.js, never floats.';
 const JOBS = 'Three things: add the CSV export to the report page, fix the flaky login test, and rename Invoice to Bill.';
@@ -223,4 +224,23 @@ test('[I-5] a reply that is not the JSON of the fill-in is refused with its own 
   await longSession(w);
   await assert.rejects(handoff.keep(w.io('s1'), { rest: ['now: half-way'] }), { code: 'reply-invalid' });
   await assert.rejects(handoff.keep(w.io('s1'), { rest: ['{"kept": "one line [m3]"}'] }), { code: 'reply-invalid' });
+});
+
+const TYPED = "/handoff RETRY'a dokunma. Sıradaki iş: ayarlara log seviyesi eklemek, şimdilik sadece aklında tut.";
+
+test('what the person types after /handoff is their message: its first sentence is kept whole, the command is no word of it', async () => {
+  const w = world();
+  const unread = { ...w.io(), fs: { ...w.fs, list: () => { throw fail('io-read-failed', 'commands'); } } };
+  assert.equal((await handoff.handlers.prompt(promptEvent('s9', 'ok go on'), unread)).code, 'message-kept', 'a folder that does not read costs no message');
+  await say(w, 's0', [TYPED]);
+  assert.match((await handoff.handoff(w.io('s0'))).text, /^ {2}m1 \/handoff RETRY'a dokunma\./m, 'no such command in this repository: theirs whole');
+  w.fs.writeAtomic('.claude/commands/handoff.md', '# /handoff\n');
+  await say(w, 's1', ['ok go on', TYPED, '/handoff', '/tmp klasörünü silme.']);
+  const { text } = await handoff.handoff(w.io('s1'));
+  assert.match(text, /\(3 of 3\):\n {2}m1 ok go on\n {2}m2 RETRY'a dokunma\. Sıradaki iş: ayarlara log seviyesi eklemek, şimdilik sadece aklında tut\.\n {2}m3 \/tmp klasörünü silme\.$/m,
+    'the message keeps its number; a command alone is no message; a sentence that opens with a path is theirs whole');
+  const piece = await keep(w, 's1', { kept: ["RETRY'a [m2]"] });
+  assert.match(piece.text, /^ {2}kept 1: m2 \(no whole clause of it\)/m, 'a piece of their sentence is still refused');
+  const kept = await keep(w, 's1', { kept: ["RETRY'a dokunma. [m2]", 'job: ayarlara log seviyesi eklemek [m2]', '/tmp klasörünü silme. [m3]'] });
+  assert.match(kept.text, /^ {2}k1 RETRY'a dokunma\. \[m2\]\n {2}k2 job: ayarlara log seviyesi eklemek \[m2\]\n {2}k3 \/tmp klasörünü silme\. \[m3\]$/m);
 });

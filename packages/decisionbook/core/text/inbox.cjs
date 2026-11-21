@@ -12,14 +12,20 @@ const { rivalText } = require('./records.cjs');
 
 const INBOX_BYTES = 3072;
 const WAITING = {
-  question: (r) => `${shown.q(r.q)}: ${r.rival ? rivalText(r.rival) : `${shown.text(r.text)}${r.proposal ? filled(WORDS.inboxProposed,
+  question: (r) => `${shown.q(r.q)}: ${r.conflict ? rivalText(r.conflict) : `${shown.text(r.text)}${r.proposal ? filled(WORDS.inboxProposed,
     { proposal: shown.proposal(r.proposal) }) : ''}`}`,
-  ready: (r) => filled(r.held ? WORDS.inboxHeld : WORDS.inboxReady, { title: shown.title(r.title) }),
+  ready: (r) => filled(r.held ? WORDS.inboxHeld : WORDS.inboxReady,
+    { title: shown.title(r.title), held: r.held && WORDS.held[r.heldBy].title }),
   aside: (r) => filled(WORDS.inboxAside, { title: shown.title(r.title), by: shown.by(r.asideBy), said: shown.said(r.said) }),
 };
 const pulledFrom = (r) => (r.by === undefined ? '' : ` on ${shown.branch(branchWord(r.branch))}${r.by ? ` by ${shown.by(r.by)}` : ''}`);
-const waitCounts = (rows) => Object.fromEntries(Object.keys(WAITING).map((waits) => [waits, rows.filter((r) => r.waits === waits).length]));
-const inboxLine = (r) => `- ${r.id}${pulledFrom(r)} ${WAITING[r.waits](r)}`;
+/** How many rows wait on each thing, and the open items among them (an unfinished merge, a lost plan) where there are any. */
+function waitCounts(rows) {
+  const items = rows.filter((r) => r.line).length;
+  const count = (waits) => [waits, rows.filter((r) => r.waits === waits).length];
+  return { ...Object.fromEntries(Object.keys(WAITING).map(count)), items: items ? filled(WORDS.inboxItems, { n: items }) : '' };
+}
+const inboxLine = (r) => r.line ?? `- ${r.id}${pulledFrom(r)} ${WAITING[r.waits](r)}`; // an open item's line names its plan itself
 
 /** This branch's rows under their counts (or the line that none waits), then the pulled ones under theirs. */
 function inboxText({ branch, here, pulled }) {

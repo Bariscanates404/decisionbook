@@ -8,12 +8,14 @@ const { WORDS } = require('../contracts/codes.cjs');
 const { sessionAdd, saidByPack, keepReads } = require('./here.cjs');
 const { eventFile } = require('./host.cjs');
 const { RECALL_BYTES } = require('../core/text/recall.cjs');
+const { openLines } = require('../core/text/open.cjs');
 const { SEEDS, namedFiles, workFiles, cardsFor } = require('./area.cjs');
 const { untouchedOf } = require('../core/recall.cjs');
 const { packFor } = require('./pack.cjs');
 const { planPrompt } = require('./read.cjs');
 const { contractSay, promptContract } = require('./promise.cjs');
 const store = require('./store.cjs');
+const { openItems } = require('./touch.cjs');
 const trust = require('./trust.cjs');
 
 const PACKED = ['prompt-nudge']; // where a task prompt is told to plan, the plan pack is its area's text instead of the cards
@@ -83,8 +85,9 @@ async function related({ rest }, io) {
   const files = namedFiles(io, rest.join(' ')).slice(0, SEEDS);
   const { cards, n } = await cardsFor(io, web, { files, text: rest.join(' '), branch, session: io.session });
   const unverified = (card, view = web.views.find((v) => v.id === card.id)) => Boolean(view?.confirm && !trust.confirmedHere(io, view));
+  const open = openLines(await openItems(io, web), cards.map((card) => card.id));
   return { out: { cards: cards.map((card) => ({ ...card, unverified: unverified(card) })), unread: store.unreadPlans(web),
-    untouched: untouchedOf(web, files) }, code: cards.length ? 'plan-shown' : 'recall-none',
+    untouched: untouchedOf(web, files), open }, code: cards.length ? 'plan-shown' : 'recall-none',
     n: { ...n, cards: cards.length } };
 }
 

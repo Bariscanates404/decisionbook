@@ -19,7 +19,7 @@
     "inject-handshake-unread", "install-path-unsafe", "leftovers-running", "leftovers-unread", "manifest-invalid", "mcp-tracked",
     "module-kept-data", "module-kept-home", "module-off", "module-refused", "not-a-repo", "notice-unread", "own-file", "package-broken",
     "package-not-installed", "package-unread", "person-only", "person-only-shell", "person-wrapped", "phrase-not-typed", "protect-refused",
-    "root-unsafe", "run-interrupted", "schema-major", "server-empty-fine", "settings-committed", "setup-run-failed", "store-absent",
+    "root-unsafe", "run-interrupted", "schema-major", "server-empty-fine", "settings-committed", "setup-run-failed", "state-tracked", "store-absent",
     "store-foreign", "target-is-product", "target-missing", "verb-module-off", "verb-unknown"
   ],
   "event": {"steps": ["hook.in", "hook.handler", "hook.out"], "words": ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop", "PreCompact"]},

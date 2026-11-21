@@ -25,6 +25,7 @@ module.exports = {
   child: require('./run/child.cjs'),
   person: require('./run/person.cjs'),
   store: require('./run/store.cjs'),
+  scripts: require('./run/scripts.cjs'),
   said: { ...require('./text/said.cjs'), ...require('./text/said-words.cjs') },
   repo: require('./repo/file-role.cjs'),
   text: { lines: require('./base/text.cjs'), safe: require('./text/safe.cjs'), secrets: require('./text/secrets.cjs'),

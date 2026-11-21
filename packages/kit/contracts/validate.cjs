@@ -148,4 +148,4 @@ function createValidate({ shapes, enums, refuse, isCode }) {
   return { shape, problems: (name, value) => whys(name, value, name), refusal, knows, json, jsonOrNull, lines, kept, jsonSchema, example };
 }
 
-module.exports = { createValidate };
+module.exports = { createValidate, jsonOrNull };

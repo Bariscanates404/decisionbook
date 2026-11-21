@@ -10,17 +10,28 @@ const decisionbook = require('@atlasbound/decisionbook');
 const { verbs } = decisionbook;
 const { bookWorld, begin, added, readyOne, logFile } = require('./world.cjs');
 
+// a plan id: its day, its title's words, then four letters of the moment it was started
+const idOf = (words) => new RegExp(`^2026-11-02-${words}-[0-9a-f]{4}$`);
+
 test('[I-9] a title\'s letters are written in ASCII in its plan id, and find matches a word with or without its marks', async () => {
   const io = bookWorld();
   const id = await begin(io, { title: 'Çarpım fonksiyonu ekle: ğüşıöç İŞĞ' });
-  assert.equal(id, '2026-11-02-carpim-fonksiyonu-ekle-gusioc-isg');
-  assert.equal(await begin(io, { title: 'Straße für Übergrößen', why: 'a second plan' }), '2026-11-02-strasse-fur-ubergrossen');
+  assert.match(id, idOf('carpim-fonksiyonu-ekle-gusioc-isg'));
+  assert.match(await begin(io, { title: 'Straße für Übergrößen', why: 'a second plan' }), idOf('strasse-fur-ubergrossen'));
   for (const word of ['Carpim', 'çarpım', 'ÇARPIM', 'gusioc']) {
     assert.deepEqual((await verbs.find(io, { rest: [word] })).out.hits.map((h) => h.id), [id], word);
   }
   const marked = await begin(io, { title: 'Sửa lỗi đăng nhập: Łódź, Ærø', why: 'letters of two marks, and letters Unicode does not take apart' });
-  assert.equal(marked, '2026-11-02-sua-loi-dang-nhap-lodz-aero');
+  assert.match(marked, idOf('sua-loi-dang-nhap-lodz-aero'));
   assert.deepEqual((await verbs.find(io, { rest: ['sua'] })).out.hits.map((h) => h.id), [marked]);
+});
+
+test('two people who start the same task the same day in two clones write two plan files, so a merge of both is clean', async () => {
+  const [ali, zeynep] = [bookWorld(), bookWorld()];
+  zeynep.clock.now(); // the second clone starts a moment later
+  const ids = [await begin(ali, { title: 'Remove the phase angle line' }), await begin(zeynep, { title: 'Remove the phase angle line' })];
+  ids.forEach((id) => assert.match(id, idOf('remove-the-phase-angle-line')));
+  assert.notEqual(ids[0], ids[1]);
 });
 
 test('[I-9] a title that holds no letter or digit is refused and writes nothing', async () => {

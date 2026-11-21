@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-// kit's shell owner, PURE: Windows' two shells by the rows of shell.json `windows`. `lexWin` cuts a PowerShell or cmd text into the words
+// part of text/shell, PURE: Windows' two shells by the rows of shell.json `windows`. `lexWin` cuts a PowerShell or cmd text into the words
 // and operators text/shell reads (a backslash is a folder's separator); `shellText` finds the text powershell, pwsh or cmd runs;
 // `cmdletWrites` binds a PowerShell command's parameters and names what it writes. No effect here: text/shell marks and merges.
 const { shells: SHELLS, windows: WIN } = require('./shell.json');

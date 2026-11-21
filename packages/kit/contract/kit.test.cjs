@@ -287,7 +287,14 @@ test('[I-9] one absent rule: no commit yet is an empty history, and a base this 
   assert.equal(await g.shared(unknown, 'trunk'), null);
   assert.equal(await g.author('a.txt'), 'kit');
   nodeFs.appendFileSync(path.join(dir, 'a.txt'), '2\n');
-  assert.deepEqual(await g.blame('a.txt'), [{ sha: head, subject: 'one' }, { sha: null, subject: null }], 'a line not committed is null');
+  const mine = { author: 'kit', mail: 'kit@example.invalid' };
+  assert.deepEqual(await g.blame('a.txt'), [{ sha: head, subject: 'one', ...mine }, { sha: null, subject: null, author: null, mail: null }],
+    'a line not committed is null');
+  assert.equal(await g.me(), mine.mail, 'the mail this clone commits as, the one blame names on its own commits');
+  nodeFs.writeFileSync(path.join(dir, '.mailmap'), 'Kit <kit@work.invalid> <kit@example.invalid>\n'); // one author under two mails
+  assert.deepEqual([(await g.blame('a.txt', 1))[0].mail, await g.me()], ['kit@work.invalid', 'kit@work.invalid'], 'both read through the mailmap');
+  git(dir, 'config', 'author.email', 'kit@other.invalid');
+  assert.equal(await g.me(), 'kit@other.invalid', 'an author.email is the mail a commit here carries, before user.email');
   const notRepo = createGit({ proc, root: os.tmpdir(), env: { PATH: process.env.PATH, GIT_CEILING_DIRECTORIES: path.dirname(os.tmpdir()) } });
   await assert.rejects(notRepo.commits(null), coded('git-failed'));
   await assert.rejects(notRepo.shared(null, 'trunk'), coded('git-failed'));
@@ -776,6 +783,9 @@ test('[I-16] what no reader sees is taken out before a row looks, and the scrub 
   assert.equal(cut, `${'z'.repeat(41)}[aws-access-key]`);
   assert.ok(clipped('x'.repeat(100), 10).endsWith('~'), 'a cut still says so');
   assert.equal(kit.text.safe.visible('a\u200bb\u202ec\nd'), 'abc\nd', 'a line break stays: rows read lines');
+  const hidden = 'a\u200bb\u202ec\u2028d\u{e0041} "e"'; // shown whole to be copied: no hidden character raw, the same string read back
+  const quoted = kit.text.safe.copyable(hidden);
+  assert.deepEqual([quoted, JSON.parse(quoted)], ['"a\\u200bb\\u202ec\\u2028d\\udb40\\udc41 \\"e\\""', hidden]);
 });
 
 test('[I-16] holds reads every decoded string and key of a value, and across a key and its value', () => {

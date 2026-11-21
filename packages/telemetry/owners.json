@@ -3,7 +3,7 @@
     "name": "telemetry"
   },
   "caps": {
-    "pipeline": 1215,
+    "pipeline": 1214,
     "debug": 56,
     "tests": 1111
   },

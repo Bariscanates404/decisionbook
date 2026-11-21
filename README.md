@@ -179,8 +179,8 @@ A long task on **Mastodon** (Ruby on Rails): one large feature, Opus 5.5, 22 dec
 tests, and the context cleared several times in each run. We compared Claude alone, Claude with one paragraph in
 `CLAUDE.md` that tells it to ask before coding, and Claude with DecisionBook and Handoff. A script supplied the developer's
 answers from a prepared list. These are two runs of the same sealed task, not a general benchmark; session costs are
-estimates at list prices, not subscription charges. The runs used a development build from before release 0.25.0; the way
-answers are recorded has changed since (in 0.25.1, first published within 0.25.2).
+estimates at list prices, not subscription charges. The runs used an earlier build; the way answers are recorded has changed
+since.
 
 | Run | | Hidden tests passed (of 94) | Decisions asked (of 22) | Asked again after answered | Kept across a cleared context | Contradicted later | Session cost |
 |---|---|---|---|---|---|---|---|
@@ -223,16 +223,15 @@ interrupted work is what the product is built for. The tasks, runs and scripts a
 
 ## Windows
 
-Windows is newer ground than macOS and Linux. The first Windows test (Windows 11, 0.25.0) found that a write through
-PowerShell or `cmd` could reach a protected file without a plan, and that `atlasbound doctor` raised false alarms there.
-The changes made for 0.25.1 close these (0.25.1 was never published; they ship in 0.25.2): the gate also watches Claude
-Code's PowerShell tool and reads the common PowerShell and `cmd` ways of writing a file, and a PowerShell or `cmd` command
-it cannot read that may write a protected file asks you instead of passing.
+Windows is newer ground than macOS and Linux. The gate also watches Claude Code's PowerShell tool and reads the common
+PowerShell and `cmd` ways of writing a file; a PowerShell or `cmd` command it cannot read that may write a protected file
+asks you instead of passing.
 
-What was run on Windows: the 0.25.1 candidates by hand on Windows 11, with real Claude Code sessions (install, `doctor`,
-the answer flows, a team's shared history); and an automated job that installed the packed candidate on Windows and Linux,
-ran setup, protect and doctor, and sent scripted writes through the hooks setup wrote. This release, 0.25.2, has not been
-run on Windows yet. CHANGELOG.md lists each change.
+What was run on Windows: release 0.25.2 by hand on Windows 11, with real Claude Code sessions (install, `doctor`, the answer
+flows, a team's shared history); before it, an automated job installed the packed package on Windows and Linux, ran setup,
+protect and doctor, and sent scripted writes through the hooks setup wrote. This release, 0.25.3, was run the same way on
+Windows 11: an upgrade from 0.25.2, a clean install, the answer flows, Handoff after `/clear`, and two- and three-person team
+histories, with real Claude Code sessions. CHANGELOG.md lists each change.
 
 - **Git Bash is needed.** The hooks `setup` writes are shell commands. Claude Code on Windows runs them through Git Bash,
   which comes with Git for Windows; without it these commands fail, and nothing is gated.
@@ -282,7 +281,7 @@ optional, closed add-on in a closed beta for enterprise customers. It is not par
 
 AGPL-3.0-only. Copyright (C) 2026 AtlasBound; see NOTICE and LICENSE.
 
-The source of this exact release is the public repository at tag `v0.25.2`: https://github.com/Bariscanates404/decisionbook. The npm package is
+The source of this exact release is the public repository at tag `v0.25.3`: https://github.com/Bariscanates404/decisionbook. The npm package is
 the five folders of `packages/` there and the six root documents, byte for byte for every file it ships, and three files
 written when it is packed: `kit.cjs` (one line that loads the kit folder), the npm `package.json`, and `MANIFEST.json`, which
 lists every other file's sha256. The README and the repository's presentation on its default branch may change between

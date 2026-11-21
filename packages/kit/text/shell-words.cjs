@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-// kit's shell owner, PURE: a command's words as a shell cuts them: `word` quotes repository text for a shell, `lexIn` cuts a text in
+// part of text/shell, PURE: a command's words as a shell cuts them: `word` quotes repository text for a shell, `lexIn` cuts a text in
 // its language, `commandsOf` groups tokens into commands, `namedWords` and `cdTo` are the one reading of a command's name and of a cd,
 // `readWords` is what debug shows, `readBy` the words a command hands the programs it runs.
 const { lex } = require('./shell-lex.cjs');
@@ -12,7 +12,7 @@ const { programOf } = require('../base/paths.cjs');
 
 const SAFE = /^[\w@%+=:,./-][\w@%+=:,./#-]*$/; // `#` opens a comment only at a word's start
 const SEPARATORS = [';', ';;', '&&', '||', '|', '|&', '&', '\n'];
-const ASSIGN = /^[A-Za-z_]\w*=/;
+const ASSIGN = /^(?<name>[A-Za-z_]\w*)\+?=/;
 
 const word = (text) => (SAFE.test(text) ? text : `'${String(text ?? '').replace(/'/g, "'\\''")}'`);
 const spelled = (w) => w.raw ?? w.word; // as written (a row's ITEM has no `raw`)
@@ -54,6 +54,10 @@ function namedWords(words, lang) {
   return start === -1 ? [] : words.slice(start);
 }
 
+/** The variables a command's assignment words set, before its name (`NAME=…`, `NAME+=…`). */
+const assigned = (words, lang) => words.slice(0, words.length - namedWords(words, lang).length)
+  .flatMap((w) => ASSIGN.exec(w.word)?.groups.name ?? []);
+
 /** Whether a command of this name moves the working folder (PowerShell has names of its own). */
 const movesFolder = (name, lang) => TABLE.cd.includes(name) || (lang === 'powershell' && Object.hasOwn(TABLE.windows.cd, name));
 
@@ -88,4 +92,4 @@ function readBy(command, { lang = 'sh' } = {}) {
   return out;
 }
 
-module.exports = { word, lexIn, commandsOf, scopeCd, namedWords, movesFolder, cdTo, readWords, readBy, spelled };
+module.exports = { word, lexIn, commandsOf, scopeCd, namedWords, assigned, movesFolder, cdTo, readWords, readBy, spelled };

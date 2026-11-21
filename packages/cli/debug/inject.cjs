@@ -24,27 +24,21 @@ function payloadsOf(script, { root, session, home }) { // `transcript`: a file b
       ...(rest.tool_response ? { tool_response: placed(rest.tool_response) } : {}) } }));
 }
 
-/** An MCP tool's host name -> { server, tool }, or null for any other tool. */
-const mcpOf = (toolName) => {
-  const m = /^mcp__([^_]+(?:_[^_]+)*?)__(.+)$/.exec(toolName || '');
-  return m ? { server: m[1], tool: m[2] } : null;
-};
-
-const addChars = (into, key,
-  row) => ({ ...into, [key]: { said: (into[key]?.said || 0) + row.said, held: (into[key]?.held || 0) + row.held } });
+const addChars = (totals, key, row) => ({ ...totals,
+  [key]: { said: (totals[key]?.said || 0) + row.said, held: (totals[key]?.held || 0) + row.held } });
 
 /** events: [{ label, event, agent: { pkg: { said, held, unsent } }, verdict, notes, person }] -> the totals; `modules`: this install's. */
 function totalsOf(events, standing, modules) {
   const moduleOf = (pkg) => (modules.find((m) => m.packages.includes(pkg)) || { name: 'base' }).name;
-  const byPkg = events.reduce((all, e) => Object.entries(e.agent).reduce((acc, [pkg, row]) => addChars(acc, pkg, row), all), {});
-  const byModule = Object.entries(byPkg).reduce((acc, [pkg, row]) => addChars(acc, moduleOf(pkg), row), {});
-  const byKind = events.reduce((acc, e) => addChars(acc, e.event, charsOf(e.agent)), {});
-  const silent = events.filter((e) => charsOf(e.agent).said === 0).length;
-  const standingChars = standing.reduce((n, s) => n + s.instructions + s.tools, 0);
+  const byPkg = events.reduce((all, event) => Object.entries(event.agent).reduce((sum, [pkg, row]) => addChars(sum, pkg, row), all), {});
+  const byModule = Object.entries(byPkg).reduce((totals, [pkg, row]) => addChars(totals, moduleOf(pkg), row), {});
+  const byKind = events.reduce((totals, event) => addChars(totals, event.event, charsOf(event.agent)), {});
+  const silent = events.filter((event) => charsOf(event.agent).said === 0).length;
+  const standingChars = standing.reduce((sum, server) => sum + server.instructions + server.tools, 0);
   return { byPkg, byModule, byKind, silent, said: charsOf(byPkg).said, held: charsOf(byPkg).held, standing: standingChars };
 }
 function charsOf(rows) {
-  return Object.values(rows).reduce((t, r) => ({ said: t.said + r.said, held: t.held + r.held }), { said: 0, held: 0 });
+  return Object.values(rows).reduce((sum, row) => ({ said: sum.said + row.said, held: sum.held + row.held }), { said: 0, held: 0 });
 }
 
 const cell = (row) => (row ? `${row.said}/${row.held}` : '-');
@@ -66,4 +60,4 @@ const injectView = ({ events, standing, copy, modules }) => {
     codes: {}, text: injectText({ events, standing, totals, copy }) };
 };
 
-module.exports = { payloadsOf, mcpOf, injectView };
+module.exports = { payloadsOf, injectView };

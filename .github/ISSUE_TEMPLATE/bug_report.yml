@@ -45,6 +45,6 @@ body:
     id: actual
     attributes:
       label: Actual behaviour
-      description: Include a short, sanitised error or refusal code if available. A planned check is not a completed test.
+      description: Include a short, sanitised error or refusal code if available. Say what you ran and saw, not what you plan to try.
     validations:
       required: true

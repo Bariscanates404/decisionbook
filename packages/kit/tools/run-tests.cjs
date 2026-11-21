@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-// dev only, never shipped: the ONE way the packages' tests run. `unit [name...]`: the unit files of the named packages
+// dev only, never shipped: the ONE way the packages' tests run, each run in a home of its own (worldEnv).
+// `unit [name...]`: the unit files of the named packages
 // but the slow-listed ones, for the commit hook (a name that is no package means every package); `all`: every test file, for check.
 // Both at --test-concurrency=10, --test-timeout=120000. Then, at a normal load (at most 2 per CPU), every file is held to its time budget
 // (unit 1 s, other 10 s, × load/CPUs): a slower file is red unless owners.json `slow` names it (that list only shrinks).
@@ -32,6 +33,17 @@ function chosen(tier, names) {
   const kept = (p, file) => tier === 'all' || !(p.owners.slow || []).includes(path.relative(p.dir, file)); // the hook leaves a slow file to check
   return (named ? all.filter((p) => names.includes(p.name)) : all)
     .map((p) => ({ ...p, files: TOPS[tier].flatMap((top) => suiteFiles(p.dir, top)).filter((f) => kept(p, f)) }));
+}
+
+const PRELOAD = path.join(__dirname, '..', 'testing', 'passwd-preload.cjs');
+/** What every test process runs in: a home of its own (HOME = PASSWD_HOME, a new folder under `tmp`) and kit's password-home preload,
+ * so no test and no program a test starts reads or writes the home of whoever runs the tests. */
+function worldEnv(tmp, spawnsFile) {
+  const home = path.join(tmp, 'home');
+  fs.mkdirSync(home);
+  const options = process.env.NODE_OPTIONS ?? '';
+  return { ...process.env, HOME: home, PASSWD_HOME: home, [SPAWNS_VAR]: spawnsFile,
+    NODE_OPTIONS: options.includes(PRELOAD) ? options : `${options} --require ${JSON.stringify(PRELOAD)}`.trim() };
 }
 
 const loadFactor = () => Math.max(1, os.loadavg()[0] / os.cpus().length);
@@ -66,7 +78,7 @@ function runTests([tier = 'all', ...words], names = words.filter((word) => word 
   }
   const packages = chosen(tier, names);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kit-tests-'));
-  const spawnsFile = path.join(tmp, 'spawns');
+  const env = worldEnv(tmp, path.join(tmp, 'spawns'));
   const before = loadFactor();
   const files = packages.flatMap((p) => p.files);
   if (!files.length) return process.stdout.write(`tests: no test file in ${[tier, ...names].join(' ')}\n`); // node --test with none runs every test under cwd
@@ -76,7 +88,7 @@ function runTests([tier = 'all', ...words], names = words.filter((word) => word 
   const runs = [[files.filter((f) => !alone.includes(f)), 10], [alone, 1]].filter(([some]) => some.length).map(([some, at], i) => {
     const junitFile = path.join(tmp, `junit-${i}.xml`);
     const reporters = ['--test-reporter=spec', '--test-reporter-destination=stdout', '--test-reporter=junit', `--test-reporter-destination=${junitFile}`];
-    const res = spawnSync(process.execPath, ['--test', `--test-concurrency=${at}`, '--test-timeout=120000', ...reporters, ...some], { cwd: ROOT, stdio: 'inherit', env: { ...process.env, [SPAWNS_VAR]: spawnsFile } });
+    const res = spawnSync(process.execPath, ['--test', `--test-concurrency=${at}`, '--test-timeout=120000', ...reporters, ...some], { cwd: ROOT, stdio: 'inherit', env });
     return { res, junit: fs.existsSync(junitFile) ? fs.readFileSync(junitFile, 'utf8') : '' };
   });
   const factor = Math.max(before, loadFactor());
@@ -90,7 +102,7 @@ function runTests([tier = 'all', ...words], names = words.filter((word) => word 
   // above a normal load, a file's time says more about the machine than the test: said, not judged
   const timed = timeVerdict(packages, ms, factor, time === TIME_SAID);
   timed.lines.forEach((line) => process.stdout.write(`${line}\n`));
-  const errors = [...ended, ...summary, ...timed.errors, ...(tier === 'all' ? spawnErrors(packages, spawnsFile) : [])];
+  const errors = [...ended, ...summary, ...timed.errors, ...(tier === 'all' ? spawnErrors(packages, env[SPAWNS_VAR]) : [])];
   fs.rmSync(tmp, { recursive: true, force: true });
   if (errors.length) process.stderr.write(`tests FAILED:\n  ${errors.join('\n  ')}\n`);
   process.exit(runs.map(({ res }) => res.status).find((status) => status) || (errors.length ? 1 : 0));

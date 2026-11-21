@@ -13,7 +13,7 @@ const { host: { draftsOf } } = require('@atlasbound/kit');
 const { bookWorld, readyOne, added, starting, writeConfig, textOf, lastN, readOf, sentBy, noForks, planRecords, readFor } = require('./world.cjs');
 
 const { handlers, verbs } = decisionbook;
-const PACK = { budget: 5000 }; // contracts/pack.json; the normal layout alone is 3,371 characters
+const PACK = { budget: 5418 }; // contracts/pack.json; the normal layout alone is 2,733 characters
 const FILES = { 'lib/sched/index.js': 'x\n', 'lib/sched/parse.js': 'y\n', 'test/sched.test.js': 't\n' };
 const TASK = 'Add tenants and quotas to lib/sched/index.js, with tests';
 // the calls line says to plan every file, tests included (a plan otherwise names the source files only), and to send the plan with its
@@ -43,6 +43,10 @@ const CRITICAL_NEEDS = 'success, research 5, feature, plan, checks 2, command, t
 // one line says what a
 // blank must hold where its published type is not free text
 const SHAPED = 'where a blank is not free text: `kind`: bug, feature, chore or refactor';
+// without this line a request that only sets a value ("the fee is 100") became a small fix with a yes and no decision: nothing to compare later
+const STATED = 'A value the person\'s message sets, or says stays, is their decision at any level, unasked: {"t":"decision","key":"<area.topic>","value":"",'
+  + '"why":"","by":"","said":"<their own words>"} in the new; of the same thing as a decision above: its key, naming it in "supersedes" (changed) or "keeps" '
+  + '(it stays; in that decision\'s own plan under a key of its own).';
 const S1 = draftsOf('s1'); // the drafts folder of the session the prompts come from
 const NORMAL_NEW = `write this JSON with your Write tool to ${S1}new.json:\n{"title":"","why":"","success":"","kind":"","level":"normal","records":[`;
 const SMALL = 'this task runs as small fix (from its files and words, as the gate decides); READY there needs: plan, confirm';
@@ -75,17 +79,19 @@ async function fiveEarlier() {
 
 // 3,400: each plan's decisions under the line of where they came from, its day, why it was picked and the call that shows it whole.
 // 3,460: each of the four draft paths names the session's own drafts folder (13 characters each).
+// 3,910: each plan id ends in four letters of the moment it was started (five characters for each id the pack names); the line of a
+// value the person's message sets is 355 of it, and the line of how a person replaces one grew by 63.
 // 3,020: room for the calls line, which leads with the duty to ask every open behaviour and shows the research record a question
 // stands on (without it a first plan asks before any research and is refused), and for each call's draft path, written once for the
 // write tool and once for the call that reads it
-test('a task prompt in an area of five earlier plans gets the plan pack, within 3,460 characters', async () => {
+test('a task prompt in an area of five earlier plans gets the plan pack, within 3,910 characters', async () => {
   const { io, ids } = await fiveEarlier();
   const said = await askAt(io);
   assert.equal(said.code, 'prompt-nudge');
   assert.deepEqual(said.say.map((s) => s.key), ['decisionbook.nudge', 'decisionbook.pack'], 'the nudge\'s head, then the pack; no recall card beside it');
   assert.equal(said.say[0].text, 'DecisionBook: protected files need a READY plan on this branch and there is none.');
   const lines = packOf(said).text.split('\n');
-  assert.ok(packOf(said).text.length <= 3460, `within the budget: ${packOf(said).text.length}`);
+  assert.ok(packOf(said).text.length <= 3910, `within the budget: ${packOf(said).text.length}`);
   assert.equal(lines[0], 'Decisions that bind this area (data, settled; a person changes them, not you; what was decided then is no proof it holds '
     + 'today: check the code):');
   const day = '2026-11-02';
@@ -100,8 +106,9 @@ test('a task prompt in an area of five earlier plans gets the plan pack, within 
     'a replaced decision is not listed, though it is among the newest');
   assert.equal(lines[12], 'more: atlasbound decisionbook show file:lib/sched/index.js', 'then where the rest are');
   // without this line an AI that has to replace a decision searches the help for supersede, then writes a second key beside the old one
-  assert.equal(lines[13], 'a person replaces one, never you: ask them in a question that names it ("supersedes":["<its plan id>/<key>"]); their answer then names it '
-    + 'too: in "supersedes" where it replaces it, in "keeps" where they keep it (the plan id: atlasbound decisionbook show decision:<key>)');
+  assert.equal(lines[13], 'a person replaces one, never you: record a question naming it ("supersedes":["<its plan id>/<key>"]), then ask; their answer, one word '
+    + 'too, or what they say of it unasked, is their decision naming it: "supersedes" if it replaces it, "keeps" if it stays, code changed or not (the plan id: '
+    + 'atlasbound decisionbook show decision:<key>)');
   const replacing = { t: 'decision', key: 'report.export.five.rule3', value: 'v7', why: 'audit', by: 'Ayse', supersedes: [`${ids[4]}/report.export.five.rule3`] };
   await added(io, ids[3], replacing); // at their own terminal the person replaces one with the record itself
   assert.match((await verbs.show(io, { rest: ['decision:report.export.five.rule3'] })).text,
@@ -111,7 +118,7 @@ test('a task prompt in an area of five earlier plans gets the plan pack, within 
   assert.equal(lines[16], 'files earlier plans planned and built: lib/sched/parse.js (3), lib/sched/index.js (2)', 'files with the count of plans');
   assert.equal(lines[17], SMALL, 'the level line, from core/level and the rubric rows a plan with nothing yet misses at that level');
   // the small form's new holds no blank whose type is not free text, so no shapes line stands between the calls line and the calls
-  assert.deepEqual(lines.slice(18), [CALLS, ...MICRO('lib/sched/index.js')], 'the two calls last, as fill-in JSON');
+  assert.deepEqual(lines.slice(18), [CALLS, STATED, ...MICRO('lib/sched/index.js')], 'the two calls last, as fill-in JSON');
   assert.equal(lastN(io, 'decisionbook.prompt').packed, 1, 'the trace counts the pack');
 });
 
@@ -125,8 +132,8 @@ test('an empty area and a prompt that names no file: the level line of normal wo
   const io = bookWorld({ files: FILES });
   writeConfig(io, { protect: ['lib/**'] });
   const lines = packOf(await askAt(io, LOG_TASK)).text.split('\n');
-  assert.deepEqual([lines.slice(0, 5), lines.length], [[NONE, UNNAMED, SMALL_FORM, CALLS, SHAPED], 11]);
-  assert.ok(lines.slice(5).join('\n').startsWith(NORMAL_NEW), lines[5]);
+  assert.deepEqual([lines.slice(0, 6), lines.length], [[NONE, UNNAMED, SMALL_FORM, CALLS, STATED, SHAPED], 12]);
+  assert.ok(lines.slice(6).join('\n').startsWith(NORMAL_NEW), lines[6]);
   assert.deepEqual(callsOf(lines.join('\n')).made.records.map((r) => [r.t, r.to ?? r.id]), [['link', 'file:'], ['check', 'AC-1']],
     'the skeleton holds the planned path to fill and one check with its command: no step row is asked');
   assert.ok(lines.join('\n').length <= PACK.budget, `${lines.join('\n').length}`);
@@ -197,8 +204,8 @@ test('eight earlier plans of long values give a pack cut to its budget, and the 
   assert.match(lines.find((line) => line.startsWith('- sched.')), / = x{159}~ \(the person\)$/, 'a decision\'s value keeps 160 characters');
   assert.equal(lines.filter((line) => line.endsWith('no person confirmed it)')).length, 0, 'the assumptions cut before the decisions');
   assert.ok(!lines.some((line) => line.startsWith('files earlier plans')), 'the files line cut first');
-  assert.match(lines.at(-9), /^this task runs as normal work /);
-  assert.deepEqual(lines.slice(-8, -6), [CALLS, SHAPED]);
+  assert.match(lines.at(-10), /^this task runs as normal work /);
+  assert.deepEqual(lines.slice(-9, -6), [CALLS, STATED, SHAPED]);
   assert.deepEqual([lines.at(-6), lines.at(-4), lines.at(-3), lines.at(-1)], [`write this JSON with your Write tool to ${S1}new.json:`,
     `then run: atlasbound decisionbook new --file ${S1}new.json`, `write this JSON with your Write tool to ${S1}<id>.json:`,
     `then run: atlasbound decisionbook add <id> --file ${S1}<id>.json`],
@@ -275,9 +282,9 @@ test('decisionbook plan <path|words> prints the pack the task prompt gives, read
   assert.equal(records(), before, 'nothing written');
   assert.equal(lastN(io, 'decisionbook.pack').packed, 1);
   const words = await verbs.pack(io, { rest: ['tenants', 'quotas'] });
-  assert.deepEqual(words.text.split('\n').slice(0, 5), [NONE, UNNAMED, SMALL_FORM, CALLS, SHAPED],
+  assert.deepEqual(words.text.split('\n').slice(0, 6), [NONE, UNNAMED, SMALL_FORM, CALLS, STATED, SHAPED],
     'words no plan holds: no record here, the level, the small form and the calls');
-  assert.ok(words.text.split('\n').slice(5).join('\n').startsWith(NORMAL_NEW));
+  assert.ok(words.text.split('\n').slice(6).join('\n').startsWith(NORMAL_NEW));
 });
 
 // the pack hands the `new` the AI fills and sends once, built from the rubric rows of the level; the person's answers and yes are the `add`

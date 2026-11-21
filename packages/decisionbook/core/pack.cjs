@@ -6,7 +6,7 @@
 // (active, the plans as the walk ranked them), the assumptions no person confirmed, how the area is checked, its files, what was not
 // found, the level this task runs at with what READY needs there, the two calls. This module chooses and cuts; core/text/pack writes.
 const PACK = require('../contracts/pack.json');
-const { byTime, isAnswered } = require('../base/text.cjs');
+const { byTime, isAnswered, isLive } = require('../base/text.cjs');
 const { foldPlan, scopeOf } = require('./fold.cjs');
 const { planLevel } = require('./level.cjs');
 const { skeletonOf } = require('./skeleton.cjs');
@@ -14,7 +14,7 @@ const { areaLines, levelLines } = require('./text/pack.cjs');
 const { refOf } = require('../contracts/shapes.cjs');
 
 // replaced, revised, proposed: never; the plans in the walk's order (what the task names before a neighbour), each plan's newest first
-const bindingOf = (views) => views.flatMap((v) => v.decisions.filter((d) => d.state === 'active').sort((a, b) => byTime(b, a))
+const bindingOf = (views) => views.flatMap((v) => v.decisions.filter(isLive).sort((a, b) => byTime(b, a))
   .map((d) => ({ ...d, from: { id: v.id, at: v.at, picked: v.picked } })));
 const assumedOf = (views) => views.flatMap((v) => v.assumptions.filter((a) => !a.q || !isAnswered(v, { q: a.q }))
   .map((a) => ({ ...a, id: v.id })))
@@ -50,12 +50,13 @@ function listsOf({ views, first, checks, files, absent }, cut) {
 /** The pack: `views` the area's earlier plans, each with `built` (the files it built; none: a first task here, the level line and the
  * calls only) and `picked` (why the walk took it), `seeds` the work's files (the first names where the rest are), `named` the prompt's
  * files and `words` it, what its `new` is judged on, `first` where another package sends the research first (none: ''), `absent` what
- * was not found (text/recall's lines), `session` whose drafts its calls name -> { text, refs, ids } (refs: `<id>/<key>`). */
-function packOf({ views, seeds = [], named = [], words, danger = [], first, absent = [], session }) {
+ * was not found (text/recall's lines), `open` the open items' lines (the lists give way to them), `session` whose drafts its calls name
+ * -> { text, refs, ids } (refs: `<id>/<key>`). */
+function packOf({ views, seeds = [], named = [], words, danger = [], first, absent = [], open = [], session }) {
   const commands = views.map((v) => v.checks.map((c) => c.command).filter(Boolean));
   const paths = views.map((v) => [...scopeOf(v), ...v.built]);
   const [checks, files] = [[commands, PACK.checks], [paths, PACK.files]].map(([lists, most]) => heldCounts(lists).slice(0, most));
-  const tail = levelLines(levelNeeds({ words, files: named, danger }), first, session);
+  const tail = [...levelLines(levelNeeds({ words, files: named, danger }), first, session), ...open];
   const fit = (cut) => {
     const { lines, refs } = listsOf({ views, first: seeds[0], checks, files, absent }, cut);
     const text = [...lines, ...tail].join('\n');

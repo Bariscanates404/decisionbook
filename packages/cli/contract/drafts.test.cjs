@@ -145,7 +145,7 @@ test('each open module set: the draft Write is silent through the hook binary, i
       assert.deepEqual([kept.code, exists(repo, key)], [0, false], `${only}: ${kept.err}`);
       draft(repo, 'new.json', PLAN);
       const off = run(world.bin, ['decisionbook', 'new', '--file', `${DRAFTS}/new.json`], { cwd: repo, env });
-      assert.deepEqual([off.code, /turns it back on$/.test(off.out.trim()), exists(repo, `${DRAFTS}/new.json`)], [0, true, true], 'a module that is off read no draft: it stays');
+      assert.deepEqual([off.code, /atlasbound modules on decisionbook$/.test(off.out.trim()), exists(repo, `${DRAFTS}/new.json`)], [0, true, true], 'a module that is off read no draft: it stays');
     } else {
       draft(repo, 'new.json', PLAN);
       const made = run(world.bin, ['decisionbook', 'new', '--file', key], { cwd: repo, env });
