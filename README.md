@@ -101,9 +101,11 @@ protected file:
 
 To take it all out again: `atlasbound uninstall` (you type the phrase it names, at your own terminal).
 
-<!-- demo slot, an absolute https URL once recorded:
-![A Claude Code session: the agent asks its questions before any code, the person answers in a few words, the plan becomes READY, then /handoff, /clear and /resume-handoff carry the decisions into the new context](DEMO-GIF-URL)
--->
+![A real Claude Code session with DecisionBook and Handoff on a demo repository with a fictional team: the agent reads issue #2 and its comments, links the plan to it, researches the code and asks only what the code can't answer, parking the pricing question for the BA; the BA's answer is recorded as hers with a link to her comment; after the person's yes, the agent builds parts 1 and 2 and the tests pass; with the context at 19%, /handoff, /clear and /resume-handoff start a fresh context that picks up at part 3 without asking anything again; parts 3 and 4 follow and all 8 tests pass; the person's terminal then shows every decision with who gave it and their words, and the BA's decision as a plain JSON line with its source link.](https://raw.githubusercontent.com/Bariscanates404/decisionbook/main/docs/demo.gif)
+
+<sub>Real session, not a mock-up: Claude Code 2.1.326, Sonnet 5.5 with the standard 200k context, atlasbound 0.25.3. Demo
+repository, fictional team. Model waits are cut, key moments are held for about 5 s with a highlight, and the banner's
+account name and folder path are masked; nothing is sped up.</sub>
 
 ## Local by design
 
