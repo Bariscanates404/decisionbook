@@ -107,6 +107,30 @@ To take it all out again: `atlasbound uninstall` (you type the phrase it names, 
 repository, fictional team. Model waits are cut, key moments are held for about 5 s with a highlight, and the banner's
 account name and folder path are masked; nothing is sped up.</sub>
 
+### More videos
+
+The same videos, with pause and replay, are on [atlasbound.dev](https://atlasbound.dev/en/decisionbook/#videos).
+
+<details>
+<summary><b>What DecisionBook is and how to use it</b> (about 2 minutes)</summary>
+
+![An explainer built from short clips of real sessions: the problem (agents read the code but not why it is that way), what DecisionBook keeps and where, how it works in five steps (research, questions with proposals, your answers in your words and a READY plan, building from the plan, /handoff, /clear and /resume-handoff), the three levels, how to install and start, and what it does not do.](https://raw.githubusercontent.com/Bariscanates404/decisionbook/main/docs/explainer.gif)
+</details>
+
+<details>
+<summary><b>Bug fix from history: the agent finds the earlier decision and the commit that broke it</b></summary>
+
+![A real Claude Code session with DecisionBook on a demo repository with a fictional team: asked to look into bug #4 (a negative total), the agent reads the issue and the code and, as it reads the file, DecisionBook hands it the earlier plan for that file; it names the commit that broke the rule (Mark's refactor), quotes the decision Emma made earlier, writes a fix plan built on that decision, fixes the code and the tests pass; the person's terminal then shows the fix linked to the earlier plan and Emma's rule in her words.](https://raw.githubusercontent.com/Bariscanates404/decisionbook/main/docs/bug-fix-from-history.gif)
+</details>
+
+<details>
+<summary><b>Team: one question goes to the BA and waits without blocking</b></summary>
+
+![A real Claude Code session with DecisionBook on a demo repository with a fictional team: asked to develop issue #1, the agent reads the issue and its comments, researches the code and asks four questions with its own proposals before touching code, parking the pricing question for the BA; the person answers two in one line; once the BA answers on the issue, her decision is recorded in her own words, the plan becomes READY, the agent edits and the tests pass; after /handoff, /clear and /resume-handoff the new context starts from the settled rules; then the person's terminal shows every decision, who gave it and their words, and the BA's decision as a plain JSON line with its source.](https://raw.githubusercontent.com/Bariscanates404/decisionbook/main/docs/team-question-to-the-ba.gif)
+</details>
+
+<sub>All recorded with atlasbound 0.25.3 on demo repositories with fictional teams; waits are cut, nothing is sped up.</sub>
+
 ## Local by design
 
 | Surface | What to know |
