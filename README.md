@@ -2,12 +2,34 @@
 
 **Your code has history. Your decisions should too.**
 
+[Quick start](#quick-start) · [Example record](#what-a-plan-looks-like) · [Guide](GUIDE.md) · [Privacy](PRIVACY.md) ·
+[Security](https://github.com/Bariscanates404/decisionbook/blob/main/SECURITY.md) · [Changelog](CHANGELOG.md)
+
+> The issue was half-written. The agent filled in the rest itself.<br>
+> Why is this code like this? Nobody knows.<br>
+> The developer left. The reasons left too.
+
 Ground the task. Keep what you learn. A local work record for Claude Code, kept beside your code.
 
-[Quick start](#quick-start) · [Example record](#what-a-plan-looks-like) · [Guide](GUIDE.md) · [Privacy](PRIVACY.md) ·
-[Security](SECURITY.md) · [Changelog](CHANGELOG.md)
+## See it work
 
-![An illustrative work record: the agent researches the code and proposes an answer, the person answers in their own words, and the record becomes context for later work.](.github/assets/work-memory.svg)
+### You hand over the issue: decisions already made are found, credited and linked
+
+![A real Claude Code session with DecisionBook on a demo repository with a fictional team: the person hands over the issue in one plain line; Claude reads the issue and its comments, records the decisions already made there under Emma's (BA) and Olivia's (PM) names with links to their comments, and asks only what is still missing, each with its proposal; the record is shown; the person answers in one message and the plan is READY and frozen; the build runs from the plan and the tests pass; nothing is committed.](https://raw.githubusercontent.com/Bariscanates404/decisionbook/main/docs/team-question-to-the-ba.gif)
+
+| [![A real Claude Code session with DecisionBook and Handoff on a demo repository with a fictional team: Mark hands over the issue in one plain line; Claude reads the issue and its comments, looks at what the code does today, and asks only what is still open; one numbered message from Mark carries every answer: Emma's (BA) answers pasted from the team chat, what Olivia (PM) said passed on in his own words, and "go with your proposals"; Claude runs the record command, Claude Code's permission prompt asks to record Olivia's words as hers, and he allows it; the plan is READY and frozen, with who decided what; because it is a big job, /handoff, /clear and /resume-handoff start a fresh context, which asks before building; Claude shows the record, each decision with who made it, the Olivia line saying it was allowed on the prompt; the build runs from the frozen plan and the tests pass; nothing is committed.](https://raw.githubusercontent.com/Bariscanates404/decisionbook/main/docs/poster-long-job.jpg)](https://github.com/Bariscanates404/decisionbook/blob/main/docs/demo.gif) | [![A real Claude Code session with DecisionBook on a demo repository with a fictional team: Lee reports a bug, a coupon larger than the order gives a negative total; Claude reads the code and its tests, finds the commit that dropped the earlier rule, and quotes what was decided before: Emma's rule, from the earlier plan; it writes a fix plan that keeps that rule, fixes the code with a test, closes the plan and prints one commit command; the record then shows the rule as Emma's, relayed by Mark.](https://raw.githubusercontent.com/Bariscanates404/decisionbook/main/docs/poster-bug-fix-from-history.jpg)](https://github.com/Bariscanates404/decisionbook/blob/main/docs/bug-fix-from-history.gif) | [![An explainer built from short clips of real sessions: the problem (agents read the code but not why it is that way), what DecisionBook keeps and where, how it works in five steps (research, questions with proposals, your answers in your words and a READY plan, building from the plan, /handoff, /clear and /resume-handoff), the three levels, how to install and start, and what it does not do.](https://raw.githubusercontent.com/Bariscanates404/decisionbook/main/docs/poster-explainer.jpg)](https://github.com/Bariscanates404/decisionbook/blob/main/docs/explainer.gif) |
+|---|---|---|
+| **A long job**: you hand it over, it asks first, a fresh context, then the build | **A bug fixed from its history**: the earlier decision, in her own words, and the commit that broke it | **The whole flow** (about 2 minutes): what DecisionBook keeps and how to use it |
+
+With sound: the four videos are attached to the [v0.25.4 release](https://github.com/Bariscanates404/decisionbook/releases/tag/v0.25.4).
+The same videos, with pause and replay, are on [atlasbound.dev](https://atlasbound.dev/en/decisionbook/#videos).
+
+<sub>Real sessions, not mock-ups: Claude Code 2.1.326, Sonnet 5.5, on a demo repository with a fictional team. The three
+sessions were recorded with atlasbound 0.25.4; the explainer's clips with 0.25.3, as its own card says. Model waits are cut
+and key moments are held with a highlight; nothing is sped up. You can run the commands yourself, but you don't have to:
+Claude runs them as it works.</sub>
+
+![An illustrative work record: the agent researches the code and proposes an answer, the person answers in their own words, and the record becomes context for later work.](https://github.com/Bariscanates404/decisionbook/blob/main/.github/assets/work-memory.svg?raw=true)
 
 *An illustration of the example record below, not a screen of the product.*
 
@@ -51,8 +73,8 @@ calls no model of its own and needs no account: your existing Claude Code sessio
 | Fix a setup that does not work | [Troubleshooting](GUIDE.md#troubleshooting) |
 | Read the measured results and their caveats | [The long-task experiment](#one-long-task-experiment) |
 | Report a bug | [Open an issue](https://github.com/Bariscanates404/decisionbook/issues/new/choose) |
-| Report a security problem privately | [Security](SECURITY.md) |
-| Contribute, or ask about licensing | [Contributing](CONTRIBUTING.md) · [Licence](#licence) |
+| Report a security problem privately | [Security](https://github.com/Bariscanates404/decisionbook/blob/main/SECURITY.md) |
+| Contribute, or ask about licensing | [Contributing](https://github.com/Bariscanates404/decisionbook/blob/main/CONTRIBUTING.md) · [Licence](#licence) |
 
 ## Quick start
 
@@ -101,37 +123,6 @@ protected file:
 | **It continues in a fresh session** | Type `/handoff`: the note keeps up to seven lines quoted from your own messages, what is half-done and the next steps. Then `/clear`, then `/resume-handoff`: the new context starts from that note and from DecisionBook's settled decisions, and does not ask again what you already decided. |
 
 To take it all out again: `atlasbound uninstall` (you type the phrase it names, at your own terminal).
-
-![A real Claude Code session with DecisionBook and Handoff on a demo repository with a fictional team: Mark hands over the issue in one plain line; Claude reads the issue and its comments, looks at what the code does today, and asks only what is still open; one numbered message from Mark carries every answer: Emma's (BA) answers pasted from the team chat, what Olivia (PM) said passed on in his own words, and "go with your proposals"; Claude runs the record command, Claude Code's permission prompt asks to record Olivia's words as hers, and he allows it; the plan is READY and frozen, with who decided what; because it is a big job, /handoff, /clear and /resume-handoff start a fresh context, which asks before building; Claude shows the record, each decision with who made it, the Olivia line saying it was allowed on the prompt; the build runs from the frozen plan and the tests pass; nothing is committed.](https://raw.githubusercontent.com/Bariscanates404/decisionbook/main/docs/demo.gif)
-
-<sub>Real session, not a mock-up: Claude Code 2.1.326, Sonnet 5.5, atlasbound 0.25.4. Demo repository, fictional team. Model
-waits are cut and key moments are held with a highlight; nothing is sped up. You can run the commands yourself, but you don't
-have to: Claude runs them as it works.</sub>
-
-### More videos
-
-The same videos, with pause and replay, are on [atlasbound.dev](https://atlasbound.dev/en/decisionbook/#videos).
-
-<details>
-<summary><b>What DecisionBook is and how to use it</b> (about 2 minutes)</summary>
-
-![An explainer built from short clips of real sessions: the problem (agents read the code but not why it is that way), what DecisionBook keeps and where, how it works in five steps (research, questions with proposals, your answers in your words and a READY plan, building from the plan, /handoff, /clear and /resume-handoff), the three levels, how to install and start, and what it does not do.](https://raw.githubusercontent.com/Bariscanates404/decisionbook/main/docs/explainer.gif)
-</details>
-
-<details>
-<summary><b>Bug fix from history: the agent finds the earlier decision and the commit that broke it</b></summary>
-
-![A real Claude Code session with DecisionBook on a demo repository with a fictional team: Lee reports a bug, a coupon larger than the order gives a negative total; Claude reads the code and its tests, finds the commit that dropped the earlier rule, and quotes what was decided before: Emma's rule, from the earlier plan; it writes a fix plan that keeps that rule, fixes the code with a test, closes the plan and prints one commit command; the record then shows the rule as Emma's, relayed by Mark.](https://raw.githubusercontent.com/Bariscanates404/decisionbook/main/docs/bug-fix-from-history.gif)
-</details>
-
-<details>
-<summary><b>You hand over the issue: decisions already made are found, credited and linked</b></summary>
-
-![A real Claude Code session with DecisionBook on a demo repository with a fictional team: the person hands over the issue in one plain line; Claude reads the issue and its comments, records the decisions already made there under Emma's (BA) and Olivia's (PM) names with links to their comments, and asks only what is still missing, each with its proposal; the record is shown; the person answers in one message and the plan is READY and frozen; the build runs from the plan and the tests pass; nothing is committed.](https://raw.githubusercontent.com/Bariscanates404/decisionbook/main/docs/team-question-to-the-ba.gif)
-</details>
-
-<sub>The three sessions were recorded with atlasbound 0.25.4; the explainer's clips with 0.25.3, as its own card says. Demo
-repositories, fictional teams; waits are cut, nothing is sped up.</sub>
 
 ## Local by design
 
