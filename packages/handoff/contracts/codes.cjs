@@ -23,17 +23,16 @@ const ROWS = [
   ['reply-refused', 'nothing was written: fix the lines named and send the whole reply again'],
   ['kept-uncited', 'a kept line ends with the number of the message it comes from, as [m3] or [m3, m17]'],
   ['kept-cites-unknown', 'a kept line names a message number that is not in the list'],
-  ['kept-not-quoted', 'a kept line holds the person\'s own words from the message it names: whole clauses of it (a sentence, a list ' +
-    'item, a part they set off with a comma or a joining word), and a sentence that holds a negation only whole; a piece is not theirs, ' +
-    'nor is a line with words of yours beside theirs: a one-word answer is kept alone ("keep it [m3]"), and what it answered goes in now'],
+  ['kept-not-quoted', 'a kept line holds the person\'s own words from the message it names, as they wrote them; a paraphrase ' +
+    'or a word cut short is not theirs, nor is a line with words of yours beside theirs: a one-word answer is kept alone ("keep it [m3]"), and what it answered goes in now'],
   ['kept-too-many', 'more new kept lines than one handoff takes'],
   ['kept-over-cap', 'the kept list would pass its cap: drop the least needed in the same reply'],
   ['done-unproven', 'done, complete, finished or works is said only beside a commit that exists here'],
   ['drop-unknown', 'no kept line has that number'],
   ['job-drop-unsourced', 'a job goes only with a commit made since it was kept, or the person\'s own words from a later message, '
-    + 'as "<their words> [m9]": whole clauses that are about this job (or name its number, k2) and say it is done, dropped or changed'],
+    + 'as "<their words> [m9]": words that are about this job (or name its number, k2) and say it is done, dropped or changed'],
   ['drop-unsourced', 'a kept line goes only with the person\'s own words from a message after it was kept, as "<their words> [m9]": '
-    + 'whole clauses that are about this line (or name its number, k2) and say it is done, dropped, cancelled or changed'],
+    + 'words that are about this line (or name its number, k2) and say it is done, dropped, cancelled or changed'],
   ['line-dropped', 'the kept line was dropped'],
   ['line-edited', 'the kept line was reworded'],
   // a person's message and an edit

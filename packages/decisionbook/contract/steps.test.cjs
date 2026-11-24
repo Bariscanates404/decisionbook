@@ -40,14 +40,14 @@ test('[I-22] add takes a JSON array: its records in one append and one traced st
   await assert.rejects(batch(io, id, [{ t: 'note', text: 'kept?' }, { t: 'link', rel: 'plans', to: 'file:src/report/csv.js', why: 'w' },
     { t: 'confirm', by: 'ai', said: 'looks good' },
     { t: 'note', text: 'never' }]), (err) => err.code === 'confirm-by-person' && /record 3 of 4: /.test(err.message));
-  await assert.rejects(batch(io, id, [{ t: 'confirm', by: 'Ayse', said: 'yes' }, { t: 'research', tool: 'grep', asked: 'no answer' }]),
+  await assert.rejects(batch(io, id, [{ t: 'confirm', by: 'Amy', said: 'yes' }, { t: 'research', tool: 'grep', asked: 'no answer' }]),
     { code: 'record-invalid' });
   await assert.rejects(batch(io, id, []), { code: 'plan-args' });
   assert.deepEqual([io.fs.readText(logFile(id)), appends, yeses], [before, [5], []], 'all or nothing: no line written, no yes kept here');
   assert.match((await added(io, id, { t: 'note', text: 'one' })).text, new RegExp(`^${id}: note recorded$`, 'm'), 'one record, as before');
   const loose = await batch(io, id, [step(2, 'src/report/csv.js'), { t: 'link', rel: 'plans', to: 'file:src/report/csv.js', why: 'w' }]);
   assert.deepEqual([loose.out.records, appends], [2, [5, 1, 2]], 'a step before its file is planned is kept: a step is a note of the plan, no gate');
-  await batch(io, id, [{ t: 'note', text: 'shown' }, { t: 'confirm', by: 'Ayse', said: 'yes, go ahead' }]);
+  await batch(io, id, [{ t: 'note', text: 'shown' }, { t: 'confirm', by: 'Amy', said: 'yes, go ahead' }]);
   assert.deepEqual(yeses, [1], 'the yes of a confirm in a batch is kept once the batch is written');
   assert.deepEqual(tracedSteps(io).filter(([name]) => name === 'decisionbook.add').map(([, ok, code]) => [ok, code]),
     [[true, null], [false, 'confirm-by-person'], [false, 'record-invalid'], [false, 'plan-args'], [true, null], [true, null], [true, null]]);

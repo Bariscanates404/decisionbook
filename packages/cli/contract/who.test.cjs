@@ -6,7 +6,7 @@
 // the test's terminal (tty-preload, no AI host above); the AI is a piped stdin, a session mark, or an AI host above the terminal.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { makeWorld, setupRepo, typedYes, run, traceRows, snapshot, fire, portRow, hookDecisionOf } = require('./support.cjs');
+const { makeWorld, makeRepo, setupRepo, typedYes, run, git, tmp, traceRows, snapshot, fire, portRow, hookDecisionOf } = require('./support.cjs');
 
 const TTY = typedYes().env;
 const WORLD = makeWorld();
@@ -39,7 +39,7 @@ for (const [row, args, code, said] of PERSON_ROWS) {
     assert.deepEqual(snapshot(repo, { trace: false }), before, 'every file of the repository as it was');
     const refusals = traceRows(repo).filter((one) => one.err && one.err.code === 'person-only');
     assert.deepEqual(refusals.map((one) => one.step), ['cli.verb', 'cli.verb', 'cli.verb'], 'each refusal is a coded trace row');
-    const typed = run(OPEN.bin, sent, { input: 'yes\n' });
+    const typed = run(OPEN.bin, sent, { input: 'yes\n', env: { ATLASBOUND_TELEMETRY: '' } }); // the worlds' telemetry switch lifted: `on` answers ON
     assert.equal(typed.code, code, typed.err);
     assert.match(code ? typed.err : typed.out, said);
   });
@@ -143,7 +143,9 @@ test('an AI\'s shell command that names a verb only a person runs is denied at t
 });
 
 test('debug who says who acts and why: no terminal, a session mark and an AI host above are the AI, a bare terminal a person', () => {
-  const { repo } = setupRepo(WORLD);
+  const { repo, out } = setupRepo(WORLD);
+  assert.match(out, /^ {2}you are Ada here \(kept on this machine since 2026-11-02, from git\): what you decide is recorded under this name; /m,
+    'setup says who the person is here');
   const who = (env) => {
     const res = run(WORLD.bin, ['debug', 'who', '--json', '--target', repo], { env });
     assert.equal(res.code, 0, res.err);
@@ -159,6 +161,36 @@ test('debug who says who acts and why: no terminal, a session mark and an AI hos
     'a session whose rows hold no prompt of a person: could not tell is the AI');
   const text = run(WORLD.bin, ['debug', 'who', '--target', repo], { env: TTY }).out;
   assert.match(text, /^ {2}who +terminal +a person acts: a terminal with no AI session mark and no AI host above it\n {2}why +own-terminal\n/);
+  assert.match(text, /^ {2}person +Ada +the person working here, as kept on this machine \(atlasbound whoami\): every record of theirs carries this name$/m);
+});
+
+test('who the person is here is kept at setup from git\'s name, shown by whoami, and changed only by them at their own terminal', () => {
+  const repo = makeRepo();
+  const home = tmp('cli-home-'); // a machine where no setup ran yet for this repository
+  const at = (args, more = {}) => run(WORLD.bin, [...args, '--target', repo], { ...more, env: { HOME: home, ...more.env } });
+  assert.equal(JSON.parse(at(['debug', 'who', '--json']).out).person, null, 'before setup no name is kept');
+  assert.match(at(['doctor']).out, /^ {2}person-unnamed: no name is kept for the person on this machine, /m, 'and doctor says so');
+  assert.match(at(['setup']).out, /^ {2}you are Ada here \(kept on this machine since \d{4}-\d\d-\d\d, as git named you; no one was asked\): /m);
+  git(repo, 'config', 'user.name', 'Emma (BA)'); // what an AI's shell could do after setup
+  const shown = at(['whoami']).out;
+  assert.match(shown, /^you are Ada here \(kept on this machine since [\d-]+, from git\): .*\ngit names Emma \(BA\) in this clone now; the kept name stands /);
+  assert.match(at(['setup']).out, /^ {2}you are Ada here /m, 'a second setup keeps the name that was kept');
+  for (const [env, why] of AI_CALLERS) {
+    const refused = at(['whoami', '--name', 'Emma (BA)'], { env, ai: true });
+    assert.match(refused.err, new RegExp(`^atlasbound: person-only: whoami \\(found: the AI, ${why}\\); the person types: atlasbound whoami --name 'Emma \\(BA\\)' `), why);
+  }
+  assert.match(at(['whoami', '--name', 'ai'], { env: TTY }).err, /^atlasbound: person-name-ai/, 'no person is kept under a name the AI signs with');
+  assert.match(at(['whoami', '--name', 'Ada Park'], { env: TTY }).out, /^you are Ada Park here \(kept on this machine since [\d-]+, from you\): /);
+  assert.equal(JSON.parse(at(['debug', 'who', '--json']).out).person, 'Ada Park');
+});
+
+test('setup at the person\'s own terminal asks them to keep git\'s name or type another, before any other question', () => {
+  const [kept, typed] = [makeRepo(), makeRepo()];
+  const first = (repo, input) => run(WORLD.bin, ['setup', '--target', repo], { env: { ...TTY, HOME: tmp('cli-home-') }, input });
+  const asked = first(kept, '\n3\n');
+  assert.match(asked.err, /^Your decisions here are recorded under your name\. git names you "Ada": press Enter to keep it, or type the name to record\n> /);
+  assert.match(asked.out, /^ {2}you are Ada here \(kept on this machine since [\d-]+, from git\): /m, 'Enter keeps git\'s name');
+  assert.match(first(typed, 'Ada Park\n3\n').out, /^ {2}you are Ada Park here \(kept on this machine since [\d-]+, from you\): /m, 'a typed name is theirs');
 });
 
 test('a verb that asks who acts leaves one trace row of that answer, who and why, in the cli\'s own step', () => {

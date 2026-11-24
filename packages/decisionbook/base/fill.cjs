@@ -5,8 +5,9 @@
 // the blank records core/skeleton hands to fill: every "" is the AI's to write; `ai` and `person` name whose part a record is.
 const times = (n, make) => Array.from({ length: Math.max(n, 0) }, (_, i) => make(i));
 const item = (kind, more = {}) => ({ t: 'item', kind, text: '', ...more });
-// a person's decision: `value` what their AI understood they decided, `said` their own words, copied from their message
-const theirs = (more) => ({ t: 'decision', key: '', value: '', why: '', by: '', said: '', ...more });
+// a human's decision: `value` what the AI understood they decided, `whose` words it holds (person, a teammate's name; assumed: no
+// one's), `said` those exact words, copied
+const theirs = (more) => ({ t: 'decision', key: '', value: '', why: '', whose: '', said: '', ...more });
 // a person's answer to question `q`: its effect is required; to one that names standing decisions, it places each in one of the two lists
 const answerTo = (q, check = '') => theirs({ answers: q.q, ...(q.supersedes.length && { supersedes: [], keeps: [] }), effect: [`check:${check}`] });
 const ai = (records) => ({ ai: records, person: [] });

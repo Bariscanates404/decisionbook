@@ -8,7 +8,7 @@ const { STORE } = require('../contracts/shapes.cjs');
 const { PRODUCT } = require('../contracts/verbs.cjs');
 const { portCommands, ownPort, runs, serversOf } = require('../core/host.cjs');
 const { reached } = require('../core/hooks.cjs');
-const { saidFailure, errorLine } = require('./failure.cjs');
+const { saidFailure, errorLine, firstLine } = require('./failure.cjs');
 const { shortOf, WORDS: { probes: W } } = require('../contracts/codes.cjs');
 const { releaseProbe } = require('./release.cjs');
 const { platformOf } = require('../core/windows.cjs');
@@ -25,7 +25,6 @@ const HOOK_IN = 'hook.in'; // the trace step of what the host sent the port
 const measured = (says) => ({ state: 'measured', says });
 const failed = (says) => ({ state: 'failed', says });
 const unmeasured = (says) => ({ state: 'not-measured', says });
-const firstLine = (text) => String(text).trim().split('\n')[0];
 const whyNot = (res) => res.error || res.killedBy || filled(W.exit, { code: res.code, line: firstLine(res.stderr) });
 
 /** One child of a probe; `marks`: what its starter hands it besides the env it keeps (the self-check's). */

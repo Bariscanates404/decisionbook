@@ -6,8 +6,8 @@
 // file the frozen plan took in; the same for a shell command's writes and for the stop check.
 const { text: { lines: { filled } } } = require('@atlasbound/kit');
 const { WORDS, shortOf, SHOWN: { gate: shown } } = require('../../contracts/codes.cjs');
-const { isAnswered, conflictsIn } = require('../../base/text.cjs');
-const { rivalText } = require('./records.cjs');
+const { isAnswered, putOff, conflictsIn } = require('../../base/text.cjs');
+const { rivalText, putOffSaid } = require('./records.cjs');
 
 /** `why`: what holds in this case; `noOne`: the host asks nobody here, so the reason says what to do instead. */
 function gateReason({ code, file, why = '', noOne = false }) {
@@ -31,7 +31,7 @@ function draftWhy(draft) {
   const rows = draft.unmet.map((row) => row.id);
   const mine = rows.filter((row) => !PERSONS.includes(row));
   const asked = draft.questions.filter((q) => !isAnswered(draft, q) && (q.blocking || (rows.includes('answers') && q.decides)));
-  const open = asked.map((q) => `${shown.q(q.q)}: ${shown.text(q.text)}`);
+  const open = asked.map((q) => `${shown.q(q.q)}: ${shown.text(q.text)}${putOffSaid(putOff(draft, q))}`);
   const yes = rows.includes('confirm') ? WORDS.draftYes : '';
   const ask = open.length ? filled(WORDS.draftAsk, { questions: open.join('; ') }) : yes;
   return filled(WORDS.draftHere, { id: draft.id, rows: rows.join(', '), ask,
@@ -72,7 +72,8 @@ const shellReason = (reason, file) => [reason, `${WORDS.shellWrites} ${file}; ${
 /** The plan's reason and the promise's, for a write both refuse, so one round fixes both. */
 const bothReasons = (plan, promise) => `${plan} ; ${promise}`;
 
-const stopReason = (code, files) => `${WORDS.stopPrefix} ${code}: ${shown.files(files.join(', '))}: ${shortOf(code)}`;
+/** The Stop check's block: its code, the files (or the plan) it names, the code's sentence. */
+const stopReason = (code, named) => `${WORDS.stopPrefix} ${code}: ${shown.files(named.join(', '))}: ${shortOf(code)}`;
 
 module.exports = { gateReason, conflictWhy, otherTaskWhy, outsideWhy, outgrownWhy, elsewhereWhy,
   draftWhy, asideWay, takesOutWhy, cameFromWhy, unplacedReason, unplacedOf, shellReason, bothReasons,

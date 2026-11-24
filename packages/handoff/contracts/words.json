@@ -27,15 +27,17 @@
   "messagesNone": "No message of the person is kept for this session yet.",
   "fill": [
     "Send the call below once, filled in. Nothing is written until it passes.",
+    "This note is the person's own, for their next session on this machine: no teammate sees it. What a teammate must see (a question",
+    "parked for someone, who takes over) goes into the repository, in a DecisionBook plan, never only here.",
     "- now: what is half-done, in one or two sentences. next: at most {steps} steps.",
     "- kept: at most {perHandoff} new lines. Read the list of messages above for them, the early ones first: do not trust your memory",
     "  of them. One line per decision or constraint of the person that the next session must know, and one line per job they gave: a",
     "  message that gives several jobs gets one line each, starting with \"job: \". Copy the person's own words from the message and end",
-    "  the line with it: [m3] or [m3, m17]. Copy whole clauses: a sentence, a list item, or a part they set off with a comma or \"and\";",
-    "  a sentence that holds a negation (not, never, without) only whole. A piece or a paraphrase is yours, and refused; so is a line",
+    "  the line with it: [m3] or [m3, m17]. Copy whole sentences as they wrote them,",
+    "  never a piece of one that changes what it says. A paraphrase is yours, and refused; so is a line",
     "  with your words beside theirs: a one-word answer is kept alone (\"keep it [m3]\"), and what it answered goes in now.",
     "- The kept lines above (k1..) stay by themselves. drop takes one out only with the person's own words about it from a message",
-    "  after it was kept: {\"k\": 2, \"why\": \"<their whole clause> [m9]\"}; the words share the line's words or name its number (k2), and",
+    "  after it was kept: {\"k\": 2, \"why\": \"<their sentence> [m9]\"}; the words share the line's words or name its number (k2), and",
     "  say it is done, dropped, cancelled or changed. A job also goes with a commit made since it was kept. An open job stays.",
     "- Never write done, complete, finished or works without a commit beside it."
   ],
@@ -50,8 +52,7 @@
   "rewordedByVerb": "reworded by the person with atlasbound handoff drop; the line now holds what they typed",
   "byReply": "dropped by the AI in session {session}: {why}",
   "notTheirs": {
-    "fragment": "no whole clause of it",
-    "negation": "its sentence holds a negation: quote the sentence whole",
+    "unfound": "the words are not in it as written",
     "unrelated": "not about this line",
     "no-intent": "it does not say done, dropped, cancelled or changed"
   },

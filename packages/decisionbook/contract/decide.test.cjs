@@ -15,7 +15,7 @@ const TEMPLATE = fs.readFileSync(path.join(__dirname, '..', 'commands', 'decide.
 const EXPORT = 'src/report/export.js';
 const SAID = 'Exports are CSV files with a header row, because the bank imports CSV.';
 // what an AI writes for each field the template leaves to it: a <placeholder> by what it names, a blank as it is
-const FILLS = { key: 'report.format', value: 'CSV files with a header row', why: 'the bank imports CSV', by: 'Ayse', said: SAID, files: [EXPORT] };
+const FILLS = { key: 'report.format', value: 'CSV files with a header row', why: 'the bank imports CSV', said: SAID, files: [EXPORT] };
 const templateRecord = (text) => JSON.parse(/`(\{"t":"decision"[^`]*\})`/.exec(text)[1]);
 const filledIn = (record) => Object.fromEntries(Object.entries(record)
   .map(([field, v]) => [field, Array.isArray(v) || /^<.*>$/.test(v) ? FILLS[field] : v]));
@@ -30,7 +30,7 @@ test('the record /decide hands, filled in as written, is the person\'s decision 
   await say(SAID);
   await added(io, id, filledIn(templateRecord(TEMPLATE)));
   const stored = planRecords(io, id).filter((r) => r.t === 'decision');
-  assert.deepEqual(stored.map((d) => [d.key, d.by, d.said]), [['report.format', 'the person', SAID]]);
+  assert.deepEqual(stored.map((d) => [d.key, d.by, d.said]), [['report.format', 'Amy', SAID]]);
   assert.doesNotMatch(TEMPLATE, /their name/, 'who decided is the product\'s to write');
 });
 
@@ -55,5 +55,5 @@ test('the waiver /decisionbook hands drops a raised level only on the person\'s 
   await say(WAIVED);
   await added(io, id, { ...record, reason: 'a copy change', said: WAIVED });
   assert.equal(await level(), 'level-waived');
-  assert.deepEqual(planRecords(io, id).filter((r) => r.t === 'waiver').map((r) => r.by), ['the person']);
+  assert.deepEqual(planRecords(io, id).filter((r) => r.t === 'waiver').map((r) => r.by), ['Amy']);
 });

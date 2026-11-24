@@ -32,7 +32,7 @@ fs port:   key ──> pathKey (NFC, contained) ──> refuse links on the way 
 
 ```
 text:      secrets.find / scrub / clipped (scrub, then cut) / masked (a line holding a shape -> its indentation + mask)
-           shell.writtenBy(command, past, { lang: sh | powershell | cmd, scripts }) ──> shell-lex or shell-win tokens ──> rows of shell.json
+           shell.writtenBy(command, past, { lang: sh | powershell | cmd, scripts, file }) ──> shell-lex or shell-win tokens ──> rows of shell.json
            (`windows`: PowerShell's commands, cmd's; a package script read from `scripts`) ──> shell-code for inline code ──> { writes (each `by`), unplaced, unread,
            why: each cause once, a code and the word as written }; shell.readWords(command): the words it saw (cli's `debug shell`)
 ```

@@ -12,9 +12,9 @@
     "slack": 20,
     "why": 200,
     "title": 120,
-    "pipeline": 3736,
+    "pipeline": 3779,
     "debug": 57,
-    "tests": 7043
+    "tests": 7091
   },
   "slow": [
     "contract/hard.test.cjs",

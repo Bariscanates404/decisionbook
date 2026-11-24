@@ -78,8 +78,8 @@ function plan(hostIo, manifests, packages, { on, asked }) {
     return text;
   };
   const wanted = Object.fromEntries(desired.files.map((f) => [f.key, bodyOf(f)]));
-  const { settings, mcp } = { settings: parsed(hostIo, HOST.settings), mcp: parsed(hostIo, HOST.mcp) };
-  return { desired, wanted, on, settings, mcp, prior: priorOf(hostIo), notice: noticePlan(hostIo, asked) };
+  return { desired, wanted, on, settings: parsed(hostIo, HOST.settings), mcp: parsed(hostIo, HOST.mcp), prior: priorOf(hostIo),
+    notice: noticePlan(hostIo, asked) };
 }
 
 /** The team's row: `was` where it stands; `joined`: this machine never set this clone up and git brought the ignore block, so the team

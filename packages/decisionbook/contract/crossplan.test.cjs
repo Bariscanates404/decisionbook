@@ -16,12 +16,12 @@ const KEY = 'metin.bicimi';
 const OLD = 'Son güncelleme: 19 Kasım 2026';
 const updateAsk = (supersedes = []) => ({ t: 'question', q: 'Q1', text: 'Which words does the update line use?', decides: KEY, whyNotCode: 'wording',
   proposal: 'as asked', blocking: true, supersedes });
-const personSaid = (value, said, supersedes, key = KEY) => ({ t: 'decision', key, value, why: 'their words', by: 'the person', said, answers: 'Q1',
+const personSaid = (value, said, supersedes, key = KEY) => ({ t: 'decision', key, value, why: 'their words', whose: 'person', said, answers: 'Q1',
   effect: [`file:${FILE}`], supersedes });
 const pagePlan = async (io, title, records) => {
   const id = await begin(io, { title, level: 'micro' });
   await added(io, id, [{ t: 'research', tool: 'read', asked: 'the page', answer: 'a footer line', source: `${FILE}:1` },
-    { t: 'link', rel: 'plans', to: `file:${FILE}`, why: 'the page' }, ...records, { t: 'confirm', by: 'the person', said: 'yes' }]);
+    { t: 'link', rel: 'plans', to: `file:${FILE}`, why: 'the page' }, ...records, { t: 'confirm', by: 'Amy', said: 'yes' }]);
   return id;
 };
 const pageWorld = () => {
@@ -48,14 +48,14 @@ test('a conflict across plans: every reader names it like one in a plan, and bot
   const across = 'CONFLICT (2 person decisions across plans, none replacing another; none holds until the person says which)';
   for (const [verb, rest] of [['show', [`decision:${KEY}`]], ['show', [a, 'decisions']], ['show', [b, 'decisions']], ['pr', [a]], ['inbox', []]]) {
     const text = (await verbs[verb](io, { rest })).text;
-    for (const part of [across, `of ${a}, by the person: "Hepsi olur, devam et."`, `of ${b}, by the person: "Evet, eski kararı değiştiriyorum."`,
+    for (const part of [across, `of ${a}, by Amy: "Hepsi olur, devam et."`, `of ${b}, by Amy: "Evet, eski kararı değiştiriyorum."`,
       `record the replace question first ({"t":"question","supersedes":${JSON.stringify([`${a}/${KEY}`, `${b}/${KEY}`].sort())}})`,
       `record the answer they type after it there, under "${KEY}": it names every line, in "supersedes", or the one line whose decision they take as it is in "keeps", its value copied as this answer's (words typed before that question is on record are refused)`]) assert.ok(text.includes(part), `${verb} ${rest}: ${part}\n${text}`);
     assert.doesNotMatch(text, /metin\.bicimi = (Güncellendi|Son değişiklik)/, `${verb}: no line holds`);
   }
   const inbox = await verbs.inbox(io, {});
   assert.deepEqual([inbox.out.here.filter((row) => row.conflict).map((row) => row.id), inbox.text.split('\n')[0]],
-    [[a], 'Waiting for you on main: open questions 1, READY plans not closed 3, set aside 0'], `one conflict is one row and one question:\n${inbox.text}`);
+    [[a], 'Waiting for you on main: open questions 1, questions parked with someone 0, READY plans not closed 3, set aside 0'], `one conflict is one row and one question:\n${inbox.text}`);
   assert.deepEqual([await waitsForAnswer(io, a), await waitsForAnswer(io, b)], [true, true], 'neither plan is READY while it stands');
   assert.equal((await handlers.preEdit({ ...editEvent(FILE), session_id: 's1' }, io)).code, 'plan-conflict');
 });
@@ -63,7 +63,7 @@ test('a conflict across plans: every reader names it like one in a plan, and bot
 test('the person\'s answer names every line of the conflict: one that names only the other plan\'s is refused with the full list', async () => {
   const { io, a, b } = await mergedPlans();
   const answer = (supersedes) => added(io, a, { t: 'decision', key: KEY, value: 'Güncellendi: 19.11.2026 geçerli; \'Son değişiklik\' kalkar',
-    why: 'their answer', by: 'the person',
+    why: 'their answer', whose: 'person',
     said: '\'Güncellendi: 19.11.2026\' geçerli olsun, \'Son değişiklik\' olan kalksın.', effect: [`file:${FILE}`], supersedes });
   const half = await answer([`${b}/${KEY}`]).then(() => null, (err) => err.message);
   assert.ok(half.startsWith('decision-unnamed: nothing written:') && half.includes(`${a}/${KEY}`) && half.includes(`${b}/${KEY}`), half);
@@ -90,7 +90,7 @@ async function keptAndReplaced(keyOfKeep, otherBranch = 'main') {
   const old = await pagePlan(io, 'Add the last update line', [updateAsk(), personSaid(OLD, OLD, [])]);
   await pagePlan(other, 'Add the last update line', [updateAsk(), personSaid(OLD, OLD, [])]);
   const ref = `${old}/${KEY}`;
-  const keep = { t: 'decision', key: keyOfKeep, value: OLD, why: 'their words', by: 'the person', said: 'Kalsın, devam et.', answers: 'Q1',
+  const keep = { t: 'decision', key: keyOfKeep, value: OLD, why: 'their words', whose: 'person', said: 'Kalsın, devam et.', answers: 'Q1',
     effect: [`file:${FILE}`], keeps: [ref] };
   const a = await pagePlan(io, 'Keep the update line', [updateAsk([ref]), keep]);
   other.state.branch = otherBranch;
@@ -104,14 +104,14 @@ test('one person keeps an old decision, another replaces it, two plans merged: a
     const { io, a, b } = await keptAndReplaced(keyOfKeep);
     for (const [verb, rest] of [['show', [`decision:${KEY}`]], ['show', [a, 'decisions']], ['show', [b, 'decisions']], ['pr', [b]], ['inbox', []]]) {
       const text = (await verbs[verb](io, { rest })).text;
-      for (const part of ['CONFLICT (2 person decisions across plans', `of ${a}, by the person: "Kalsın, devam et."`,
-        `of ${b}, by the person: "Evet, değiştir."`]) assert.ok(text.includes(part), `${keyOfKeep} ${verb} ${rest}: ${part}\n${text}`);
+      for (const part of ['CONFLICT (2 person decisions across plans', `of ${a}, by Amy: "Kalsın, devam et."`,
+        `of ${b}, by Amy: "Evet, değiştir."`]) assert.ok(text.includes(part), `${keyOfKeep} ${verb} ${rest}: ${part}\n${text}`);
     }
     assert.deepEqual([await waitsForAnswer(io, a), await waitsForAnswer(io, b)], [true, true], `${keyOfKeep}: neither plan holds while it stands`);
     const gate = await handlers.preEdit({ ...editEvent(FILE), session_id: 's1' }, io);
     assert.equal(gate.code, 'plan-conflict', keyOfKeep);
     for (const key of new Set([KEY, keyOfKeep])) assert.match(gate.reason, new RegExp(`under ("[^"]+" or )?"${key}"`), `the reason names the key ${key}`);
-    await added(io, b, { t: 'decision', key: KEY, value: 'Son değişiklik: 19 Kasım 2026', why: 'their answer', by: 'the person',
+    await added(io, b, { t: 'decision', key: KEY, value: 'Son değişiklik: 19 Kasım 2026', why: 'their answer', whose: 'person',
       said: 'Değişsin.', effect: [`file:${FILE}`], supersedes: [`${a}/${keyOfKeep}`, `${b}/${KEY}`] });
     assert.ok(!(await verbs.show(io, { rest: [`decision:${KEY}`] })).text.includes('CONFLICT'), `${keyOfKeep}: the person's answer naming both ends it`);
     assert.deepEqual([await waitsForAnswer(io, a), await waitsForAnswer(io, b)], [false, false], keyOfKeep);
@@ -123,7 +123,7 @@ test('in one copy, replacing a decision a person keeps names their keep too, so 
   const old = await pagePlan(io, 'Add the last update line', [updateAsk(), personSaid(OLD, OLD, [])]);
   const ref = `${old}/${KEY}`;
   const a = await pagePlan(io, 'Keep the update line', [updateAsk([ref]), { t: 'decision', key: 'metin', value: OLD, why: 'their words',
-    by: 'the person', said: 'Kalsın.', answers: 'Q1', effect: [`file:${FILE}`], keeps: [ref] }]);
+    whose: 'person', said: 'Kalsın.', answers: 'Q1', effect: [`file:${FILE}`], keeps: [ref] }]);
   const change = (supersedes) => pagePlan(io, 'Change the update line', [updateAsk(supersedes), personSaid('Son değişiklik', 'Değiştir.', supersedes)]);
   const half = await change([ref]).then(() => null, (err) => err.message);
   assert.ok(half && half.includes('decision-unnamed') && half.includes(`${a}/metin`), half);
@@ -140,7 +140,7 @@ test('in a session no write ends a merged conflict but the answer to a question 
     io.session = 's1';
     const say = (prompt) => handlers.prompt({ hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt }, io);
     const lines = [`${a}/metin`, `${b}/${KEY}`];
-    const answer = (said, more = {}) => added(io, on, { t: 'decision', key, value: OLD, why: 'their answer', by: 'the person', said,
+    const answer = (said, more = {}) => added(io, on, { t: 'decision', key, value: OLD, why: 'their answer', whose: 'person', said,
       effect: [`file:${FILE}`], supersedes: lines, ...more }).then(() => 'written', (err) => err.code);
     await say('Pull main and go on.');
     assert.equal(await answer('Pull main and go on.'), 'conflict-unasked', `${shape}: no question, any words`);
@@ -159,7 +159,7 @@ test('a READY plan that edited and then lost a conflict is one open item in show
     return says.map((s) => s.text.split('\n').find((l) => l.startsWith(`open: ${id} was built and edited`)) ?? null);
   };
   // the answer written into the losing plan under the losing key, so `<b>/<KEY>` names the line that lost and the one that holds
-  const keep = (io, a, b) => added(io, b, { t: 'decision', key: KEY, value: OLD, why: 'their answer', by: 'the person',
+  const keep = (io, a, b) => added(io, b, { t: 'decision', key: KEY, value: OLD, why: 'their answer', whose: 'person',
     said: 'Eski karar kalsın.', effect: [`file:${FILE}`], supersedes: [`${a}/metin`, `${b}/${KEY}`] });
   const quiet = await keptAndReplaced('metin');
   await keep(quiet.io, quiet.a, quiet.b);
@@ -205,7 +205,7 @@ test('a lost plan\'s item follows the line that holds now: the winner written ag
   const { io, a, b } = await keptAndReplaced('metin', 'y');
   io.state.commits = [{ sha: 'c1', subject: 'remove the update line', body: '', files: [FILE], after: 'h0' }];
   io.state.branch = 'y';
-  const theirs = (value, said) => ({ t: 'decision', key: KEY, value, why: 'their answer', by: 'the person', said, effect: [`file:${FILE}`] });
+  const theirs = (value, said) => ({ t: 'decision', key: KEY, value, why: 'their answer', whose: 'person', said, effect: [`file:${FILE}`] });
   await added(io, b, { ...theirs(OLD, 'Eski karar kalsın.'), supersedes: [`${a}/metin`, `${b}/${KEY}`] });
   const item = async () => (await verbs.show(io, { rest: [b] })).text.split('\n').find((l) => l.startsWith(`open: ${b} was built and edited`)) ?? null;
   const toOf = (line) => line.match(/"to":"([^"]+)"/)[1];
@@ -245,7 +245,7 @@ test('a plain change of a built plan\'s decision by a later plan is no lost conf
 test('a plan lost only where its line stood in a conflict with another plan\'s and the answer took another value', async () => {
   const NEW = 'Son değişiklik: 19 Kasım 2026';
   const edited = (io) => { io.state.commits = [{ sha: 'c1', subject: 'edit the update line', body: '', files: [FILE], after: 'h0' }]; };
-  const answer = (io, on, key, value, supersedes) => added(io, on, { t: 'decision', key, value, why: 'their answer', by: 'the person',
+  const answer = (io, on, key, value, supersedes) => added(io, on, { t: 'decision', key, value, why: 'their answer', whose: 'person',
     said: 'Bu geçerli olsun.', effect: [`file:${FILE}`], supersedes });
   const lost = async (io, ids) => Promise.all(ids.map(async (id) => /^open: /m.test((await verbs.show(io, { rest: [id] })).text)));
   const gateOn = async (io, branch) => { io.state.branch = branch; return (await handlers.preEdit({ ...editEvent(FILE), session_id: 's1' }, io)).code; };
@@ -287,7 +287,7 @@ test('every reader of a lost plan says its one open item, the inbox counts it, a
   io.state.commits = [{ sha: 'c1', subject: 'remove the update line', body: '', files: [FILE], after: 'h0' }];
   io.state.branch = 'y';
   io.git.blame = async () => [{ sha: 'c1', subject: 'remove the update line' }];
-  await added(io, a, { t: 'decision', key: 'metin', value: OLD, why: 'their answer', by: 'the person', said: 'Eski karar kalsın.',
+  await added(io, a, { t: 'decision', key: 'metin', value: OLD, why: 'their answer', whose: 'person', said: 'Eski karar kalsın.',
     effect: [`file:${FILE}`], supersedes: [`${a}/metin`, `${b}/${KEY}`] });
   const item = (await verbs.show(io, { rest: [b] })).text.split('\n').find((line) => line.startsWith(`open: ${b} was built and edited`));
   const says = { close: await verbs.close(io, { rest: [b] }), pr: await verbs.pr(io, { rest: [b] }), find: await verbs.find(io, { rest: ['update'] }),
@@ -301,9 +301,9 @@ test('every reader of a lost plan says its one open item, the inbox counts it, a
     answer: `part ${i} holds ${'a line of the footer and what stands around it, '.repeat(3)}` }));
   const c = await pagePlan(io, 'Footer colour', [...read, { ...updateAsk(), text: 'Grey or navy in the bottom strip?', decides: 'footer' },
     personSaid('Grey', 'Grey.', [], 'footer'), { t: 'item', kind: 'non-goal', text: 'the update line stays as it is', covers: [`${a}/metin`] }]);
-  const start = (await verbs.resume(io, { room: 2000 })).text;
+  const start = (await verbs.resume(io, { room: 2100 })).text; // the plan's head lines and the item are never cut: a room that holds them
   assert.ok(start.startsWith(`Plan ${c} READY on y`) && !start.includes('covers no new edit'), `the open plan is not told it lost:\n${start}`);
-  assert.ok(start.split('\n').includes(item) && Buffer.byteLength(start) <= 2000, `${Buffer.byteLength(start)} bytes:\n${start}`);
+  assert.ok(start.split('\n').includes(item) && Buffer.byteLength(start) <= 2100, `${Buffer.byteLength(start)} bytes:\n${start}`);
   const tight = (await verbs.resume(io, { room: 700 })).text.trimEnd().split('\n'); // an item over half the room is pointed at, never appended
   assert.deepEqual([tight.includes(item), tight.at(-1)], [false, '+1 more: atlasbound decisionbook inbox --json'], tight.join('\n'));
 });
@@ -312,7 +312,7 @@ test('a READY plan carrying the open item blocks no new plan of its files, and s
   const { io, a, b } = await keptAndReplaced('metin', 'y');
   io.state.commits = [{ sha: 'c1', subject: 'remove the update line', body: '', files: [FILE], after: 'h0' }];
   io.state.branch = 'y';
-  await added(io, b, { t: 'decision', key: KEY, value: OLD, why: 'their answer', by: 'the person', said: 'Eski karar kalsın.',
+  await added(io, b, { t: 'decision', key: KEY, value: OLD, why: 'their answer', whose: 'person', said: 'Eski karar kalsın.',
     effect: [`file:${FILE}`], supersedes: [`${a}/metin`, `${b}/${KEY}`] });
   await handlers.start(starting('s2'), io);
   io.session = 's2';
@@ -321,7 +321,7 @@ test('a READY plan carrying the open item blocks no new plan of its files, and s
     .then((id) => id, (err) => err.code);
   assert.match(made, /^2026-11-02-bring-the-update-line-back-/, 'the restoring plan opens beside it');
   io.session = undefined;
-  await added(io, b, { t: 'aside', by: 'the person', said: 'Set it aside.' });
+  await added(io, b, { t: 'aside', by: 'Amy', said: 'Set it aside.' });
   assert.match((await verbs.show(io, { rest: [b] })).text, new RegExp(`^open: ${b} was built and edited`, 'm'), 'aside keeps the item');
   const inbox = await verbs.inbox(io, {});
   assert.match(inbox.text.split('\n')[0], /, set aside 1, open items 1$/, `the plan set aside is counted beside its item:\n${inbox.text}`);

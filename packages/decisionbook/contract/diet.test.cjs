@@ -9,7 +9,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const decisionbook = require('@atlasbound/decisionbook');
-const { ROOT, bookWorld, writeConfig, wire, planRecords, recordsFor, editEvent, starting, ruling, lastN, textOf, readOf } = require('./world.cjs');
+const { PERSON, ROOT, bookWorld, writeConfig, wire, planRecords, writtenDecisions, recordsFor, editEvent, starting, ruling, lastN, textOf, readOf } = require('./world.cjs');
 
 const { verbs, handlers } = decisionbook;
 const [EXPORT, CSV, MIGRATION] = ['src/report/export.js', 'src/report/csv.js', 'db/migrate/001_add_rows.rb'];
@@ -51,7 +51,7 @@ async function dietWorld(session = 's1') {
 async function answeredAll(w, id) {
   await w.say(ANSWERS);
   return verbs.add(w.io, { rest: [id, wire(QUESTIONS.map((q, i) => ({ t: 'decision', key: q.decides, value: SAID[i], why: 'the person\'s answer',
-    by: 'the developer', answers: q.q, said: SAID[i], effect: ['check:AC-1'] })))] });
+    whose: 'person', answers: q.q, said: SAID[i], effect: ['check:AC-1'] })))] });
 }
 /** A plan made READY by the person's answers: the task, the plan, their reply, the AI's add of it. -> its id */
 async function frozen(w) {
@@ -59,7 +59,6 @@ async function frozen(w) {
   const { out } = await w.create(DRAFT);
   return { id: out.id, recorded: await answeredAll(w, out.id) };
 }
-const decisions = (io, id) => planRecords(io, id).filter((r) => r.t === 'decision');
 const phaseRows = (io) => io.fs.readText('.atlasbound/trace/r1.ndjson').trim().split('\n').map((line) => JSON.parse(line))
   .filter((row) => row.step === 'plan.phase');
 
@@ -82,12 +81,14 @@ test('a file outside the frozen plan is asked and joins it on the person\'s yes,
   assert.deepEqual([...ruling(out), out.plan], ['ask', 'plan-outside', id]);
   assert.match(out.reason, /open a new plan for this file/);
   await handlers.postEdit({ hook_event_name: 'PostToolUse', session_id: 's2', tool_name: 'Edit', tool_input: { file_path: `${ROOT}/${CSV}` } }, w.io);
-  assert.deepEqual(planRecords(w.io, id).at(-1), { t: 'link', rel: 'plans', to: `file:${CSV}`, by: 'the person',
+  assert.deepEqual(planRecords(w.io, id).at(-1), { t: 'link', rel: 'plans', to: `file:${CSV}`, by: 'Amy',
     source: 'the person\'s yes to the gate\'s ask', at: planRecords(w.io, id).at(-1).at }, 'the person\'s yes added the plans link');
   assert.deepEqual(ruling(await w.edit(CSV)), ['allow', 'gate-in-scope'], 'from then on it is inside: silent');
   assert.equal((await verbs.ready(w.io, { rest: [id] })).out.ready, true, 'the yes holds for the plan that grew within its level');
   w.io.state.changed = [EXPORT, CSV];
-  assert.equal((await handlers.stop({ hook_event_name: 'Stop', session_id: 's2' }, w.io)).code, 'stop-clean', 'the Stop check sees both recorded');
+  const stopped = () => handlers.stop({ hook_event_name: 'Stop', session_id: 's2' }, w.io);
+  assert.deepEqual([(await stopped()).code, (await stopped()).code], ['stop-unclosed', 'stop-clean'],
+    'the Stop check sees both recorded: it holds the turn once for the close, never again on the same tree');
   const danger = await w.edit(MIGRATION);
   assert.deepEqual(ruling(danger), ['ask', 'plan-out-of-scope'], 'a migration outside the plan is the person\'s');
   assert.match(danger.reason, /a danger path \(a danger zone, a database schema or migration\) outside the READY plan is the person's, once/);
@@ -137,7 +138,7 @@ test('the start of a READY plan is the intake: frozen, the files, the findings, 
   assert.ok(lines.includes(`files: ${EXPORT}`), 'the files the work touches');
   assert.ok(lines.includes('found by the research:') && lines.includes(`- the export reads every row into memory at once (0) (${EXPORT}:1)`),
     'what the research found is carried, with where');
-  assert.ok(lines.includes('- report.cancel; the person, 2026-11-02: "Delete it at once, and say so in the log."'), 'a decision is the person\'s own sentence');
+  assert.ok(lines.includes('- report.cancel = Delete it at once, and say so in the log.; Amy, 2026-11-02: "Answers from me (the developer): About "should the partial file be kept or deleted?": Delete it at once, and say so in the log."'), 'a decision is the person\'s own sentence');
   assert.doesNotMatch(text, /earlier session|resume|atlasbound decisionbook add/, 'no call to send before the work goes on');
   assert.ok(Buffer.byteLength(text) <= 4096, `inside its byte budget: ${Buffer.byteLength(text)}`);
   assert.equal(textOf(await w.say('Continue the work on the export.', 's2')), '', 'a task prompt adds nothing: the start gave the intake');
@@ -156,7 +157,7 @@ test('the form is light: a small fix needs its file and the yes; normal work no 
   const normal = await n.create([]);
   assert.deepEqual(normal.out.state.unmet.map((row) => row.id), ['plan', 'checks', 'command', 'answers', 'confirm'], 'what normal work asks of a blank plan');
   assert.doesNotMatch(normal.text, /ready-gaps|ready-steps|ready-no-actor|ready-edges|ready-impact|ready-research|"kind":"gap"|"kind":"step"/);
-  assert.match(normal.text, /\n {2}what to ask about and research \(a guide, never records to fill\): data that already exists/, 'the gap list guides the asking');
+  assert.match(normal.text, /\n {2}what to research, and to ask only where a human must decide \(a guide, never records to fill\): data that already exists/, 'the gap list guides the asking');
 });
 
 test('a reply says its progress and only what changed: no row said twice, no fill-in after an add', async () => {
@@ -180,9 +181,9 @@ test('a reply says its progress and only what changed: no row said twice, no fil
   const settled = await verbs.add(w.io, { rest: [id, wire({ ...findings(2)[1], settles: 'report.memory' })] });
   assert.match(settled.text, /9 of 12 rows met\n {2}ready-answers:\n {2}forks counted: report\.memory \(normal work needs at least 3[^\n]+\n {2}still missing, as said before: ready-open-question, ready-no-confirm\n$/,
     'a row that moved says what it counts now, under its code');
-  assert.doesNotMatch(settled.text, /ask the person every behaviour|--file /, 'never its sentence or the fill-in again');
+  assert.doesNotMatch(settled.text, /a fork counts when research settles it|--file /, 'never its sentence or the fill-in again');
   const full = await verbs.ready(w.io, { rest: [id] });
-  assert.match(full.text, /ready-answers: ask the person every behaviour.*\nthen run: atlasbound decisionbook add/s,
+  assert.match(full.text, /ready-answers: a fork counts when research settles it.*\nthen run: atlasbound decisionbook add/s,
     '`ready` asked on its own says every row in full and the fill-in');
   assert.deepEqual(['next' in full.out, 'before' in full.out], [true, false], 'ready: the one add, and no list of what was unmet before');
 });
@@ -197,15 +198,21 @@ test('a question for a colleague is parked with its source: it blocks nothing, e
   assert.match(text, / READY as normal work\. /, 'a parked question never keeps the plan from READY');
   assert.doesNotMatch(text, /Q9/, 'and is not asked of the person');
   const start = textOf(await w.began('s2'));
-  assert.match(start, /\nparked with someone else \(remind the person; [^\n]+\n- Q9 for the operations colleague: Does the nightly job read the export while it is written\? \(from the person: "go ask operations about the nightly job"\)\n/);
-  const guess = { t: 'decision', key: 'report.nightly', value: 'the job reads only finished files', why: 'their reply', by: 'whoever',
+  assert.match(start, /\nquestions that wait for someone else \(remind the person; [^\n]+\n- \S+ Q9 for the operations colleague: Does the nightly job read the export while it is written\? \(from the person: "go ask operations about the nightly job"\)$/, 'with its plan');
+  const guess = { t: 'decision', key: 'report.nightly', value: 'the job reads only finished files', why: 'their reply', whose: 'person',
     answers: 'Q9', effect: ['check:AC-1'] };
-  await verbs.add(w.io, { rest: [id, wire(guess)] });
-  assert.equal(decisions(w.io, id).at(-1).by, 'ai', 'an answer that quotes no one is the AI\'s, whoever it is signed for');
-  assert.match(textOf(await w.began('s3')), /\nparked with someone else /, 'so it is still parked');
-  await verbs.add(w.io, { rest: [id, wire({ ...guess, said: 'We only pick up files once they are closed.', source: 'issue 3346, comment 7' })] });
-  assert.equal(decisions(w.io, id).at(-1).by, 'the operations colleague', 'the answer is stored as theirs, with the quote and its source');
-  assert.doesNotMatch(textOf(await w.began('s4')), /parked with someone else/, 'once answered it is reminded no more');
+  const refused = (record) => verbs.add(w.io, { rest: [id, wire(record)] }).then(() => null, (err) => err.code);
+  assert.equal(await refused(guess), 'said-not-theirs', 'an answer no one typed is no one\'s, whoever it is signed for');
+  const theirs = { ...guess, whose: 'the operations colleague', said: 'We only pick up files once they are closed.' };
+  assert.equal(await refused(theirs), 'said-unproven', 'words the person did not type here need a place the product can read them');
+  assert.equal(await refused({ ...theirs, source: 'issue 3346, comment 7' }), 'said-unproven', 'and a place it cannot read proves nothing');
+  assert.match(textOf(await w.began('s3')), /\nquestions that wait for someone else /, 'so it is still parked');
+  const address = 'https://tracker.invalid/ops/jobs/issues/3346#issuecomment-7';
+  w.io.tracker = { read: async (asked) => (asked === address ? { text: `${theirs.said} We never read a file that is open.`, author: 'ops-desk Operations colleague' } : null) };
+  await verbs.add(w.io, { rest: [id, wire({ ...theirs, source: address })] });
+  const { by, saidBy, source } = writtenDecisions(w.io, id).at(-1);
+  assert.deepEqual([by, saidBy, source], [PERSON, 'the operations colleague', address], 'theirs, read by the product at its address');
+  assert.doesNotMatch(textOf(await w.began('s4')), /questions that wait for someone else/, 'once answered it is reminded no more');
 });
 
 test('the plan\'s phases are trace rows: created, READY, the first allowed write, with seconds, turns and calls', async () => {

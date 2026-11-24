@@ -13,9 +13,10 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const kit = require('@atlasbound/kit');
 const decisionbook = require('@atlasbound/decisionbook');
-const { bookWorld, begin, added, recordsFor, editEvent, writeConfig, planRecords, onDay } = require('./world.cjs');
+const { PERSON, bookWorld, begin, added, recordsFor, editEvent, writeConfig, planRecords, onDay, readyOne, logFile, textOf, ruling } = require('./world.cjs');
 
 const { verbs, handlers } = decisionbook;
+const closeReady = async (io, { rest: [id], ...flags }) => verbs.close(io, { rest: [id], ...flags }, io.fs.writeAtomic(logFile(id), `${io.fs.readText(logFile(id))}${JSON.stringify({ t: 'ready', head: planRecords(io, id)[0].head, scope: [], level: 'normal', at: '2026-11-02T07:00:00.000Z' })}\n`)); // READY first: a draft closes nothing
 const timeless = (record) => Object.fromEntries(Object.entries(record).filter(([key]) => key !== 'at')); // a record as written, less its time
 const gateSays = async (io, file) => {
   const said = await handlers.preEdit(editEvent(file), io);
@@ -29,14 +30,14 @@ const QUESTION = { t: 'question', q: 'Q9', text: 'which date format do the rows 
 // the light form: normal work asks no task, gap or step row any more (their near misses are the next test's: READY without them);
 // the rows it does ask each have their near miss here: the one check with a command, the third fork, an open question, the yes
 const THIRD_FORK = [{ t: 'question', q: 'Q3', text: 'rule 3?', decides: 'report.export.rule3', whyNotCode: 'a product rule', blocking: true },
-  { t: 'decision', key: 'report.export.rule3', value: 'v3', why: 'support', by: 'Ayse', answers: 'Q3', effect: ['check:AC-1'] }];
+  { t: 'decision', key: 'report.export.rule3', value: 'v3', why: 'support', whose: 'person', answers: 'Q3', effect: ['check:AC-1'] }];
 const NEAR_MISSES = [
   { row: 'ready-no-command', drop: (r) => r.id === 'AC-1', add: [{ t: 'check', id: 'AC-1', text: 'the export finishes in 5 s', how: 'e2e' }],
     fix: [{ t: 'check', id: 'AC-3', text: 'the whole export suite passes', command: 'npm test -- export' }] },
   { row: 'ready-answers', drop: (r) => [r.decides, r.key].includes('report.export.rule3'), fix: THIRD_FORK },
-  { row: 'ready-open-question', add: [QUESTION], fix: [{ t: 'decision', key: 'report.export.dates', value: 'ISO 8601', why: 'support', by: 'Ayse',
+  { row: 'ready-open-question', add: [QUESTION], fix: [{ t: 'decision', key: 'report.export.dates', value: 'ISO 8601', why: 'support', whose: 'person',
     answers: 'Q9', effect: ['check:AC-2'] }] },
-  { row: 'ready-no-confirm', early: true, fix: [{ t: 'confirm', by: 'Ayse', said: 'yes, both files' }] },
+  { row: 'ready-no-confirm', early: true, fix: [{ t: 'confirm', by: 'Amy', said: 'yes, both files' }] },
 ];
 // what the light form does not ask for, so a plan without one of them is still whole: the task, one gap, one planned file's step
 const NOT_ASKED = [['the task', (r) => r.kind === 'task'], ['a gap', (r) => r.gap === 'config-docs'],
@@ -90,7 +91,7 @@ function teamLog({ id, title, n, branch = 'main', plans = [], decisions = [], li
   const rows = [{ schema: 'decisionbook-record/1', t: 'plan', id, title, why: 'the team wants it', branch, head: 'h0', tags },
     ...plans.map((to) => ({ t: 'link', rel: 'plans', to: `file:${to}`, why: 'code' })),
     ...links.map(([rel, to]) => ({ t: 'link', rel, to, why: 'fixture' })), ...decisions.map(([key, value, files = []]) => ({ t: 'decision', key, value,
-      why: 'a rule', by: 'Ayse', files })),
+      why: 'a rule', by: 'Amy', files })),
     ...(closed ? [{ t: 'closed', head: 'h1', own: [], files: plans, tests: [], other: 0 }] : [])];
   return rows.map((r) => `${JSON.stringify({ ...r, at: onDay(n) })}\n`).join('');
 }
@@ -168,13 +169,10 @@ test('[I-7] close records exactly the commits of the work, their files and their
   io.state.commits = COMMITS;
   await added(io, id, { t: 'link', rel: 'plans', to: 'file:src/report/**', why: 'the export' });
   await added(io, id, { t: 'link', rel: 'for', to: 'issue:42', why: 'the ticket' });
-  const res = await verbs.close(io, { rest: [id] });
-  assert.deepEqual(timeless(planRecords(io, id).at(-1)), { t: 'closed', head: 'h0',
-    own: [{ sha: 'c1', subject: COMMITS[0].subject }, { sha: 'c2', subject: COMMITS[1].subject }, { sha: 'c3', subject: 'teammate tweak' }],
-    files: ['lib/csv.rb', 'spec/report/export_spec.rb', 'src/report/export.ts', 'src/report/format.ts', 'test/report/export.test.ts'],
-      tests: ['spec/report/export_spec.rb', 'test/report/export.test.ts'], other: 2, by: 'the person' });
-  assert.equal(res.text, `${id} closed: 3 own commits, 5 files, 2 tests; 2 other commits not attributed; `
-    + `commit this record: git add .decisionbook/${id}.jsonl, then git commit -m "DecisionBook: close ${id}" .decisionbook/${id}.jsonl\n`);
+  await assert.rejects(verbs.close(io, { rest: [id] }), { code: 'plan-not-ready' }, 'a plan never READY shipped nothing: close refuses it');
+  const res = await closeReady(io, { rest: [id] });
+  assert.deepEqual(timeless(planRecords(io, id).at(-1)), { t: 'closed', head: 'h0', own: [{ sha: 'c1', subject: COMMITS[0].subject }, { sha: 'c2', subject: COMMITS[1].subject }, { sha: 'c3', subject: 'teammate tweak' }], files: ['lib/csv.rb', 'spec/report/export_spec.rb', 'src/report/export.ts', 'src/report/format.ts', 'test/report/export.test.ts'], tests: ['spec/report/export_spec.rb', 'test/report/export.test.ts'], other: 2, by: 'Amy' });
+  assert.equal(res.text, `${id} closed: 3 own commits, 5 files, 2 tests; 2 other commits not attributed; ` + `the work is committed and its last commit cannot take this record in, so the record is one more commit: git add .decisionbook/${id}.jsonl, then git commit -m "DecisionBook: close ${id}" .decisionbook/${id}.jsonl\n`);
 });
 
 test('close credits a commit by the whole issue token, never by a number that only contains it',
@@ -187,10 +185,72 @@ test('close credits a commit by the whole issue token, never by a number that on
   const id = await begin(io);
   await added(io, id, { t: 'link', rel: 'plans', to: 'file:src/report/**', why: 'the export' });
   await added(io, id, { t: 'link', rel: 'for', to: 'issue:42', why: 'the ticket' });
-  await verbs.close(io, { rest: [id] });
+  await closeReady(io, { rest: [id] });
   const closed = planRecords(io, id).at(-1);
   assert.deepEqual([closed.own.map((c) => c.sha), closed.files, closed.other], [['c1', 'c8'], ['lib/csv.rb', 'lib/header.rb'], 2],
     'issue 142 and a version are not issue 42');
+});
+
+test('a plan\'s own record file is never a file outside the plan, in a commit or in the work tree', async () => {
+  const io = bookWorld();
+  const id = await begin(io);
+  const record = `.decisionbook/${id}.jsonl`;
+  io.state.commits = [{ sha: 'c1', subject: 'stream the rows', body: '', files: ['src/report/export.ts', record], after: 'h0' },
+    { sha: 'c2', subject: `DecisionBook: close ${id}`, body: '', files: [record], after: 'h0' }]; // c2 names the plan: its own, with no file of the work
+  await added(io, id, { t: 'link', rel: 'plans', to: 'file:src/report/**', why: 'the export' });
+  const res = await closeReady(io, { rest: [id] });
+  assert.deepEqual(timeless(planRecords(io, id).at(-1)), { t: 'closed', head: 'h0', own: [{ sha: 'c1', subject: 'stream the rows' },
+    { sha: 'c2', subject: `DecisionBook: close ${id}` }], files: ['src/report/export.ts'], tests: [], other: 0, by: 'Amy' });
+  assert.doesNotMatch(res.text, /outside the plan/);
+});
+
+test('the commit\'s subject is what shipped as the closer words it; a plan with a question still unanswered asks for it', async () => {
+  const io = bookWorld();
+  const id = await begin(io, { title: 'Feed format v1: sorted lines, count trailer' });
+  await added(io, id, [{ t: 'link', rel: 'plans', to: 'file:src/report/**', why: 'the feed' }, { t: 'link', rel: 'for', to: 'issue:7', why: 'the ticket' }, { t: 'research', tool: 'read', asked: 'the feed', answer: 'one writer', source: 'src/report/export.ts:1' }, { t: 'question', q: 'Q9', text: 'Is the count trailer part of v1?', decides: 'feed.trailer', whyNotCode: 'a product rule', to: 'Olivia', source: 'the issue: "Olivia decides the trailer"' }]);
+  io.state.changed = ['src/report/export.ts'];
+  const before = planRecords(io, id).length + 1; // the ready record closeReady writes first
+  await assert.rejects(closeReady(io, { rest: [id] }), (err) => err.code === 'plan-close-subject' && err.message.includes(`${id}: Q9: a question of this plan is still unanswered`) && err.message.includes('run the close again with --subject "<what shipped, in one line>"'));
+  assert.equal(planRecords(io, id).length, before, 'nothing is written');
+  const res = await closeReady(io, { rest: [id], flags: { subject: 'Feed format v1: sorted lines' } });
+  assert.match(res.text, /git commit -m 'Feed format v1: sorted lines \(#7\)'\n$/, 'the closer\'s line, with the issue');
+  assert.equal(planRecords(io, id).at(-1).subject, 'Feed format v1: sorted lines', 'kept, so the commit is told the same way again');
+  // a long line of the closer's is the subject whole; where the work's last commit takes the record in, the amend carries it too
+  const long = 'Feed format v1: lines sorted by restaurant id, schemaVersion on every line, compact JSON; the count trailer waits for the PM';
+  const amended = bookWorld();
+  const kept = await begin(amended, { title: 'Feed format v1: sorted lines, count trailer' });
+  await added(amended, kept, { t: 'link', rel: 'plans', to: 'file:src/report/**', why: 'the feed' });
+  amended.state.commits = [{ sha: 'c1', subject: 'feed', body: '', files: ['src/report/export.ts'], after: 'h0' }];
+  amended.state.head = 'c1';
+  amended.state.amendable = true;
+  const into = await closeReady(amended, { rest: [kept], flags: { subject: long } });
+  assert.ok(into.text.includes(`git commit --amend -m '${long}'`) || into.text.includes(`git commit -m '${long}'`), into.text);
+});
+
+test('close before the commit takes the plan\'s changed files as the work and prints the one commit for them and the plan', async () => {
+  const io = bookWorld();
+  const id = await begin(io);
+  await added(io, id, { t: 'link', rel: 'plans', to: 'file:src/report/**', why: 'the export' });
+  await added(io, id, { t: 'link', rel: 'for', to: 'issue:42', why: 'the ticket' });
+  io.state.changed = ['src/report/export.ts', 'test/report/export.test.ts', 'notes/it\'s a draft.txt', `.decisionbook/${id}.jsonl`];
+  const res = await closeReady(io, { rest: [id] });
+  const work = ['src/report/export.ts', 'test/report/export.test.ts'];
+  assert.deepEqual(timeless(planRecords(io, id).at(-1)), { t: 'closed', head: 'h0', own: [], files: work, tests: ['test/report/export.test.ts'],
+    unplanned: 1, other: 0, rides: work, by: 'Amy' }, 'the note beside the work is a number; the plan\'s own file is neither');
+  assert.equal(res.text, `${id} closed: 0 own commits, 2 files, 1 test; 0 other commits not attributed; 1 files outside the plan not linked; `
+    + `one commit carries the work and this record: git add src/report/export.ts test/report/export.test.ts .decisionbook/${id}.jsonl, `
+    + 'then git commit -m \'Report export is slow (#42)\'\n');
+  const named = bookWorld();
+  const titled = await begin(named, { title: 'Report export is slow (#42)' });
+  await added(named, titled, [{ t: 'link', rel: 'plans', to: 'file:src/report/**', why: 'the export' }, { t: 'link', rel: 'for', to: 'issue:#42', why: 'the ticket' }]);
+  named.state.changed = ['src/report/export.ts'];
+  assert.match((await closeReady(named, { rest: [titled] })).text, /git commit -m 'Report export is slow \(#42\)'\n$/, 'an issue the title names is not said twice');
+  assert.match((await verbs.show(io, { rest: [id, 'closed'] })).text, /its work rides in the commit that carries this record, not made yet/);
+  // near miss: with no changed file of the plan there is nothing to record, whatever else the tree holds
+  const other = bookWorld({ changed: ['notes/todo.txt'] });
+  const idle = await begin(other);
+  await added(other, idle, { t: 'link', rel: 'plans', to: 'file:src/report/**', why: 'the export' });
+  assert.equal((await closeReady(other, { rest: [idle] })).out.code, 'plan-close-empty');
 });
 
 /** A real repository, main its first branch (the fake git has no branches): { root, git(...args), commit(file, text, subject) -> its sha, that file only, io:
@@ -272,6 +332,153 @@ function mergedOutRepo() {
   repo.git('merge', '-q', '--no-ff', '--no-edit', 'feat/export');
   return { ...repo, merge: repo.git('rev-parse', 'HEAD') };
 }
+
+test('the commit made from close\'s one command is the plan\'s own: why, pr and show name it, read from git, never stored', async () => {
+  const { root, git, commit, io } = realRepo();
+  const fork = commit('src/report/export.ts', 'export const a = 1;\n', 'start');
+  git('checkout', '-q', '-b', 'feat/export');
+  writePlan(root, { id: 'a-export', title: 'Report export', head: fork, plan: 'src/report/**', day: 1 });
+  nodeFs.writeFileSync(path.join(root, 'src/report/export.ts'), 'export const a = 2;\n');
+  const res = await verbs.close(io, { rest: ['a-export'] });
+  const said = /git add (.+), then git commit -m '(.+)'\n$/.exec(res.text);
+  assert.deepEqual(said.slice(1), ['src/report/export.ts .decisionbook/a-export.jsonl', 'Report export']);
+  assert.deepEqual((await verbs.pr(io, { rest: ['a-export'] })).out.plans[0].commits, [], 'not committed yet: no commit is named');
+  git('add', '--', ...said[1].split(' '));
+  git('commit', '-q', '-m', said[2]);
+  const sha = git('rev-parse', 'HEAD');
+  const closed = JSON.parse(nodeFs.readFileSync(path.join(root, '.decisionbook/a-export.jsonl'), 'utf8').trim().split('\n').at(-1));
+  assert.deepEqual([closed.own, closed.rides], [[], ['src/report/export.ts']], 'the record names no commit: it was written before one');
+  assert.deepEqual((await verbs.why(io, { rest: ['src/report/export.ts:1'] })).out.commits.map((c) => [c.sha, c.plans.map((p) => p.id)]), [[sha, ['a-export']]]);
+  assert.deepEqual((await verbs.pr(io, { rest: ['a-export'] })).out.plans[0].commits, [{ sha, subject: 'Report export' }]);
+  assert.match((await verbs.show(io, { rest: ['a-export', 'closed'] })).text, /closed by Amy: 1 own commit, 1 file, 0 tests, 0 not attributed$/m);
+  // near miss: a later commit of another file is not the plan's work, though it comes after the close
+  const later = commit('src/other/util.ts', 'export const u = 1;\n', 'unrelated');
+  assert.deepEqual((await verbs.why(io, { rest: ['src/other/util.ts:1'] })).out.commits.map((c) => [c.sha, c.plans.length]), [[later, 0]]);
+});
+
+/** A real repository with the READY plan a-export of src/report/** on feat/export, its file in no commit, and one planned file changed. */
+function workRepo() {
+  const repo = realRepo();
+  const fork = repo.commit('src/report/export.ts', 'export const a = 1;\n', 'start');
+  repo.git('checkout', '-q', '-b', 'feat/export');
+  writePlan(repo.root, { id: 'a-export', title: 'Report export', head: fork, plan: 'src/report/**', day: 1 });
+  nodeFs.writeFileSync(path.join(repo.root, 'src/report/export.ts'), 'export const a = 2;\n');
+  const closedRows = () => nodeFs.readFileSync(path.join(repo.root, '.decisionbook/a-export.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line))
+    .filter((r) => r.t === 'closed');
+  const whyOf = async (place) => (await verbs.why(repo.io, { rest: [place] })).out.commits.map((c) => [c.sha, c.plans.map((p) => p.id)]);
+  return { ...repo, fork, closedRows, whyOf, since: () => repo.git('rev-list', '--count', `${fork}..HEAD`) };
+}
+const PLAN_FILE = '.decisionbook/a-export.jsonl';
+
+test('work committed before its close: the record goes into that commit, so one commit holds the code and the plan', async () => {
+  const { git, io, fork, closedRows, whyOf, since } = workRepo();
+  git('commit', '-q', '-am', 'Round the totals'); // the person committed what their AI named; no close ran yet
+  const work = git('rev-parse', 'HEAD');
+  const res = await verbs.close(io, { rest: ['a-export'] });
+  assert.equal(res.text, 'a-export closed: 0 own commits, 1 file, 0 tests; 0 other commits not attributed; the work\'s last commit takes this record in '
+    + `(it was made here and no other branch, remote or tag holds it), so one commit holds the work and the plan: git add ${PLAN_FILE}, then git commit --amend --no-edit\n`);
+  assert.deepEqual(closedRows().map(({ head, own, rides, into }) => ({ head, own, rides, into })),
+    [{ head: fork, own: [], rides: ['src/report/export.ts'], into: work }], 'the record names the commit it goes into and the head that one came after');
+  git('add', '--', PLAN_FILE);
+  git('commit', '-q', '--amend', '--no-edit');
+  const sha = git('rev-parse', 'HEAD');
+  assert.deepEqual([since(), git('status', '--porcelain')], ['1', ''], 'one commit since the fork, nothing left to commit');
+  assert.deepEqual(await whyOf('src/report/export.ts:1'), [[sha, ['a-export']]]);
+  assert.deepEqual((await verbs.pr(io, { rest: ['a-export'] })).out.plans[0].commits, [{ sha, subject: 'Round the totals' }]);
+  assert.match((await verbs.show(io, { rest: ['a-export', 'closed'] })).text, new RegExp(`^closed by ${PERSON}: 1 own commit, 1 file, 0 tests, 0 not attributed$`, 'm'));
+});
+
+test('a commit another ref holds, or one HEAD was moved to, is never rewritten: its close says the record is one more commit', async () => {
+  const pushed = workRepo();
+  pushed.git('commit', '-q', '-am', 'Round the totals');
+  const work = pushed.git('rev-parse', 'HEAD');
+  pushed.git('update-ref', 'refs/remotes/origin/feat/export', work); // pushed to its own remote branch
+  const res = await verbs.close(pushed.io, { rest: ['a-export'] });
+  assert.match(res.text, /its last commit cannot take this record in, so the record is one more commit: git add \.decisionbook\/a-export\.jsonl, then git commit -m "DecisionBook: close a-export"/);
+  assert.deepEqual(pushed.closedRows().map(({ own, rides, into }) => [own.map((c) => c.sha), rides, into]), [[[work], undefined, undefined]]);
+  const tagged = workRepo();
+  tagged.git('commit', '-q', '-am', 'Round the totals');
+  tagged.git('tag', 'v1');
+  assert.match((await verbs.close(tagged.io, { rest: ['a-export'] })).text, /one more commit/, 'a tag holds it');
+  const moved = workRepo();
+  moved.git('commit', '-q', '-am', 'Round the totals');
+  moved.git('checkout', '-q', '--detach');
+  moved.git('checkout', '-q', 'feat/export'); // HEAD came here by a checkout, not by the commit
+  assert.match((await verbs.close(moved.io, { rest: ['a-export'] })).text, /one more commit/, 'only a commit made here, with HEAD not moved since, is amended');
+});
+
+test('work committed apart from the record is still the plan\'s own; a close again makes it one commit', async () => {
+  const { git, io, closedRows, whyOf, since } = workRepo();
+  await verbs.close(io, { rest: ['a-export'] }); // closed before the commit, as told
+  git('commit', '-q', '-am', 'Round the totals'); // not the printed command: the plan's file stays out
+  const work = git('rev-parse', 'HEAD');
+  assert.deepEqual(await whyOf('src/report/export.ts:1'), [[work, ['a-export']]], 'the first commit after the close to change the riding file');
+  assert.deepEqual((await verbs.pr(io, { rest: ['a-export'] })).out.plans[0].commits, [{ sha: work, subject: 'Round the totals' }]);
+  assert.equal((await verbs.inbox(io, { rest: [] })).text, 'Waiting for you on feat/export: open questions 0, questions parked with someone 0, READY plans not closed 1, set aside 0\n'
+    + '- a-export closed, its record in no commit yet (atlasbound decisionbook close a-export prints the one commit): Report export\n');
+  const again = await verbs.close(io, { rest: ['a-export'] });
+  assert.match(again.text, /git add \.decisionbook\/a-export\.jsonl, then git commit --amend --no-edit\n$/);
+  assert.deepEqual(closedRows().map((r) => r.into), [work], 'the close no commit held gave way: one closed record, never two');
+  git('add', '--', PLAN_FILE);
+  git('commit', '-q', '--amend', '--no-edit');
+  assert.deepEqual([since(), (await verbs.inbox(io, { rest: [] })).text], ['1', 'Nothing waits for you on feat/export.\n']);
+  assert.deepEqual(await whyOf('src/report/export.ts:1'), [[git('rev-parse', 'HEAD'), ['a-export']]]);
+  // the record committed alone instead: the code's commit is the plan's own, the record's is not
+  const split = workRepo();
+  await verbs.close(split.io, { rest: ['a-export'] });
+  split.git('commit', '-q', '-am', 'Round the totals');
+  const code = split.git('rev-parse', 'HEAD');
+  split.git('add', '--', PLAN_FILE);
+  split.git('commit', '-q', '-m', 'the plan');
+  assert.deepEqual(await split.whyOf('src/report/export.ts:1'), [[code, ['a-export']]]);
+  assert.deepEqual((await verbs.pr(split.io, { rest: ['a-export'] })).out.plans[0].commits, [{ sha: code, subject: 'Round the totals' }]);
+  // near miss: a later commit that changes the riding file again is not the plan's work
+  const later = split.commit('src/report/export.ts', 'export const a = 3;\n', 'a later fix, no plan');
+  assert.deepEqual(await split.whyOf('src/report/export.ts:1'), [[later, []]]);
+});
+
+test('a session is brought to close: its turn is held once per tree, each message is told the commit, the plan stays open', async () => {
+  const io = bookWorld({ files: { 'src/report/export.js': 'a\n' } });
+  writeConfig(io, { protect: ['src/**'] });
+  const { id } = await readyOne(io);
+  io.session = 's1';
+  const stop = async (over = {}) => ruling(await handlers.stop({ hook_event_name: 'Stop', session_id: 's1', stop_hook_active: false, ...over }, io));
+  const told = async (prompt) => textOf(await handlers.prompt({ hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt }, io));
+  const closedRows = () => planRecords(io, id).filter((r) => r.t === 'closed');
+  assert.deepEqual([await stop(), await told('ok')], [['allow', 'stop-clean'], ''], 'no work in the tree yet: nothing is owed, nothing is said');
+  io.state.changed = ['src/report/export.js'];
+  const held = await handlers.stop({ hook_event_name: 'Stop', session_id: 's1', stop_hook_active: false }, io);
+  assert.deepEqual([held.verdict, held.plan, held.reason], ['deny', id, `DecisionBook: stop-unclosed: ${id}: this session's work under this READY plan is in the `
+    + 'work tree and no close records it as it is now. Is the work finished? Run atlasbound decisionbook close with this plan\'s id (where less or other than its title shipped, add --subject "<what shipped, in one line>"), then give the person the one '
+    + 'commit it prints, as printed. Is it not finished? Tell the person what is left. This is said once for the work tree as it is']);
+  assert.deepEqual(await stop(), ['allow', 'stop-clean'], 'the same tree again: not held twice');
+  const due = `DecisionBook: the work of plan ${id} is in the work tree and no close records it as it is now. When the person says the work is done, or asks `
+    + `what to commit: run atlasbound decisionbook close ${id} first (where less or other than its title shipped, with --subject "<what shipped, in one line>"), then give them the one commit it prints, as printed.`;
+  assert.equal(await told('Looks good to me. Wrap it up and tell me what to commit.'), due, 'the person\'s own words for done bring the close');
+  await verbs.close(io, { rest: [id] });
+  io.state.changed = ['src/report/export.js', logFile(id)];
+  assert.equal(closedRows()[0].by, PERSON, 'closed in the session the person prompted since the plan began: theirs, by name');
+  const commit = `git add src/report/export.js ${logFile(id)}, then git commit -m 'Report export is slow'`;
+  assert.equal(await told('what do I commit?'), `DecisionBook: plan ${id} is closed and no commit holds its record yet. When the person asks what to commit, give `
+    + `them this, as printed: one commit carries the work and this record: ${commit}`);
+  assert.deepEqual(await stop(), ['allow', 'stop-clean'], 'closed on this tree: nothing owed');
+  assert.deepEqual(ruling(await handlers.preEdit(editEvent('src/report/export.js'), io)), ['allow', 'gate-in-scope'], 'no commit holds the close: the work goes on under it');
+  io.fs.writeAtomic('src/report/export.js', 'b\n'); // the person asked for one more change
+  assert.deepEqual([await stop(), await stop({ stop_hook_active: true })], [['deny', 'stop-unclosed'], ['allow', 'stop-clean']], 'the tree moved past the close: held once more');
+  assert.equal(await told('and now?'), due, 'the old commit is not handed for a tree it no longer fits');
+  await verbs.close(io, { rest: [id] });
+  assert.equal(closedRows().length, 1, 'the close no commit held gave way to this one');
+  // near miss: once a commit holds the record the plan is closed for good, and an edit needs a plan again
+  io.state.changed = [];
+  assert.deepEqual([ruling(await handlers.preEdit(editEvent('src/report/export.js'), io)), await told('thanks'), await stop()],
+    [['deny', 'plan-none'], '', ['allow', 'stop-clean']]);
+  // near miss: a session no person prompted since the plan began closes as the AI
+  const alone = bookWorld({ changed: ['src/report/export.js'] });
+  const lone = (await readyOne(alone)).id;
+  alone.session = 's1';
+  await verbs.close(alone, { rest: [lone] });
+  assert.equal(planRecords(alone, lone).at(-1).by, 'ai');
+});
 
 // what every close refusal tells the person to do, written by hand (the route back holds: a branch made at the merge's second parent closes)
 const BACK = 'close it on its branch feat/export as it was when the work was done (if it is gone: git branch feat/export <its merge>^2)';
@@ -365,10 +572,10 @@ test('a plan made on a detached HEAD closes on a detached HEAD only; on a branch
   io.state.commits = commitsOf(id);
   io.state.branch = 'main';
   const message = `plan-close-off-branch: ${id}: close it on its branch detached as it was when the work was done (if it is gone: git checkout --detach <its merge>^2); HEAD: main`;
-  await assert.rejects(verbs.close(io, { rest: [id] }), { code: 'plan-close-off-branch', message });
-  assert.deepEqual(planRecords(io, id).map((r) => r.t), ['plan'], 'nothing appended');
+  await assert.rejects(closeReady(io, { rest: [id] }), { code: 'plan-close-off-branch', message });
+  assert.deepEqual(planRecords(io, id).map((r) => r.t), ['plan', 'ready'], 'nothing appended');
   io.state.branch = null;
-  assert.equal((await verbs.close(io, { rest: [id] })).out.code, 'plan-closed', 'back on a detached HEAD it closes');
+  assert.equal((await closeReady(io, { rest: [id] })).out.code, 'plan-closed', 'back on a detached HEAD it closes');
 });
 
 test('the refusal\'s route closes with both own commits, the branch put back where its work ended',
@@ -623,7 +830,7 @@ test('[I-8] a newer READY plan parks the older: the older opens nothing, its fil
   const next = await begin(io, { title: 'Report filters' });
   // no supersedes link: parked, not replaced
   for (const record of recordsFor('normal', ['src/filters/**'], '.next').slice(0, -1)) await added(io, next, record);
-  assert.equal((await added(io, next, { t: 'confirm', by: 'Ayse', said: 'yes' })).out.state.parked, old, 'the yes that makes it READY parks the older');
+  assert.equal((await added(io, next, { t: 'confirm', by: 'Amy', said: 'yes' })).out.state.parked, old, 'the yes that makes it READY parks the older');
   assert.deepEqual(await gateSays(io, 'src/report/db/rows.sql'), ['ask', 'plan-out-of-scope', next], 'a danger path the parked plan held is outside the newer one');
   assert.deepEqual(await gateSays(io, 'src/report/export.ts'), ['ask', 'plan-outside', next], 'the parked plan\'s file is outside the newer one');
   assert.deepEqual(await gateSays(io, 'src/filters/a.ts'), ['allow', 'gate-in-scope', next]);
@@ -638,7 +845,7 @@ async function twoPlans(io, branch, [a, b], { extra = [], draft = false } = {}) 
   await verbs.ready(io, { rest: [old] });
   for (const record of [...recordsFor('normal', [`src/${b}/**`], `.${b}`).slice(0, -1), ...extra.map((rel) => ({ t: 'link', rel, to: `plan:${old}`,
     why: 'replaces it' }))]) await added(io, next, record);
-  if (!draft) await added(io, next, { t: 'confirm', by: 'Ayse', said: 'yes' }); // a draft: no yes yet, so it is not READY
+  if (!draft) await added(io, next, { t: 'confirm', by: 'Amy', said: 'yes' }); // a draft: no yes yet, so it is not READY
   return [old, next];
 }
 

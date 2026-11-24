@@ -3,9 +3,9 @@
     "name": "decisionbook"
   },
   "caps": {
-    "pipeline": 4947,
+    "pipeline": 5613,
     "debug": 65,
-    "tests": 7431
+    "tests": 8652
   },
   "traceAs": {
     "steps/trust.cjs": "inside the traced steps that keep or read a yes here: decisionbook.add, decisionbook.ready, decisionbook.gate, decisionbook.trust, decisionbook.session (run/verbs)",
@@ -16,6 +16,7 @@
     "steps/batch.cjs": "inside decisionbook.create and decisionbook.add (run/verbs, through steps/write); n counts the records, the links and the unmet rows, a refusal is the row's error code",
     "steps/ready.cjs": "inside decisionbook.ready, and decisionbook.create and decisionbook.add through steps/batch (run/verbs); n counts the unmet rows and the standards",
     "steps/close.cjs": "inside the traced step decisionbook.close (run/verbs); n counts the commits read and the plan's own",
+    "steps/closing.cjs": "inside the traced steps that read a close no commit holds: decisionbook.close, decisionbook.gate, decisionbook.stop, decisionbook.prompt, decisionbook.inbox (run/verbs); a held turn is the stop row's code",
     "steps/read.cjs": "inside the traced steps decisionbook.show, decisionbook.find, decisionbook.resume and the handlers decisionbook.gate, decisionbook.session, decisionbook.prompt (run/verbs)",
     "steps/protect.cjs": "inside the traced step decisionbook.protect (run/verbs; setup's question is also the cli's own protect step)",
     "steps/store.cjs": "the one reader and writer of .decisionbook/, inside every decisionbook.* step that reads or appends (run/verbs)",
@@ -31,10 +32,11 @@
     "steps/standards.cjs": "inside decisionbook.ready (run/verbs), whose n says standards, standardsDecided or standardsUnread",
     "steps/promise.cjs": "inside the traced handlers decisionbook.gate and decisionbook.recall (run/verbs), whose n counts the promises, the broken imports and an ask already given",
     "steps/surface.cjs": "inside the traced handlers decisionbook.gate and decisionbook.recall (run/verbs), through steps/promise",
-    "steps/phase.cjs": "writes the plan.phase rows itself (created, READY, the first allowed write), beside the traced step that reached the phase: decisionbook.create, decisionbook.add, decisionbook.ready, decisionbook.gate, decisionbook.prompt",
+    "steps/phase.cjs": "writes the plan.phase rows itself (created, READY, the first allowed write) and the plan.flow rows (the first READY, the close), beside the traced step that reached the phase: decisionbook.create, decisionbook.add, decisionbook.ready, decisionbook.close, decisionbook.gate, decisionbook.prompt",
     "steps/inbox.cjs": "inside the traced step decisionbook.inbox (run/verbs); n counts the rows of this branch and the pulled ones",
     "steps/why.cjs": "inside the traced step decisionbook.why (run/verbs); n counts the commits blamed and the closed plans that list them",
     "steps/teammate.cjs": "inside the traced steps that ask whose a plan or a line is: decisionbook.create, decisionbook.add, decisionbook.close and every reader that names a conflict (run/verbs)",
+    "steps/source.cjs": "inside decisionbook.create and decisionbook.add (run/verbs, through steps/batch): what the product read at a record's source decides the record's refusal code",
     "steps/pr.cjs": "inside the traced step decisionbook.pr (run/verbs); n counts the plans described"
   }
 }

@@ -46,7 +46,11 @@ test('through the real bin a shell write of a protected file is denied with no p
   assert.deepEqual(stop({ stop_hook_active: true }), {}, 'never twice in a row');
   const id = 'PLAN-20261105-poll-options';
   writeFiles(repo, { [`.decisionbook/${id}.jsonl`]: readyPlan(id, git(repo, 'symbolic-ref', '--short', 'HEAD').trim()) });
-  assert.deepEqual(stop(), {}, 'a READY plan of this branch covers the change');
+  assert.deepEqual(stop().reason, `DecisionBook: stop-unclosed: ${id}: this session's work under this READY plan is in the work tree and no close records `
+    + 'it as it is now. Is the work finished? Run atlasbound decisionbook close with this plan\'s id (where less or other than its title shipped, add --subject "<what shipped, in one line>"), '
+    + 'then give the person the one commit it prints, as printed. '
+    + 'Is it not finished? Tell the person what is left. This is said once for the work tree as it is', 'a READY plan of this branch covers the change: the turn is held for its close');
+  assert.deepEqual(stop(), {}, 'once for the tree as it is');
   const edit = { tool_name: 'Edit', tool_use_id: 'tu1', tool_input: { file_path: path.join(repo, FILE), old_string: 'X', new_string: 'Y' } };
   assert.equal(hookDecisionOf(said('PreToolUse', edit)).permissionDecision, 'ask', 'a READY plan that came with the repository asks the person once');
   assert.equal(said('PostToolUse', { ...edit, tool_response: { filePath: path.join(repo, FILE) } }).code, 0, 'the person said yes');

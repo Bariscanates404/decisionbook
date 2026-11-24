@@ -8,14 +8,15 @@ const { text: { lines: { filled } } } = require('@atlasbound/kit');
 const { WORDS, SHOWN: { inbox: shown }, branchWord } = require('../../contracts/codes.cjs');
 const { boundedLines } = require('./budget.cjs');
 const { jsonCall } = require('./calls.cjs');
-const { rivalText } = require('./records.cjs');
+const { rivalText, parkedText, putOffSaid } = require('./records.cjs');
 
 const INBOX_BYTES = 3072;
 const WAITING = {
   question: (r) => `${shown.q(r.q)}: ${r.conflict ? rivalText(r.conflict) : `${shown.text(r.text)}${r.proposal ? filled(WORDS.inboxProposed,
-    { proposal: shown.proposal(r.proposal) }) : ''}`}`,
-  ready: (r) => filled(r.held ? WORDS.inboxHeld : WORDS.inboxReady,
-    { title: shown.title(r.title), held: r.held && WORDS.held[r.heldBy].title }),
+    { proposal: shown.proposal(r.proposal) }) : ''}${putOffSaid(r.later)}`}`,
+  parked: parkedText,
+  ready: (r) => filled((r.unsealed && WORDS.inboxUnsealed) || (r.held ? WORDS.inboxHeld : WORDS.inboxReady),
+    { id: r.id, title: shown.title(r.title), held: r.held && WORDS.held[r.heldBy].title }),
   aside: (r) => filled(WORDS.inboxAside, { title: shown.title(r.title), by: shown.by(r.asideBy), said: shown.said(r.said) }),
 };
 const pulledFrom = (r) => (r.by === undefined ? '' : ` on ${shown.branch(branchWord(r.branch))}${r.by ? ` by ${shown.by(r.by)}` : ''}`);

@@ -59,9 +59,8 @@ function planLines(p, max, cap = BOUNDS.plan) {
 
 const ANSWERED = /(^|\s)[-*•]\s+[^"“]{0,40}["“][^"”]*["”]\s*[:：]\s*(?=[-*•]\s|$)/gu; // a list item's quoted opening with no answer left under it
 const SAID_WORDS = 3; // a shorter sentence could stand anywhere in a message
-/** A message without what a plan already holds of it as the person's own sentence (a decision's `said`): the plan says those. An
- * item's quoted question goes with its answer, a line that only opens the list with the list. -> what is left, '' where the plan
- * holds it all */
+/** A message without what a plan already holds of it as the person's own sentence (a decision's `said`): the plan says those. An item's
+ * quoted question goes with its answer, a line that only opens the list with the list. -> what is left, '' where the plan holds it all */
 function notInPlans(text, saids) {
   const left = saids.reduce((rest, said) => rest.split(said).join(''), text.replace(/\s+/g, ' ')).replace(ANSWERED, '$1').trim();
   return /[:：]$/u.test(left) ? '' : left;

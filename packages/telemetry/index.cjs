@@ -5,7 +5,7 @@
 // @atlasbound/telemetry: every verb is `(io, args)`; `net` defaults to the one real port and `machine` to this machine's facts. A module
 // registers by its descriptor and the counts its steps trace: it gets no handle of its own, no id, address, network client or free JSON.
 const { isCode } = require('./contracts/codes.cjs');
-const { PKG, SCHEMA, ENUMS, WIRE, PATHS } = require('./contracts/shapes.cjs');
+const { ENUMS, WIRE, PATHS } = require('./contracts/shapes.cjs');
 const run = require('./run/telemetry.cjs');
 const { renderTelemetry, doctorOf } = require('./debug/telemetry.cjs');
 const { createNet } = require('./adapters/net.cjs');
@@ -19,8 +19,8 @@ module.exports = {
   vocabulary: { steps: ENUMS.step, isCode },
   status: verb(run.consentStatus), optIn: verb(run.turnOn), optOut: verb(run.turnOff), next: verb(run.nextShown),
   history: verb(run.historyKept), reset: verb(run.resetNow), send: verb(run.sendNow), due: verb(run.dueNow), hint: verb(run.hintSaid),
+  notice: verb(run.noticeSaid),
   doctor: async (io) => doctorOf(await run.consentStatus(io, ctxOf(io))),
   debug: { telemetry: verb(run.lookOnly), render: renderTelemetry },
   spareStores: () => [PATHS.store],
-  PKG, SCHEMA,
 };

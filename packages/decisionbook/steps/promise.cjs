@@ -41,23 +41,23 @@ function brokenIn(event, io, file, promises) {
   return brokenOf(imports, promises);
 }
 
-/** The gate's one ask: a test file whose new text imports outside a promise, once a session and promise (no one to ask: refused once, with
- * the line). */
-async function contractVerdict(event, io, file) {
+/** The gate's one ask: a test file importing outside a promise, until the person lets such a write run (`ran`: the write ran, postEdit,
+ * so it was their yes; a no runs nothing); no one to ask: refused once. */
+async function contractVerdict(event, io, file, ran = false) {
   const promises = fileRole(file).role === 'test' ? await promisesHere(io) : [];
   if (!promises.length) return { n: {} };
   const broken = brokenIn(event, io, file, promises);
   const asked = new Set(sessionRows(io, event.session_id).filter((row) => row.t === 'contract').map((row) => row.promise));
   const fresh = broken.filter((b) => !asked.has(b.promise.file));
-  const n = { promises: promises.length, broken: broken.length, ...(broken.length && !fresh.length ? { contractAsked: 1 } : {}) };
-  if (!fresh.length) return { n };
-  if (event.session_id) [...new Set(fresh.map((b) => b.promise.file))].forEach((promise) => sessionAdd(io, event.session_id, { t: 'contract', promise }));
+  const n = { promises: promises.length, broken: broken.length, contractAsked: Number(broken.length > 0 && !fresh.length) };
+  const kept = ran || !asksPerson(event.permission_mode); // passed: their yes, or told once where no one is asked
+  [...new Set(kept ? fresh.map((b) => b.promise.file) : [])].forEach((promise) => sessionAdd(io, event.session_id, { t: 'contract', promise }));
+  if (!fresh.length || ran) return { n };
   const reason = `${WORDS.gatePrefix} contract-unpromised: ${fresh.slice(0, 2).map((b) => brokenLine(file, b)).join(' ; ')}`;
-  return { verdict: asksPerson(event.permission_mode) ? 'ask' : 'deny', code: 'contract-unpromised', reason, n };
+  return { verdict: kept ? 'deny' : 'ask', code: 'contract-unpromised', reason, n };
 }
 
-/** the promises a plan takes on, each written once as a derived `contract` link (as built-on is): a planned path that covers the promised
- * file, lies in its folder, or is a test file. */
+/** the promises a plan takes on, each once as a derived `contract` link: a planned path covering the promised file, its folder, a test. */
 async function planContracts(io, view, batch) {
   const planned = scopeOf(view);
   const promises = planned.length ? await promisesHere(io, batch) : []; // a promise decided in this same call is read from the batch

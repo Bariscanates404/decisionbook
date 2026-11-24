@@ -43,12 +43,15 @@ function forksLine(row, level) {
   return `${filled(WORDS.forksCounted, { counted, level: WORDS.levels[level], needs: row.needs })}${waits}${unread}`;
 }
 
+/** Why the person's yes is asked in words: danger paths joined after it, or an answer of theirs keeps a decision. */
+const yesLines = ({ yesFor = [], keptAnswer }) => [...(yesFor.length ? [filled(WORDS.yesAgain, { files: shown.yesFor(yesFor.join(', ')) })] : []),
+  ...(keptAnswer ? [WORDS.yesAfterKeep] : [])];
 /** One rubric row a plan does not hold, then what the row counted: the forks, the standards to ask the person, the danger paths
  * that joined after the yes. `known`: the row was said before this write, so its sentence is not said again. */
 function unmetLines(row, level, known) {
   const forks = row.forks ? [forksLine(row, level)] : [];
   const standards = row.standards ? standardsLines(row.standards) : [];
-  const yes = row.yesFor && row.yesFor.length ? [filled(WORDS.yesAgain, { files: shown.yesFor(row.yesFor.join(', ')) })] : [];
+  const yes = yesLines(row);
   // the planned files not read yet, every one, as one plain list
   const read = row.notRead ? [filled(WORDS.researchRead, { read: row.read, needs: row.needs, files: row.notRead.join(', ') || 'none' })] : [];
   const guide = !known && row.forks ? [WORDS.askGuide] : []; // what to ask about: the gap list, a guide, never records
@@ -82,6 +85,10 @@ function missingLines(o) {
 const madeNotes = (o) => [...(o.researchNote ? [filled(WORDS.researchNote, o.researchNote)] : []),
   ...(o.undecided ? [WORDS.statedNote] : [])];
 
+/** Who decided what, as a plan made READY says it for the person: a teammate's words, their own, what was assumed. */
+const whoDecidedLines = (decided = []) => (decided.length ? [WORDS.whoDecided, ...decided.map(({ as, ...d }) => filled(WORDS.whoLine[as],
+  { who: shown.by(d.who), key: shown.key(d.key), value: shown.value(String(d.value)) }))] : []);
+
 /** A plan's state after a write or a `ready`: READY (frozen, with the contract it took on), not READY (its progress, the rows,
  * then the fill-in), or the state of a parked, closed or replaced plan, which is only told. */
 function readyLines(o) {
@@ -95,7 +102,7 @@ function readyLines(o) {
     return [`${o.id} not READY as ${level}${parked}: ${progress}`, ...missingLines(o), ...fillInLines(o.next), ...promised];
   }
   const askedOnce = o.here ? [] : [WORDS.askedOnce];
-  return [`${o.id} READY as ${level}${parked}. ${WORDS.frozen}`, ...madeNotes(o), ...askedOnce, ...promised];
+  return [`${o.id} READY as ${level}${parked}. ${WORDS.frozen}`, ...whoDecidedLines(o.decided), ...madeNotes(o), ...askedOnce, ...promised];
 }
 
 module.exports = { readyLines };

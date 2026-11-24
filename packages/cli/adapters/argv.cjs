@@ -18,6 +18,7 @@ const { doctor, status, debugDoctor } = require('../steps/doctor.cjs');
 const { debugRuns } = require('../debug/trace.cjs');
 const { debugShell } = require('../debug/shell.cjs');
 const { debugWho } = require('../debug/who.cjs');
+const { whoami } = require('../steps/whoami.cjs');
 const { debugInject } = require('./inject.cjs');
 const { leftovers, leftoversRemove } = require('../steps/leftovers.cjs');
 const { draftGiven, dropDraft, draftKept } = require('../steps/drafts.cjs');
@@ -46,7 +47,7 @@ function parse(argv) {
 const LOCAL = { setup: ['setup', setup], update: ['update', setup], doctor: ['doctor', doctor], status: ['status', status], debugTrace: ['debug.trace', debugRuns],
   debugDoctor: ['debug.doctor', debugDoctor], debugShell: ['debug.shell', debugShell],
   modules: ['modules', modules], modulesSet: ['modules', modulesSet], debugInject: ['debug.inject', debugInject],
-  debugWho: ['debug.who', debugWho], leftovers: ['leftovers', leftovers], leftoversRemove: ['leftovers', leftoversRemove] };
+  debugWho: ['debug.who', debugWho], whoami: ['whoami', whoami], leftovers: ['leftovers', leftovers], leftoversRemove: ['leftovers', leftoversRemove] };
 
 /** The repository help speaks of, opened only to look; null outside one, where no module is on or off. */
 function lookedAt(flags) {
@@ -86,7 +87,7 @@ function helpOf(words, io, all = false) {
   const here = (rows) => rows.filter((r) => !offs.has(r.pkg));
   const asked = words.filter((w, i) => !HELP_FLAGS.includes(w) && !(i === 0 && w === 'help'));
   const head = route(asked);
-  const listed = under(asked).filter((r) => !r.next); // a verb nobody types (a background child's) is not advertised
+  const listed = under(asked);
   const found = listed.length ? listed : head && under(head.words).length === 1 && [head];
   if (!found) throw unknownVerb(catalog(), asked);
   const rows = here(found);
@@ -199,8 +200,8 @@ async function main(argv) {
 }
 
 /** Telemetry's attempt after a verb's answer (its answer `due`): never for a hook (the hook port does not come here), a server or a read,
- * telemetry's own verbs, uninstall, a verb nobody types, or a process its starter bounded. */
-const dueAfter = (io, row) => (row.host || row.reads || row.looks || row.next || row.pkg === 'telemetry' || stopBound() ? null
+ * telemetry's own verbs, uninstall, or a process its starter bounded. */
+const dueAfter = (io, row) => (row.host || row.reads || row.looks || row.pkg === 'telemetry' || stopBound() ? null
   : () => io.answer('due', {}));
 
 async function verbRun(argv, parsed, row) {

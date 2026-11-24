@@ -6,9 +6,10 @@
 // is recorded by its name only (kit's rule).
 const { errors: { isFail } } = require('@atlasbound/kit');
 
+const firstLine = (text) => String(text).trim().split('\n')[0];
 /** An error as one line, its code once: kit's `fail` and node's system errors already start their message with it. */
 function errorLine({ code, name, message }) {
-  const first = String(message).trim().split('\n')[0];
+  const first = firstLine(message);
   return first.startsWith(code || name) ? first : `${code || name}: ${first}`;
 }
 
@@ -17,4 +18,4 @@ function saidFailure(io, step, code, err) {
   return `  ${code} ${errorLine(err)}`;
 }
 
-module.exports = { saidFailure, errorLine };
+module.exports = { saidFailure, errorLine, firstLine };

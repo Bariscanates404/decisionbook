@@ -30,6 +30,8 @@ const closedState = (code, why = null) => ({ on: false, code, source: null, sinc
 const choiceEntry = (choice, ns) => (Object.hasOwn(choice.modules, ns) ? choice.modules[ns] : null);
 /** An on made under the current (core, namespace) policy pair. */
 const onUnderPair = (entry, { wire, space }) => entry?.on === true && entry.core === wire.policy && entry.policy === space.policy;
+/** Whether the notice a person saw covers a namespace: said under the current core policy and this namespace's current policy. */
+const noticeCovers = (noticed, { wire, space }) => noticed?.core === wire.policy && noticed.policies?.[space.ns] === space.policy;
 
 /** The namespaces one module word names (the namespace, or a package in it); no word: none named, so all. */
 function modulesNamed(spaces, rest = []) {
@@ -49,4 +51,4 @@ function codedAnswer(err) {
 const withSendLock = (io, fn) => withLock(io, PATHS.lock, fn, 0);
 
 module.exports = { HOUR_MS, DAY_MS, daysAgo, addTo, recordAt, writeRecord, reportText, randomHex, jitterMs, hostEvent, closedState,
-  choiceEntry, onUnderPair, modulesNamed, tracedOut, codedAnswer, withSendLock };
+  choiceEntry, onUnderPair, noticeCovers, modulesNamed, tracedOut, codedAnswer, withSendLock };

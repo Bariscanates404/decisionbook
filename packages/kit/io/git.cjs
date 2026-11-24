@@ -4,8 +4,8 @@
 'use strict';
 // THE git port: no shell, `-z` names, every child closed against the repository's own config; an unknown base is null, any other exit
 // `git-failed`.
-const { pathKey } = require('../base/paths.cjs');
-const { fail, isFail } = require('../base/errors.cjs');
+const { keyOf } = require('../base/paths.cjs');
+const { fail } = require('../base/errors.cjs');
 
 const NUL = '\u0000';
 const RS = '\u001e';
@@ -18,6 +18,7 @@ const CLOSED_CONFIG = ['core.fsmonitor=false', 'core.hooksPath=/dev/null', 'log.
 const FILTER_KEY = /^filter\.(.*)\.[^.]+$/;
 const LIST_CONFIG = ['config', '--name-only', '-z', '--list']; // this verb fires nothing (measured verb by verb)
 const LOG = ['log', '--no-merges', '-z', '--name-only', `--format=${RS}%H${US}%s${US}%b${US}`];
+const MAPPED = /^(.*)<([^<>]*)>$/; // check-mailmap's answer: a name (none: the mail was asked alone and no entry names one), then the mail
 const fieldsOf = (text) => text.split(NUL).filter(Boolean);
 
 // `required=false`: a required filter with no driver stops `status`; git splits `-c` at the first `=`, so a name holding one is refused.
@@ -29,19 +30,16 @@ function closedArgs(listed) {
   return [...[...CLOSED_CONFIG, ...names.flatMap(off)].flatMap((pair) => ['-c', pair]), '--literal-pathspecs'];
 }
 
-function keyOf(disk) {
-  try {
-    return { key: pathKey(disk) };
-  } catch (err) {
-    if (!isFail(err)) throw err;
-    return { key: null, refused: err.code };
-  }
+/** A path git names as its row's key, or why it is no key (`refused`): a row is listed either way. */
+function rowKey(disk) {
+  const { key, code } = keyOf(disk);
+  return code ? { key: null, refused: code } : { key };
 }
 
 const lsFilesOf = (text) => [...new Map(fieldsOf(text).map((field) => {
   const mode = field.slice(0, field.indexOf(' '));
   const disk = field.slice(field.indexOf('\t') + 1);
-  return [disk, { ...keyOf(disk), disk, mode, link: mode === LINK_MODE }];
+  return [disk, { ...rowKey(disk), disk, mode, link: mode === LINK_MODE }];
 })).values()];
 
 function porcelainOf(text) {
@@ -50,7 +48,7 @@ function porcelainOf(text) {
   for (let i = 0; i < fields.length; i += 1) {
     const xy = fields[i].slice(0, 2);
     const disk = fields[i].slice(3);
-    rows.push({ xy, ...keyOf(disk), disk, ...(/[RC]/.test(xy) ? { from: fields[(i += 1)] } : {}) });
+    rows.push({ xy, ...rowKey(disk), disk, ...(/[RC]/.test(xy) ? { from: fields[(i += 1)] } : {}) });
   }
   return rows;
 }
@@ -96,10 +94,12 @@ const looseOf = (text) => quads(text.split(NUL)).filter(([, , p]) => !p || p.sta
 const gitFailed = (verb, res) => fail('git-failed', `${verb}: ${res.error || res.killedBy || res.code}`);
 
 // createGit ({ proc, root, env }) rows: lsFiles { key, refused?, disk, mode, link }; statusZ { xy, key, refused?, disk, from? }; commits {
-// sha, subject, body, files }; shared { sha, ref }; tracked the paths git lists; unignored { key, by }; head, branch, author one line or
+// sha, subject, body, files }; shared { sha, ref }; tracked git's paths; unignored { key, by }; head, branch, origin, author one line or
 // null; blame { sha, subject, author, mail } per line of a tracked file as the work tree holds it (`line`: that line only), none before a
-// first commit; me, the author mail this clone commits as, read as blame names an author (`author.email` before `user.email`, through
-// the mailmap), null where none is set.
+// first commit; me, who this clone commits as, { name, mail } read as blame names an author (`author.*` before `user.*`, through the
+// mailmap), each null where git holds none; filesOf, the files one commit changed; under, whether a commit is HEAD or under it;
+// amendable, whether HEAD's commit may still be rewritten: it was committed in this checkout (the reflog's last move of HEAD is a
+// commit) and no branch but HEAD's own, no remote branch and no tag holds it.
 function createGit({ proc, root, env = {} }) {
   const child = { env: { ...env, ...CLOSED_ENV }, cwd: root, capBytes: CAP_BYTES };
   let closed = null; // once per port: the config a run reads does not change under it
@@ -133,12 +133,20 @@ function createGit({ proc, root, env = {} }) {
     },
     head,
     resolves,
-    branch: () => line(['symbolic-ref', '-q', '--short', 'HEAD']),
+    branch: () => line(['symbolic-ref', '-q', '--short', 'HEAD']), origin: () => line(['config', 'remote.origin.url']),
+    filesOf: async (sha) => fieldsOf(await git(['show', '--name-only', '--format=', '-z', sha])),
+    under: async (rev) => (await resolves(rev)) && (await line(['merge-base', '--is-ancestor', rev, 'HEAD'])) !== null,
+    amendable: async () => /^commit\b/.test((await line(['reflog', '-1', '--format=%gs', 'HEAD'])) ?? '') // `%(HEAD)`: `*` on HEAD's branch
+      && !/^ $/m.test(await git(['for-each-ref', '--contains', 'HEAD', '--format=%(HEAD)', 'refs/heads', 'refs/remotes', 'refs/tags'])),
     author: async (key) => ((await head()) && (await line(['log', '-1', '--format=%an', '--', key]))) || null,
     me: async () => {
-      const mail = (await line(['config', 'author.email'])) || (await line(['config', 'user.email']));
-      const mapped = mail ? await line(['check-mailmap', `<${mail}>`]) : null; // `Name <mail>`, or `<mail>` where no row maps it
-      return mapped ? mapped.slice(mapped.lastIndexOf('<') + 1, mapped.lastIndexOf('>')) : null;
+      const said = async (field) => (await line(['config', `author.${field}`])) || (await line(['config', `user.${field}`]));
+      const name = await said('name');
+      const mail = await said('email');
+      // git's contact form is `Name <mail>`: a name that holds `<` or `>` cannot be asked in it, so the mail alone is
+      const asked = mail ? `${name && !/[<>]/.test(name) ? `${name} ` : ''}<${mail}>` : null;
+      const mapped = asked ? MAPPED.exec(await line(['check-mailmap', asked]) ?? '') : null;
+      return mapped ? { name: mapped[1].trim() || name, mail: mapped[2] } : { name, mail };
     },
     commits: (base, { firstParent = false } = {}) => since(base, async () => commitsOf(await git(rangeOf(base, firstParent)))),
     shared: (base, branch) => since(base, () => sharedOf(git, base, branch)),

@@ -9,11 +9,11 @@ const ZERO_WIDTH = '\\u{ad}\\u{200b}-\\u{200d}\\u{2060}-\\u{2064}\\u{feff}\\u{18
 const BIDI = new RegExp(`[${BIDI_MARKS}\\u{2028}\\u{2029}]+`, 'gu');
 const INVISIBLE = new RegExp(`[${ZERO_WIDTH}]+`, 'gu');
 const HIDDEN = new RegExp(`[${ZERO_WIDTH}${BIDI_MARKS}\\u{1}-\\u{8}\\u{b}\\u{c}\\u{e}-\\u{1f}\\u{7f}-\\u{9f}]+`, 'gu'); // a line break stays: rows read lines
-const scrub = (s, control) => String(s ?? '').replace(control, ' ').replace(BIDI, ' ').replace(INVISIBLE, '');
+const blanked = (s, control) => String(s ?? '').replace(control, ' ').replace(BIDI, ' ').replace(INVISIBLE, '');
 
 const visible = (s) => String(s ?? '').replace(HIDDEN, '');
-const line = (s) => scrub(s, /[\u{0}-\u{1f}\u{7f}-\u{9f}]+/gu).replace(/\s+/g, ' ').trim();
-const block = (s) => scrub(s, /[\u{0}-\u{8}\u{b}-\u{1f}\u{7f}-\u{9f}]+/gu); // multi-line by contract: TAB and LF stay
+const line = (s) => blanked(s, /[\u{0}-\u{1f}\u{7f}-\u{9f}]+/gu).replace(/\s+/g, ' ').trim();
+const block = (s) => blanked(s, /[\u{0}-\u{8}\u{b}-\u{1f}\u{7f}-\u{9f}]+/gu); // multi-line by contract: TAB and LF stay
 
 // A cut is marked `~` (a silently shortened value reads as complete) and never splits a surrogate pair.
 function clip(s, max) {

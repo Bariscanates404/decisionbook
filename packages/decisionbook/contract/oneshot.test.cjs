@@ -44,7 +44,7 @@ test('a new wrong in its head and in five records names every problem in one rep
     { t: 'question', q: 'Q1', text: 'Which job runs first?', decides: 'run order within a tick', whyNotCode: 'a product rule' },
     { t: 'item', kind: 'gap', gap: 'scope-surfaces', status: 'evidence', text: 'lib/sched and its two tests only', source: 'lib/sched' },
     { t: 'item', kind: 'step', order: 1, file: 'lib/sched/index.js', text: 'order by priority then name', verify: 'AC-1' },
-    { t: 'decision', key: 'priority order', value: 'lower runs first', why: 'like nice', by: 'developer', answers: 'Q1', effect: ['check:AC-2', 'step:2'] }]; // its key a phrase too
+    { t: 'decision', key: 'priority order', value: 'lower runs first', why: 'like nice', whose: 'person', answers: 'Q1', effect: ['check:AC-2', 'step:2'] }]; // its key a phrase too
   const err = await made(io, { ...head, level: 'small', records }).then(() => null, (e) => e); // the level in the pack's words
   assert.equal(err.message, 'record-invalid: nothing written: the plan: plan.level is not one of micro, normal, critical; record 2 of 7: research.tool is '
     + 'not word, research-uncited: lib/sched/index.js:99: no such line here; record 4 of 7: question.decides is not word; record 5 of 7: Gap.source is not ref; '

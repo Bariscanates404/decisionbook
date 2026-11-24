@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-// THE one reader and writer of `.decisionbook/`: one append-only file per plan, and the config; an unreadable plan is named, never
-// stops the others.
+// THE one reader and writer of `.decisionbook/`: one file per plan, appended to (only a close no commit holds yet is taken out again),
+// and the config; an unreadable plan is named, never stops the others.
 const { errors: { fail, isFail }, text: { lines: { filled } } } = require('@atlasbound/kit');
 const { SCHEMA, DIR, CONFIG, SHAPES, storedLine, bound } = require('../contracts/shapes.cjs');
 const { WORDS, SHOWN: { store: shown } } = require('../contracts/codes.cjs');
@@ -19,7 +19,13 @@ const MARKER = /^(<{7}|={7}|>{7}|\|{7})( |$)/u; // a line git writes around the 
 // a symbolic link is refused so a committed link never carries an outside file into a view; git never commits a hard link
 const textAt = (io, key) => io.fs.readText(key, { noLink: 'symbolic' });
 
+/** git's blame of a file of the store, a row per line; none while no commit holds the file. */
+const blameHeld = async (io, key) => ((await io.git.author(key)) ? io.git.blame(key) : []);
+
 const put = (io, id, record, { first = false } = {}) => io.fs[first ? 'createExclusive' : 'append'](pathOf(id), storedLine(record, io.clock.now()));
+/** A plan's file less one line: a close record no commit holds gives way to the close that takes its place (steps/close). */
+const dropLine = (io, id, line) => io.fs.writeAtomic(pathOf(id),
+  textAt(io, pathOf(id)).split('\n').filter((_, i) => i !== line - 1).join('\n'));
 // a batch ({ id, lines, fresh }) holds its records and is read after the file's text, so each is checked as if the ones before it were
 // written; then one append, or for a `fresh` one (a new: its plan record first) one exclusive create, so a refused new leaves no
 // file. commit -> false where another process made a fresh batch's file while it was judged: nothing is written, the new takes the
@@ -73,11 +79,12 @@ function plansReceipts(io, views) {
   return Object.fromEntries(views.filter((v) => v.stage !== 'closed').map((v) => [v.id, { read: readOf(v.id), there: there(v) }]));
 }
 
-/** Every plan; a config that does not read is named in `refused` and marks no folder danger, so a torn policy never stops a view. */
-function readWeb(io, { danger = null, batch = null, asked } = {}) {
-  const policy = danger ? { config: { danger } } : readPolicy(io);
+/** Every plan (`config`: the policy where the caller read it); a config that does not read is named in `refused` and marks no folder
+ * danger, so a torn policy never stops a view. */
+function readWeb(io, { config = null, batch = null, asked } = {}) {
+  const policy = config ? { config } : readPolicy(io);
   const { views, refused } = plansOf(io, batch);
-  return { ...webOf(views, policy.config?.danger ?? [], asked, plansReceipts(io, views)),
+  return { ...webOf(views, policy.config ?? {}, asked, plansReceipts(io, views)),
     refused: [...(policy.unreadable ? [{ id: CONFIG, code: 'policy-unreadable' }] : []), ...refused] };
 }
 
@@ -91,7 +98,8 @@ function bookConfig(io) {
   const said = bound.shape('Config', text === null ? {} : bound.json(text, 'policy-unreadable'));
   const stray = Object.keys(said).find((word) => !WORDS_READ.includes(word));
   if (stray) throw fail('policy-word-unknown', filled(WORDS.policyWords, { stray: shown.stray(stray), words: WORDS_READ.join(', ') }));
-  return { protect: (said.protect || []).map(bareWord), danger: (said.danger || []).map(bareWord), answer: said.answer || null };
+  const risk = said.risk ? said.risk.map((area) => area.trim().toLowerCase()).filter(Boolean) : null; // none named: the built-in list
+  return { protect: (said.protect || []).map(bareWord), danger: (said.danger || []).map(bareWord), risk, answer: said.answer || null };
 }
 
 // an unreadable policy is never read as none, so a hostile, broken or misspelt file never switches the gate off; its code and why are told
@@ -104,11 +112,11 @@ function readPolicy(io) {
   }
 }
 
-/** The danger zones the policy names; one that does not read names none (its readers say why). */
-const dangerOf = (io) => (readPolicy(io).config || {}).danger || [];
+/** The danger zones and the risk areas the policy names (core/level); one that does not read names none (its readers say why). */
+const zonesOf = (io, { danger = [], risk = null } = readPolicy(io).config || {}) => ({ danger, risk });
 const writeConfig = (io, config) => io.fs.writeAtomic(CONFIG, `${JSON.stringify(Object.fromEntries(Object.entries(config).filter(([, v]) => v !== null)))}\n`);
 const keepsPlan = (io) => io.fs.list(DIR) !== null;
 const taken = (io) => (id) => io.fs.exists(pathOf(id));
 
-module.exports = { pathOf, textAt, put, hold, commit, planRows, readPlan, readWeb, unreadPlans, bookConfig, readPolicy, dangerOf,
-  writeConfig, keepsPlan, taken };
+module.exports = { pathOf, textAt, blameHeld, put, dropLine, hold, commit, planRows, readPlan, readWeb, unreadPlans, bookConfig, readPolicy,
+  zonesOf, writeConfig, keepsPlan, taken };

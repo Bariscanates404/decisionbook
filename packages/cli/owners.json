@@ -3,10 +3,10 @@
     "name": "cli"
   },
   "caps": {
-    "pipeline": 3675,
-    "debug": 291,
-    "tests": 11248,
-    "spawns": 3270
+    "pipeline": 3778,
+    "debug": 296,
+    "tests": 11456,
+    "spawns": 3321
   },
   "slow": [
     "contract/hook.test.cjs"
@@ -19,6 +19,7 @@
     "steps/release.cjs": "Inside doctor's probes record: one probe row, release files, measured, failed with the file named, or not measured.",
     "steps/said.cjs": "Inside the hook port's hook.out record (adapters/hook): its n counts the items, the texts said and the short forms; its rows are the file .atlasbound/cli/said/<session>.jsonl.",
     "steps/modules.cjs": "Modules and modulesSet are the cli's `modules` record (argv's table); modulesChosen refuses before any record, so a refused choice writes nothing; offOf works inside the hook port's hook.out record.",
+    "steps/whoami.cjs": "The whoami verb is the cli's `whoami` record (argv's table); setup's part works inside the setup record, its line one of setup's rows.",
     "steps/person.cjs": "Inside the cli.verb record's place: a refusal is one coded event (person-only) under cli.verb, written before the verb's own record.",
     "steps/sealed.cjs": "Inside the hook port's hook.out record (adapters/hook): an answer of the seal is one coded event (STORE_SEALED, own-file) under cli.verb.",
     "steps/drafts.cjs": "Inside the cli.verb record: a refused draft is the verb's coded refusal (draft-refused), a draft read or removed is the verb's own input.",

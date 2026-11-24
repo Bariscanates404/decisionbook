@@ -14,8 +14,7 @@ const { refOf } = require('../contracts/shapes.cjs');
 
 const STEM = /\.[^.]*$/;
 
-/** A module word's file here: the file itself, a file of that stem beside it, or a folder's entry file (then the folder is the module's
- * own). */
+/** A module word's file here: the file, a file of its stem beside it, or a folder's entry file (the folder is then the module's). */
 function resolved(io, key) {
   if (!key) return null;
   const listed = io.fs.list(key);
@@ -26,8 +25,7 @@ function resolved(io, key) {
   return entry ? { file: `${key}/${entry}`, folder: key } : null;
 }
 
-/** The person's journaled prompts; null: none is handed, so that source is empty (why, off or not installed: the root's
- * `absent('heard')`). */
+/** The person's journaled prompts; null: none handed, that source empty (why, off or not installed: the root's `absent('heard')`). */
 const journalHere = async (io) => (io.heard ? io.heard() : null);
 
 async function saidHere(io, batch) {
@@ -39,8 +37,7 @@ async function saidHere(io, batch) {
 }
 
 /** Every promise here; one speaks from the repository's root, as a person writes a module in a prompt. `batch`: an add's records held, not
- * yet written.
- * a secret statement of any source is never a promise, so it is never shown, linked or traced. */
+ * yet written. a secret statement of any source is never a promise, so it is never shown, linked or traced. */
 async function promisesHere(io, batch = null) {
   const found = (await saidHere(io, batch)).flatMap((s) => importsOf(s.text).filter((imp) => !imp.secret).map((imp) => ({ ...imp, ...resolved(io, join('', imp.word)), from: s.from, at: s.at })));
   return promisesOf(found);

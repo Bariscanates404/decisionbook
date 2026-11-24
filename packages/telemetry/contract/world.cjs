@@ -10,11 +10,15 @@ const path = require('node:path');
 const { io: kitIo, testing: { memoryFs } } = require('@atlasbound/kit');
 const telemetry = require('@atlasbound/telemetry');
 // The one named exception to a black-box suite: the published contract files the suites and the server read,
-// reached from the resolved entry, so `--impl` swaps them too: contracts/shapes.cjs (`WIRE`, `PATHS`; the address row is filled there as an
+// reached from the resolved entry, so `--impl` swaps them too: contracts/shapes.cjs (`WIRE`, `PATHS`, `SCHEMA`; the address row is filled there as an
 // opening release fills it), contracts/wire.cjs (the report validator) and contracts/rules.cjs (the wire schema of the descriptors).
 const CONTRACT = ['shapes', 'wire', 'rules'].map((name) => require(path.join(path.dirname(require.resolve('@atlasbound/telemetry')), 'contracts',
   `${name}.cjs`)));
-const [{ WIRE, PATHS }, { reportRefusal }, rules] = CONTRACT;
+const [{ WIRE, PATHS, SCHEMA }, { reportRefusal }, rules] = CONTRACT;
+// The row as it ships, and the suites' own start: no address and nobody's default, so a case names the address and the default it is
+// about (addressFilled, a suite's own withWire) and no suite can reach the real service.
+const SHIPPED = Object.freeze({ ...WIRE });
+Object.assign(WIRE, { url: '', forget: '', unchosen: 'ask' });
 
 const PACKAGES = path.join(__dirname, '..', '..');
 const FILE = 'contracts/telemetry.json';
@@ -26,7 +30,7 @@ const declaredDescriptors = ({ open = false } = {}) => fs.readdirSync(PACKAGES)
   .map((name) => ({ name, text: fs.readFileSync(path.join(PACKAGES, name, FILE), 'utf8') }));
 
 /** The published data and the entry's pure rules, as the suites check against them. */
-const internals = { WIRE, PATHS, SCHEMA: telemetry.SCHEMA, validateReport: reportRefusal,
+const internals = { WIRE, SHIPPED, PATHS, SCHEMA, validateReport: reportRefusal,
   schemaOf: (rows) => rules.schemaOf(rules.spacesIn({ packageData: () => rows }).spaces, WIRE) };
 
 /** A descriptor as an install hands it. */
@@ -49,7 +53,7 @@ function telemetryWorld({ at = '2026-11-18T10:00:00.000Z', env = {}, files = {},
   rows = declaredDescriptors({ open: true }) } = {}) {
   const clock = clockAt(at);
   const repo = memoryFs(files);
-  const trace = kitIo.createTrace({ fs: repo, clock }).forPackage(telemetry.PKG, telemetry.vocabulary);
+  const trace = kitIo.createTrace({ fs: repo, clock }).forPackage('telemetry', telemetry.vocabulary);
   return { fs: repo, home: memoryFs(home), clock, trace, run: 'cli-20261118-1', version: '0.25.2', env: { get: (name) => env[name] ?? null },
     packageData: (rel) => (rel === FILE ? rows : []), proc: { pid: () => 4242, alive: () => true }, actor: () => actor };
 }

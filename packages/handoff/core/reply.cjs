@@ -2,12 +2,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-// PURE: the person's messages and what an AI sends back about them. A message is kept as a numbered head; a kept line holds the
-// person's own words of the message it names (kit's one test of them: whole clauses, a sentence with a negation only whole), so it is
-// their words and not the model's memory or a piece of them. A line goes only with their words about it from a later message. A reply
-// is written whole or not at all, and every text of it passes the secret screen before it is stored.
+// PURE: the person's messages and what an AI sends back about them. A message is kept as a numbered head; a kept line holds the whole
+// sentences its words stand in, in the message it names (a list's item with its opening sentence: a job a line), never a piece that
+// changes what it says; it goes only with their later words about it. A reply is written whole or not at all, screened before stored.
 const { text: { safe: { clip }, secrets: { clipped, scrub }, lines: { filled, shortId } }, host: { RESUME_PROMPT, draftCall },
-  said: { clausesOf, notTheirs, isAbout, intends, tokensOf, lowered } } = require('@atlasbound/kit');
+  said: { sentencesOf, quotedAt, wholeOf, isAbout, intends, tokensOf, lowered } } = require('@atlasbound/kit');
 const { shortOf } = require('../contracts/codes.cjs');
 const { BOUNDS } = require('../contracts/shapes.cjs');
 const WORDS = require('../contracts/words.json');
@@ -20,11 +19,10 @@ const SHA = /\b[0-9a-f]{7,40}\b/g;
 
 const promptKind = (prompt) => (RESUME_PROMPT.test(prompt) ? 'resume' : NO_REQUEST.test(prompt) || !prompt.trim() ? 'slash' : 'words');
 
-/** The session with one more message: numbered, its head clipped after the secret screen. Over the bound the oldest go first, never one
- * a kept line names. */
+/** The session with one more message: numbered, screened and cut, its lines kept; over the bound the oldest go, never one a line names. */
 function withMessage(session, text, at) {
   const n = session.count + 1;
-  const all = [...session.messages, { n, at, text: clipped(text, BOUNDS.message.chars) }];
+  const all = [...session.messages, { n, at, text: scrub(text).slice(0, BOUNDS.message.chars).trim() }];
   const spare = all.filter((m) => !session.cited.includes(m.n)).slice(0, Math.max(0, all.length - BOUNDS.message.perSession));
   return { ...session, count: n, messages: all.filter((m) => !spare.includes(m)) };
 }
@@ -33,7 +31,7 @@ function withMessage(session, text, at) {
 function messageLines(messages) {
   const whole = messages.reduce((sum, m) => sum + m.text.length, 0) <= BOUNDS.message.shown;
   const share = Math.max(40, Math.floor(BOUNDS.message.shown / Math.max(1, messages.length)));
-  return messages.map((m) => `  m${m.n} ${whole ? m.text : clip(m.text, share)}`);
+  return messages.map((m) => `  m${m.n} ${clip(m.text, whole ? BOUNDS.message.chars : share)}`);
 }
 
 /** What `atlasbound handoff` prints after the note: the messages, the rules of the reply, the call to send (in `drafts`' drafts folder). */
@@ -48,13 +46,13 @@ function fillIn({ session, kept, flag, drafts }) {
   return `${[...list, '', ...WORDS.fill.map((line) => filled(line, slots)), ...full, call].join('\n')}\n`;
 }
 
-/** One kept line as written: its words (unclipped, for the quote's test), its text, the message numbers it ends with, whether a job. */
+/** One kept line as written: its words (unclipped, for the quote's test), the message numbers it ends with, whether a job. */
 function writtenLine(raw) {
   const cited = CITES.exec(raw);
   const body = cited ? raw.slice(0, cited.index) : raw;
   const cites = cited ? [...new Set(cited[1].match(/\d+/g).map(Number))].slice(0, BOUNDS.kept.cites) : [];
   const words = scrub(body.replace(JOB, '')); // screened as the message heads are, so a quote of a secret compares as stored
-  return { raw, words, text: clipped(words, BOUNDS.kept.chars), cites, job: JOB.test(body) };
+  return { raw, words, cites, job: JOB.test(body) };
 }
 
 /** Every commit-like word of a reply: the edge asks git which of them exist. */
@@ -67,15 +65,14 @@ function lineProblems(line, where, { messages }) {
   const cited = line.cites.map((n) => [n, messages.find((m) => m.n === n)]);
   const strangers = cited.filter(([, m]) => !m);
   if (strangers.length) return [{ code: 'kept-cites-unknown', where: `${where}: ${strangers.map(([n]) => `m${n}`).join(', ')}` }];
-  const others = cited.map(([n, m]) => [n, notTheirs(line.words, clausesOf(m.text))]).filter(([, why]) => why);
-  const named = others.map(([n, why]) => `m${n} (${WORDS.notTheirs[why]})`).join(', ');
-  return others.length ? [{ code: 'kept-not-quoted', where: `${where}: ${named}` }] : [];
+  const unfound = cited.filter(([, m]) => !quotedAt(line.words, sentencesOf(m.text)).length);
+  const named = unfound.map(([n]) => `m${n} (${WORDS.notTheirs.unfound})`).join(', ');
+  return unfound.length ? [{ code: 'kept-not-quoted', where: `${where}: ${named}` }] : [];
 }
 
-/** Why a drop's why does not stand on the person's words about the line, or null: it ends with the messages it quotes ([m9]), each
- * heard after the line was kept (else `unsourced`); its words are the person's own in each, are about the line or name its number,
- * and say it is done, dropped, cancelled or changed (kit's one test of each). A number names a line only while no line has left
- * the list since the message was heard: after that the numbers have moved. */
+/** Why a drop's why does not stand on the person's words about the line, or null: it ends with the messages it quotes ([m9]), each heard
+ * after the line was kept (else `unsourced`); its words are theirs in each, about the line or naming its number, and say done, dropped,
+ * cancelled or changed (kit's tests); a number names a line only while none has left the list since the message was heard. */
 function dropUnsaid({ k, why }, line, { messages, dropped }) {
   const cited = CITES.exec(why);
   const numbers = cited ? new Set(cited[1].match(/\d+/g).map(Number)) : new Set();
@@ -83,7 +80,8 @@ function dropUnsaid({ k, why }, line, { messages, dropped }) {
   const later = messages.filter((m) => numbers.has(m.n) && Date.parse(m.at) > Date.parse(line.at));
   if (!numbers.size || later.length !== numbers.size) return 'unsourced';
   const moved = later.some((m) => dropped.some((gone) => Date.parse(gone.at) >= Date.parse(m.at))); // the same instant: could not tell
-  return later.map((m) => notTheirs(words, clausesOf(m.text))).find(Boolean) ?? whyNotSettled(words, line.text, moved ? null : k);
+  return later.map((m) => (quotedAt(words, sentencesOf(m.text)).length ? null : 'unfound')).find(Boolean)
+    ?? whyNotSettled(words, line.text, moved ? null : k);
 }
 
 /** Why `words` do not settle kept line `k` (its `text`): null when they do, `unrelated` (not about it, nor naming k<k>) or `no-intent`
@@ -122,6 +120,9 @@ function replyProblems(reply, lines, seen) {
   ];
 }
 
+/** A kept line's text: the whole sentences of `message` its `words` stand in (lineProblems found them there). */
+const wholeLine = (words, { text }, units = sentencesOf(text)) => clipped(wholeOf(units, quotedAt(words, units)[0]), BOUNDS.kept.chars);
+
 /** The note with a reply written into it, or the problems that refuse it. `by`: { session, at, head }: a kept line keeps the HEAD it
  * was kept at, so only a later commit takes a job out. */
 function withReply(note, reply, seen, by) {
@@ -134,7 +135,8 @@ function withReply(note, reply, seen, by) {
   const dropped = note.kept.flatMap((line, i) => (gone(i)
     ? [{ text: line.text, at: by.at, why: filled(WORDS.byReply, { ...who, why: clipped(gone(i).why, BOUNDS.kept.chars) }) }] : []));
   const head = by.head ? { head: by.head } : {};
-  const added = lines.map(({ text, cites, job }) => ({ text, cites, job, session: who.session, at: by.at, ...head }));
+  const added = [...new Map(lines.map(({ words, cites, job }) => [wholeLine(words, seen.messages.find((m) => m.n === cites[0])),
+    { cites, job, session: who.session, at: by.at, ...head }])).entries()].map(([text, line]) => ({ text, ...line })); // one a sentence
   return { problems, note: { ...note, now: reply.now ? clipped(reply.now, BOUNDS.now) : null,
     next: (reply.next || []).filter(Boolean).slice(0, BOUNDS.next.steps).map((step) => clipped(step, BOUNDS.next.chars)),
     kept: [...note.kept.filter((_, i) => !gone(i)), ...added], dropped: [...note.dropped, ...dropped].slice(-BOUNDS.dropped),

@@ -45,6 +45,9 @@ function besideWhy({ seat, wrapped }) {
   return wrapped ? filled(W.wrapped, { wrapped }) : '';
 }
 
+/** The person working here, by the root's identity: the name every record of theirs carries, or that none is named. */
+const personRow = (person) => ['person', person.name || 'none', person.name ? W.named : W.unnamed];
+
 async function debugWho(_args, io) {
   const prompts = io.session ? await io.answer('prompts') : null;
   const { who, why, seat = null, at = null, wrapped = null } = io.actor(prompts);
@@ -52,12 +55,14 @@ async function debugWho(_args, io) {
   const verbs = io.catalog.verbs.filter((row) => !row.pkg || io.packages.wired(row.pkg)); // a module off here offers none
   const personOnly = personRows(verbs);
   const acts = personActs(io, personOnly);
+  const person = await io.identity(); // whose name a record of the person's carries here
   const rows = [['who', who, shortOf(`actor-${who}`)], ['why', why, besideWhy({ seat, wrapped })],
-    ['session', io.session || 'none', `a person's prompts: ${heard}${at ? filled(W.lastAt, { at }) : ''}`]];
+    personRow(person), ['session', io.session || 'none', `a person's prompts: ${heard}${at ? filled(W.lastAt, { at }) : ''}`]];
   const grave = verbs.filter((row) => row.by === 'person' && row.phrase).map((row) => ({ words: row.words, phrase: row.phrase,
     flags: namedBy(row).flags, sent: namedBy(row).words }));
   const typed = grave.map((row) => `${row.words.join(' ')} (${row.phrase} ...)`).join(', ');
-  const out = { schema: DEBUG_SCHEMA, verb: 'who', who, why, seat, at, wrapped, session: io.session || null, personOnly, grave, acts };
+  const out = { schema: DEBUG_SCHEMA, verb: 'who', who, why, seat, at, wrapped, person: person.name, session: io.session || null, personOnly,
+    grave, acts };
   return { out, n: { personOnly: personOnly.length, acts: acts.length }, codes: { [`actor-${who}`]: 1 },
     text: `${[...columns(rows), filled(W.personRuns, { verbs: personOnly.join(', ') }), filled(W.phrased, { typed }), ...actLines(acts)].join('\n')}\n` };
 }

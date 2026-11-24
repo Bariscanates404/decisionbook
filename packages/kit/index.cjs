@@ -8,6 +8,7 @@ const { traced } = require('./run/traced.cjs');
 const { createFs, scratch } = require('./io/fs.cjs');
 const { createGit } = require('./io/git.cjs');
 const { createTrace } = require('./io/trace.cjs');
+const { createTracker } = require('./io/tracker.cjs');
 
 module.exports = {
   hash: require('./base/hash.cjs'),
@@ -31,7 +32,7 @@ module.exports = {
   text: { lines: require('./base/text.cjs'), safe: require('./text/safe.cjs'), secrets: require('./text/secrets.cjs'),
     shell: { ...require('./text/shell.cjs'), ...require('./text/shell-named.cjs') } },
   debug: { load: require('./debug/load.cjs'), render: require('./debug/render.cjs') },
-  io: { createFs, scratch, createGit, createTrace, clock: require('./io/clock.cjs'), env: require('./io/env.cjs'),
+  io: { createFs, scratch, createGit, createTrace, createTracker, clock: require('./io/clock.cjs'), env: require('./io/env.cjs'),
     proc: { ...require('./io/proc.cjs'), ...require('./io/ps.cjs') } },
   get testing() {
     return { ...require('./testing/fake-io.cjs'), ...require('./testing/trash.cjs') };

@@ -6,8 +6,9 @@
 const { storedLine, bound: { jsonOrNull } } = require('../contracts/shapes.cjs');
 const { paths: { hereKey }, person: { saidAfter } } = require('@atlasbound/kit');
 const { sessionName, isSessionName, startName } = require('../base/here.cjs');
-const { sealedSaid, isTime, isAfter } = require('../base/text.cjs');
+const { keptSaid, isTime, isAfter, isAi } = require('../base/text.cjs');
 const { store: KEPT } = require('../contracts/promise.json');
+const { issuesIn, hasAddress, startIssue } = require('../core/issue.cjs');
 
 // a crash may tear the last line; a kept value is one line, so it is the first row
 const hereRows = (io, name) => ((io.home && io.home.readText(hereKey(io.root, 'decisionbook', name), { noLink: true })) || '').split('\n').map(jsonOrNull).filter(Boolean);
@@ -17,7 +18,8 @@ const hereValue = (io, name) => hereRows(io, name)[0] ?? null;
 const hereKeep = (io, name, value) => io.home && io.home.writeAtomic(hereKey(io.root, 'decisionbook', name), `${JSON.stringify({ ...value, at: io.clock.now() })}\n`);
 
 /** Every row every session of this repository kept on this machine. */
-const everyRow = (io) => (io.home.list(hereKey(io.root, 'decisionbook')) || []).filter(isSessionName).flatMap((name) => hereRows(io, name));
+const sessionNames = (io) => (io.home ? (io.home.list(hereKey(io.root, 'decisionbook')) || []).filter(isSessionName) : []);
+const everyRow = (io) => sessionNames(io).flatMap((name) => hereRows(io, name));
 const sessionRows = (io, session) => (session ? hereRows(io, sessionName(session)) : []);
 const sessionAdd = (io, session, row) => session && hereAdd(io, sessionName(session), row);
 const sessionReads = (io, session) => sessionRows(io, session).filter((row) => row.t === 'read').map(({ id, door }) => ({ id, door }));
@@ -40,7 +42,7 @@ function keepReads(io, session, files, via) {
 }
 /** The files read in each plan's sessions (a session whose rows name the plan, and this one), per plan id; no home: none. */
 function readsByPlan(io) {
-  const names = io.home ? (io.home.list(hereKey(io.root, 'decisionbook')) || []).filter(isSessionName) : [];
+  const names = sessionNames(io);
   const named = (rows, id) => rows.some((row) => row.id === id || Object.hasOwn(row.plans || {}, id));
   const sessions = names.map((name) => [io.session && name === sessionName(io.session), hereRows(io, name)]);
   const opened = (rows) => rows.filter((row) => row.t === OPENED).map((row) => row.file);
@@ -48,15 +50,13 @@ function readsByPlan(io) {
 }
 
 // how a session began (task, resume or other) and each person's /resume-handoff in it, a flag per row, never the prompt's words; no row: it
-// cannot tell.
-// a row per prompt, so the last one's time says when a person last had a turn
+// cannot tell. a row per prompt, so the last one's time says when a person last had a turn
 function begunOf(io, session) {
   const rows = sessionRows(io, session).filter((row) => row.t === 'prompt');
   return { as: rows[0]?.as ?? null, resumed: rows.some((row) => row.as === 'resume'), lastAt: rows.at(-1)?.at ?? null };
 }
-/** Whether `session` works on READY plan `view`: it made or built from it (a `phase` row), wrote to it (a `read` row of door `write`), the
- * plan went READY while it ran, the person resumed their handoff in it, or it began with no new task (a short reply first, or no message
- * yet); no home or no session: it does. Named limit: two sessions at once on one branch both work on the READY one made meanwhile. */
+/** Whether `session` works on READY plan `view`: it made or built from it, wrote to it, the plan went READY while it ran, the person
+ * resumed their handoff in it, or it began with no new task; no home or session: it does (limit: two sessions on one branch both do). */
 function worksOn(io, session, view) {
   const on = (row) => row.id === view.id && (row.t === 'phase' || (row.t === 'read' && row.door === 'write'));
   const begun = begunOf(io, session);
@@ -71,14 +71,29 @@ const saidByPack = (io, session) => sessionRows(io, session)
   .reduce((said, row) => (SAID_BY[row.t] ? SAID_BY[row.t](said, row) : said), new Set());
 const FORGETS = ['compact', 'clear']; // a SessionStart source whose context no longer holds what was said
 const contextEnds = (io, event) => FORGETS.includes(event.source) && sessionAdd(io, event.session_id, { t: 'forgot' });
-// a prompt's row: its flag, and its clauses sealed (a digest beside each sentence, in the person's home), which test a `said` as theirs
-const keepPrompt = (io, session, { as, text }) => sessionAdd(io, session, { t: 'prompt', as, said: sealedSaid(text) });
-/** The person's prompts this session's rows hold, oldest first (a time, a flag and sealed clauses each): the only messages a record
- * made as theirs may quote (core/yes), so a prompt of another session (one the AI could start itself) never counts; null outside a
- * session. */
+// a prompt's row: its flag, its sentences (in the person's home: they find a `said` as theirs and whose it is) and the issues it names
+// (core/issue: `task` the work to do), numbers alone; git says which repository this is only for a message with an address
+async function keepPrompt(io, session, { as, text }) {
+  const { issues, task } = issuesIn(text, hasAddress(text) ? await io.git.origin() : null);
+  sessionAdd(io, session, { t: 'prompt', as, said: keptSaid(text), ...(issues.length && { issues }), ...(task.length && { task }) });
+}
+/** The issue this session's work starts from: the task message's, else the first message since its last plan naming one as the work,
+ * else the first naming any (a mere mention is no task), else HEAD's branch's; null where none or several. -> { issue, from } | null */
+function startedFrom(io, branch, rows = sessionRows(io, io.session)) {
+  const since = rows.slice(rows.findLastIndex((row) => row.t === 'phase' && row.phase === 'created') + 1).filter((row) => row.t === 'prompt');
+  return startIssue(since.find((row) => row.task)?.task ?? since.find((row) => row.issues)?.issues ?? [], branch);
+}
+/** The person's prompts this session's rows hold, oldest first: the only messages a record made as theirs may quote (core/yes); another
+ * session's prompt (one the AI could start) never counts; null outside a session. */
 const promptsOf = (io) => (io.session ? sessionRows(io, io.session).filter((row) => row.t === 'prompt') : null);
 /** Who acts here, by kit's one answer (the root's `io.actor`) over those rows. */
 const actorOf = (io) => io.actor(promptsOf(io));
+/** Who the person working here is, by name: the root's one answer (`io.identity`: the name kept on their machine since setup, an account
+ * where a root holds one), which every record of theirs carries; null where no one is named, or the name is one the AI goes by. */
+async function personOf(io) {
+  const who = await io.identity();
+  return who?.name && !isAi(who.name) ? who.name : null;
+}
 /** Whether a person stands behind an act on what was made at `at` (a plan's `new`): yes, no, or unknown, never a yes (kit's rule). */
 const promptedSince = (io, at) => saidAfter(actorOf(io), at);
 
@@ -91,5 +106,5 @@ const keptStart = (io, session) => (session ? hereValue(io, startName(session)) 
 const startedAt = (io, session) => [(keptStart(io, session) || {}).at].find(isTime) || null;
 
 module.exports = { everyRow, hereRows, hereHas, hereAdd, hereValue, hereKeep, sessionRows, sessionAdd, sessionReads, sessionRead, keepReads,
-  readsByPlan, saidByPack, contextEnds, keepPrompt, promptsOf, actorOf, promptedSince, begunOf, worksOn, keptRows,
-  keepRows, keptAt, keptStart, startedAt };
+  readsByPlan, saidByPack, contextEnds, keepPrompt, startedFrom, promptsOf, actorOf, personOf, promptedSince, begunOf, worksOn, keptRows,
+  keepRows, keptAt, keptStart, startedAt, sessionNames };

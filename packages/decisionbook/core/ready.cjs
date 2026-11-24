@@ -8,8 +8,8 @@ const { shortOf } = require('../contracts/codes.cjs');
 const { researchFirst, restatesTask, asksPermission, settledDecision, unknownRefs } = require('./text/refused.cjs');
 const { asksLeave, refOf } = require('../contracts/shapes.cjs');
 const { globCovers, globsOverlap, anyOverlap, tooBroad, isGlob } = require('../base/glob.cjs');
-const { personAnswers, isAnswered, isTheirs, holdsAlone, isLive, isKeeping, isDecided, conflictsIn, lineIn, isAfter, isKeep, alike, ofKind,
-  stepPath, wordSet, forkQuestions, yesAgain, mentions, asList } = require('../base/text.cjs');
+const { personAnswers, isAnswered, personSigned, isTheirs, holdsAlone, isLive, isKeeping, isDecided, conflictsIn, lineIn, isAfter, isKeep,
+  alike, ofKind, stepPath, wordSet, forkQuestions, yesAgain, mentions, asList } = require('../base/text.cjs');
 const { scopeOf, seenView, dangerSince } = require('./fold.cjs');
 const { planLevel } = require('./level.cjs');
 
@@ -19,7 +19,7 @@ function lands(v, effect) {
   if (kind === 'file') return scopeOf(v).some((glob) => globsOverlap(glob, value));
   return kind === 'check' ? v.checks.some((c) => c.id === value) : ofKind(v, kind).some((i) => i.text === value);
 }
-const askedFork = (v, d) => d.effect.length > 0 && d.effect.every((e) => lands(v, e))
+const askedFork = (v, d) => d.effect.length > 0 && d.effect.every((e) => lands(v, e)) && personSigned(d)
   && forkQuestions(v).some((q) => q.whyNotCode && personAnswers(d, q));
 const forksOf = (v) => [
   ...new Set(
@@ -55,12 +55,17 @@ const oneAnswer = (keep, yesSaid) => keep.said === yesSaid;
 const namedToReplace = (v) => [...v.questions, ...v.decisions].flatMap((record) => asList(record.supersedes));
 const yesTakenBack = (v) => Boolean(v.confirm) && v.decisions
   .some((d) => isKeep(d) && isAfter(d.at, v.confirm.at) && d.keeps.some((ref) => namedToReplace(v).includes(ref)));
+// every blocking question has the person's answer (a plan that asks none: no); one of those answers keeps a standing decision: the plan
+// was to replace it, so it no longer stands as they saw it and their answers are not yet their yes (said with the confirm row)
+const allAnswered = (v, asked = v.questions.filter((q) => q.blocking)) => asked.length > 0 && asked.every((q) => isAnswered(v, q));
+const keeps = (v, q) => q.blocking && isKeep(v.decisions.findLast((d) => personAnswers(d, q)));
+const answersKeep = (v) => allAnswered(v) && v.questions.some((q) => keeps(v, q));
 const SAYS = { answers: (v, n) => ({ forks: forksOf(v), needs: n, ...noFork(v, n) }),
   replaces: (v) => ({ changed: v.changed }),
   research: (v, n) => ({ read: readResearch(v).length, needs: n, notRead: unreadPlanned(v) }),
   standards: (v) => ({ standards: v.undecided }),
   // a yes on record that no longer holds was given before a danger path joined the plan: which
-  confirm: (v, n, danger) => (v.confirm ? { yesFor: dangerSince(v, danger) } : {}) };
+  confirm: (v, n, danger) => (v.confirm ? { yesFor: dangerSince(v, danger) } : { keptAnswer: answersKeep(v) }) };
 const HOLDS = {
   success: (v) => Boolean(v.success && v.kind),
   research: (v, n) => readResearch(v).length >= n,
@@ -91,9 +96,9 @@ const HOLDS = {
 /** The level a plan's rubric is read at: the one code decides (`level`), but a frozen plan keeps the level of its READY for as long
  * as its yes holds: what the AI linked to it since changes nothing, a danger path that joined it does, and so does a file the
  * person's yes to the gate added (core/fold seenLinks) where the paths that yes covers run at a higher level. */
-function levelAt(v, level, danger) {
+function levelAt(v, level, danger, risk) {
   if (!(v.ready && v.ready.level && v.confirm && !yesAgain(v) && !dangerSince(v, danger).length)) return level;
-  const seen = planLevel(seenView(v), danger).level;
+  const seen = planLevel(seenView(v), danger, risk).level;
   return higher(seen, v.ready.level) ? seen : v.ready.level;
 }
 const levelRows = (level) => RUBRIC.filter((row) => row.floor[level] !== undefined);
@@ -173,5 +178,5 @@ function unreadyState(view) {
 // higher level and holds that level's rows now
 const readyAgain = (v) => v.state === 'draft' || (v.state === 'ready' && (yesAgain(v) || v.level.level !== v.ready.level));
 
-module.exports = { unmet, yesTakenBack, oneAnswer, unreadyState, levelRows, levelAt, unstanding, questionRefused, noForkRefused, newPathsOf,
-  undecidedOf, changedOf, readyAgain, readResearch, unreadPlanned };
+module.exports = { unmet, yesTakenBack, oneAnswer, allAnswered, answersKeep, unreadyState, levelRows, levelAt, unstanding, questionRefused,
+  noForkRefused, newPathsOf, undecidedOf, changedOf, readyAgain, readResearch, unreadPlanned };

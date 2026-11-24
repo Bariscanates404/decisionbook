@@ -45,7 +45,8 @@ test('before any message of a person a later session\'s edit passes under the RE
   const kept = io.home.readText(kit.paths.hereKey(io.root, 'decisionbook', `recall-${kit.hash.sha256('s2').slice(0, 16)}.jsonl`));
   assert.deepEqual(kept.trim().split('\n').map((line) => JSON.parse(line)).filter((r) => r.t === 'prompt').map((r) => r.as), ['task', 'resume'],
     'the flags: how it began, and the person\'s /resume-handoff');
-  assert.ok(!kept.includes('tenants'), 'the prompt\'s words are never kept');
+  assert.ok(kept.includes('tenants'), 'the prompt\'s sentences are kept in the person\'s own home, to find a quote\'s whole sentence');
+  assert.ok(!(io.fs.list('.decisionbook') || []).some((name) => (io.fs.readText(`.decisionbook/${name}`) || '').includes('tenants')), 'never in the repository');
   const debug = await decisionbook.debug.decisionbook(io, {});
   assert.deepEqual({ ...debug.out.began, lastAt: typeof debug.out.began.lastAt }, { as: 'task', resumed: true, lastAt: 'string' }, 'a time, no words');
   assert.match(debug.text, /^session s2 began with a task prompt; a person's \/resume-handoff in it: yes$/m, 'debug decisionbook says the flags');

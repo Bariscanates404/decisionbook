@@ -125,6 +125,6 @@ test('a record of the wrong shape names its field and shows that kind\'s record,
   const id = ab('decisionbook', 'new', JSON.stringify({ title: 'Round once', why: 'off', success: 'ok', kind: 'bug', level: 'micro' })).out.split(' ')[0];
   const bad = ab('decisionbook', 'add', id, JSON.stringify([{ t: 'decision', key: 'a.b' }, { t: 'item', kind: 'step', order: 1 }]));
   assert.match(bad.err, /^atlasbound: record-invalid: nothing written: record 1 of 2: decision\.value is not str, /);
-  assert.ok(bad.err.includes('\n  a decision record: {"t":"decision","key":"<word>","value":"<text>","why":"<text>","by":"<text>"} (optional: '), bad.err);
+  assert.ok(bad.err.includes('\n  a decision record: {"t":"decision","key":"<word>","value":"<text>","why":"<text>","whose":"<text>"} (optional: '), bad.err);
   assert.match(bad.err, /\n {2}a step record: \{"t":"item","kind":"step","order":1,"file":"<text>","change":"<text>","verify":"<text>"\}/);
 });

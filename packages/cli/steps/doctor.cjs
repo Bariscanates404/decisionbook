@@ -69,16 +69,18 @@ async function viewOf(io, { probing = true } = {}) { // `status` judges nothing,
     if (!isFail(err)) throw err;
     return false;
   });
+  const unnamed = !(await io.identity()).name; // the person's records carry the name kept here (steps/whoami): none kept, none is written
   const problems = problemsOf({ packages, modules, manifests: manifestProblems, missing, probes, configRefused: io.configRefused,
-    recordTracked, record: io.host.stateFile });
+    recordTracked, record: io.host.stateFile, unnamed });
   return { schema: DEBUG_SCHEMA, verb: 'doctor', root: io.root, ok: problems.length === 0, modules, packages, problems, missing, capabilities,
     host: { wired: host.length === 0, missing: host }, probes, advice, protectedPaths: await noticeOf(io) };
 }
 
 /** The ONE list `ok` is judged from: whatever doctor saw go wrong, each with where and what it says. */
-const problemsOf = ({ packages, modules, manifests, missing, probes, configRefused, recordTracked, record }) => [
+const problemsOf = ({ packages, modules, manifests, missing, probes, configRefused, recordTracked, record, unnamed }) => [
   ...(configRefused ? [{ from: 'config', name: CONFIG_FILE, says: configRefused.message }] : []),
   ...(recordTracked ? [{ from: 'record', name: record, says: `state-tracked: ${record}: ${shortOf('state-tracked')}` }] : []),
+  ...(unnamed ? [{ from: 'person', name: 'person', says: W.noPerson }] : []),
   ...(modules.some((m) => m.state === 'on') ? [] : [{ from: 'modules', name: 'modules', says: W.noModule }]),
   ...packages.filter((p) => p.health === 'problem').map((p) => ({ from: 'package', name: p.name, says: p.says || p.state })),
   ...manifests.map((m) => ({ from: 'manifest', name: m, says: 'manifest-invalid' })),
@@ -91,7 +93,7 @@ const wiredText = (w) => (w === null ? W.nothingToWire : w ? 'wired' : W.notWire
 const packageColumns = (plainName) => (p) => [plainName(p.name), SAID[p.state] || p.state, p.state === 'installed' ? wiredText(p.wired) : '',
   p.state === 'not-installed' ? '' : SAID[p.health] || p.health, [p.says, p.from && filled(W.from, { from: p.from })].filter(Boolean).join('; ')];
 
-function textOf(view, plainName) {
+function doctorSays(view, plainName) {
   const toDo = view.advice.length ? [TO_DO, ...view.advice.map((line) => `  ${line}`)] : [];
   const packageRows = view.packages.map(packageColumns(plainName));
   const gone = [...new Set(view.host.missing.map((d) => filled(W.gone, { what: d.what, name: d.what === 'hook' ? d.name.split(' ')[0] : d.name })))];
@@ -99,7 +101,7 @@ function textOf(view, plainName) {
   const unmeasured = [...view.packages.filter((p) => p.state === 'installed' && p.health === 'not-measured'), ...view.probes.filter((p) => p.state === 'not-measured')];
   const closing = filled(W.closing, { verdict: view.ok ? 'ok' : 'problem',
     unmeasured: unmeasured.length ? filled(W.unmeasured, { names: unmeasured.map((p) => plainName(p.name)).join(', ') }) : '' });
-  const config = view.problems.filter((p) => ['config', 'record'].includes(p.from)).map((p) => filled(W[p.from], { says: p.says }));
+  const config = view.problems.filter((p) => ['config', 'record', 'person'].includes(p.from)).map((p) => filled(W[p.from], { says: p.says }));
   const manifests = view.problems.filter((p) => p.from === 'manifest').map((p) => filled(MANIFEST_INVALID, { name: p.name }));
   const gaps = view.capabilities.filter((c) => c.state === 'capability-missing').map((c) => filled(W.gap, c));
   const answering = view.capabilities.filter((c) => c.state === 'answers').length;
@@ -118,7 +120,7 @@ async function doctor(args, io) {
   const view = await viewOf(io);
   const hint = await hintOf(io, args.flags);
   return { out: view, n: { problems: view.problems.length, probesFailed: view.probes.filter((p) => p.state === 'failed').length },
-    codes: view.ok ? {} : { 'doctor-problem': 1 }, text: `${textOf(view, io.catalog.plain)}${hint ? `${hint}\n` : ''}`,
+    codes: view.ok ? {} : { 'doctor-problem': 1 }, text: `${doctorSays(view, io.catalog.plain)}${hint ? `${hint}\n` : ''}`,
     exit: view.ok ? 0 : 1 };
 }
 

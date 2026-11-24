@@ -3,7 +3,7 @@
 // See LICENSE and NOTICE in the package root.
 'use strict';
 // PURE. A protected file this session changed that no plan of the branch records blocks completion, never twice in a row
-// (stop_hook_active).
+// (stop_hook_active); so does the session's plan whose work no close records as the tree holds it (steps/close: once per tree).
 const { globCovers } = require('../base/glob.cjs');
 const { scopeOf } = require('./fold.cjs');
 const { stopReason } = require('./text/gate.cjs');
@@ -20,4 +20,9 @@ function stopVerdict({ kept, changed, moved, views, branch, again }) {
   return { out: { verdict: 'deny', code, files: unrecorded, reason: stopReason(code, unrecorded) }, code, n };
 }
 
-module.exports = { stopVerdict };
+/** The block of a turn that ends on work of plan `id` no close records: finished, the session closes and hands the one commit; not
+ * finished, it says what is left. `n`: the counts of the check it passed. */
+const unclosedVerdict = (id, n = {}) => ({ out: { verdict: 'deny', code: 'stop-unclosed', plan: id, reason: stopReason('stop-unclosed', [id]) },
+  code: 'stop-unclosed', n });
+
+module.exports = { stopVerdict, unclosedVerdict };

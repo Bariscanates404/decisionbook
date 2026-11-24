@@ -10,15 +10,16 @@ const { closedOf, sinceHead } = require('../core/close.cjs');
 const { withProposed } = require('../core/fold.cjs');
 const { openLines } = require('../core/text/open.cjs');
 const { isShown } = require('../base/text.cjs');
+const { closeAsShipped } = require('./close.cjs');
 const store = require('./store.cjs');
 const { openItems } = require('./touch.cjs');
 const { WORDS } = require('../contracts/codes.cjs');
 
-/** A plan's own commits: those its close recorded, else those a close would record now; null where it names no commit it began on. */
+/** A plan's own commits: its close's (steps/close), else those a close would record now; null where it names no commit it began on. */
 async function ownCommits(io, view) {
-  if (view.closed) return view.closed.own;
+  if (view.closed) return (await closeAsShipped(io, view)).own;
   const commits = sinceHead(view) ? await io.git.commits(sinceHead(view), { firstParent: true }) : null;
-  return commits && closedOf(view, commits, null).own;
+  return commits && closedOf(view, commits).own;
 }
 
 async function pr({ rest, flags = {} }, io) {

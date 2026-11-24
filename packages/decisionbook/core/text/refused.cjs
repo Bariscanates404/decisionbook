@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-// PURE. What a writing verb says when it refuses: every refused record of a batch with its place, in one reply; what
-// the plan refuses of a question or a step; a yes or a resume no person gave; a close git cannot attribute, with each
-// route on as a condition the person checks.
+// PURE. What a writing verb says when it refuses: every refused record of a batch with its place, in one reply; what the plan refuses of
+// a question or a step; a yes or a resume no person gave; a close git cannot attribute, each route on as a condition the person checks.
 const { text: { lines: { filled, shortSha }, safe: { copyable } } } = require('@atlasbound/kit');
 const { WORDS, shortOf, SHOWN: { refused: shown } } = require('../../contracts/codes.cjs');
 
@@ -42,9 +41,8 @@ const teammatesLine = (ref, author) => ['decision-teammates',
 /** A record's place in its batch; one record of an add stands alone, unless a refused plan record stands beside it. */
 const recordPlace = (i, count, beside) => (count > 1 || beside ? `record ${i + 1} of ${count}` : '');
 
-/** Every refused record of a batch, as { code, detail }: the first problem's code is the refusal's, each other code
- * is named before its detail, and the detail starts by saying that nothing was written. `refused`: [{ place,
- * problems: [[code, detail], ...] }, ...]. */
+/** Every refused record of a batch, as { code, detail }: the first problem's code is the refusal's, each other code is named before its
+ * detail, which says first that nothing was written. `refused`: [{ place, problems: [[code, detail, ask?], ...] }, ...]. */
 function batchRefusal(refused) {
   const [[code]] = refused[0].problems;
   const problemText = ([other, detail]) => (other === code ? detail : `${other}: ${detail}`);
@@ -54,17 +52,14 @@ function batchRefusal(refused) {
   };
   return { code, detail: `${WORDS.noneWritten}: ${refused.map(recordText).join('; ')}` };
 }
+/** Teammates' words ([{ who, said }]) numbered per teammate: the host's prompt (`tail`), kept when confirmed; '': a refusal's list. */
+const whoseListing = (asks, tail = WORDS.whoseAllow) => `${[...Map.groupBy(new Map(asks.map((a) => [`${a.who}\n${a.said}`, a])).values(),
+  (a) => a.who)].map(([who, list]) => filled(WORDS.whoseListing, { who: shown.by(who), list: list.map((a, i) => `${i + 1}) "${a.said}"`).join(' ') }))
+  .join(' ; ')}${tail}`;
+const whoseNote = (asks) => filled(WORDS.whoseConfirm, { who: shown.by(asks[0].who) }); // what a Deny leaves
 
-/** Their messages numbered in the order typed, by why the words are not theirs there (kit's reading); '' where none was read. */
-function theirMessages(whys) {
-  const said = Object.entries(WORDS.notTheirsBy).map(([why, words]) => [words, whys.flatMap((one, i) => (one === why ? [i + 1] : []))])
-    .filter(([, ns]) => ns.length).map(([words, ns]) => filled(words, { ns: ns.join(', ') }));
-  return said.length ? filled(WORDS.notTheirsWhy, { whys: said.join('; ') }) : '';
-}
-
-/** Why a yes or a resume is not the person's; `told`: the session holds a person's message that says otherwise, else
- * the product saw none and says so first. */
-const notSaid = (code, told, whys = []) => [[...(told ? [] : [WORDS.unseen]), shortOf(code)].join(': '), theirMessages(whys)].filter(Boolean).join('. ');
+/** Why a yes or a resume is not the person's; `told`: a message of theirs here says otherwise, else the product saw none, said first. */
+const notSaid = (code, told) => [...(told ? [] : [WORDS.unseen]), shortOf(code)].join(': ');
 
 /** A confirm on a plan that grew past what the person saw: what grew. */
 const yesOutgrown = (grown) => filled(WORDS.confirmGrew, { what: grown.join('; ') });
@@ -78,8 +73,7 @@ function closeElsewhere(view, here) {
   return filled(WORDS.closeElsewhere, slots);
 }
 
-/** What is refused on a teammate's plan `id` (`code`: its close by an AI session, a compared link): whose it is, and who does it instead.
- * -> [code, detail] */
+/** What is refused on a teammate's plan `id` (its close by an AI session, a compared link): whose, and who does it. -> [code, detail] */
 const theirPlan = (code, id, author) => [code, `${id} (${WORDS.cameWith} ${shown.author(author)}): ${shortOf(code)}`];
 
 /** A close whose line another branch holds too (`held`: that branch and the commit both hold): git cannot tell how it
@@ -98,4 +92,4 @@ function closeHeld(view, held, head) {
 const noSuchLine = (source) => filled(WORDS.noSuchLine, { source }); // a record cites a line its file does not have
 
 module.exports = { researchFirst, restatesTask, asksPermission, settledDecision, refusedRefs, unknownRefs, keptOtherValue, teammatesLine,
-  recordPlace, noSuchLine, batchRefusal, notSaid, yesOutgrown, yesUnseen, closeElsewhere, closeHeld, theirPlan };
+  recordPlace, noSuchLine, batchRefusal, whoseListing, whoseNote, notSaid, yesOutgrown, yesUnseen, closeElsewhere, closeHeld, theirPlan };

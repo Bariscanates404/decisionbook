@@ -42,7 +42,7 @@ test('[I-9] a new session on another branch is not told this branch\'s note, and
   w.git.name = 'feature/x';
   assert.equal(await saidAtStart(w, 's2', 'startup'), '');
   w.git.name = 'main';
-  assert.match(await saidAtStart(w, 's3', 'startup'), /k1 keep the v1 API/);
+  assert.match(await saidAtStart(w, 's3', 'startup'), /k1 main only: keep the v1 API/);
 });
 
 test('[I-9] /resume-handoff gives the note under its own heading every time, and a bare slash command is not kept as a message', async () => {

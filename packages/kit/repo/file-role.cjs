@@ -4,8 +4,7 @@
 'use strict';
 // THE file-role owner: EXACTLY ONE role per repo path, from the path and the operator's `roles` alone. Directory, exact and generated names
 // are exact-case; patterns fold.
-const { pathKey, foldedKey, nameOf } = require('../base/paths.cjs');
-const { isFail } = require('../base/errors.cjs');
+const { keyOf, foldedKey, nameOf } = require('../base/paths.cjs');
 const { visible } = require('../text/safe.cjs');
 
 // The order is part of the contract: a caller that lists roles lists them in this order.
@@ -67,15 +66,6 @@ const RULES = Object.freeze([
 const underSourceRoot = dirIn('lib', 'src', 'app', 'apps', 'pkg', 'cmd', 'internal', 'typings', 'types', 'migrations', 'db', 'prisma', 'supabase', 'packages', 'bin', 'server', 'client', 'api');
 
 const verdict = (role, rule, basis) => (basis ? { role, rule, basis } : { role, rule });
-
-function keyOf(spelling) {
-  try {
-    return { key: pathKey(spelling) };
-  } catch (err) {
-    if (!isFail(err)) throw err;
-    return { code: err.code };
-  }
-}
 
 function operatorRoles(config) {
   const rules = [];

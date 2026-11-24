@@ -14,7 +14,7 @@ const { world, startEvent, editedEvent, say, keep, transcriptAt, HERE } = requir
 test('[I-13] debug handoff names the message each kept line comes from and whether that message is still stored', async () => {
   const w = world();
   await handoff.handlers.start(startEvent('s1'), w.io());
-  await say(w, 's1', ['Use tabs.', 'job one and job two']);
+  await say(w, 's1', ['Use tabs.', 'jobs:\n- job one\n- job two']);
   await keep(w, 's1', { kept: ['Use tabs [m1]', 'job: job one [m2]', 'job: job two [m2]'] });
   await handoff.handlers.touched(editedEvent('s1', '/fake/a.js'), w.io());
   const { text, out } = await handoff.debug.handoff(w.io('s1'));

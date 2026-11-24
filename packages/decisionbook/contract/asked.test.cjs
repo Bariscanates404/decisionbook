@@ -14,7 +14,7 @@ const { bookWorld, writeConfig, recordsFor, wire, planRecords } = require('./wor
 
 const { verbs, handlers } = decisionbook;
 const TASK = 'Stream the export rows so a large report finishes';
-const YES = { t: 'confirm', by: 'Ayse', said: 'yes, go ahead' };
+const YES = { t: 'confirm', by: 'Amy', said: 'yes, go ahead' };
 const head = { title: 'Stream the export', why: 'large exports time out', success: 'a 10,000 row export finishes in 5 s', kind: 'feature', level: 'micro' };
 const [EXPORT, CSV, ROWS] = ['src/report/export.js', 'src/report/csv.js', 'src/report/rows.js'];
 const PERSONS = ['question', 'decision', 'confirm']; // the person's part of a plan: their answers and their yes
@@ -65,7 +65,7 @@ test('a confirm sent in the turn that planned is refused; after the person\'s ne
   const rows = w.io.home.readText(kit.paths.hereKey(w.io.root, 'decisionbook', `recall-${kit.hash.sha256('s1').slice(0, 16)}.jsonl`));
   assert.deepEqual(rows.trim().split('\n').map((line) => JSON.parse(line)).filter((r) => r.t === 'prompt').map((r) => [r.as, typeof r.at]),
     [['task', 'string'], ['other', 'string']], 'a flag and a time per prompt');
-  assert.ok(!rows.includes('Stream') && !rows.includes('go ahead'), 'never the prompt\'s words');
+  assert.ok(rows.includes('"yes, go ahead"'), 'their sentences, in their own home: a quote is kept as the whole sentence it stands in');
 });
 
 // the yes comes in turn 2, the plan then gains the six files the first plan did not name
@@ -81,7 +81,7 @@ test('the second turn: the answers in one add, more files in another, then the c
   assert.equal(await w.add(id, [YES]), 'READY', 'the level and its signals are what the person saw: more than 2 files then and now');
   assert.deepEqual(w.amended(id), ['plans', 'plans', 'step'], 'kinds, never words');
   const confirmed = (await verbs.show(w.io, { rest: [id, 'confirm'] })).text;
-  assert.match(confirmed, /^confirmed by the person: yes, go ahead; amended after the yes: 3 \(plans, step\)$/m);
+  assert.ok(confirmed.includes(`confirmed by Amy: ${ANSWERED}, and yes, go ahead; amended after the yes: 3 (plans, step)\n`), 'the yes kept as its whole sentence');
   assert.match((await decisionbook.debug.decisionbook(w.io, {})).text, new RegExp(`^${id} ready, .*; amended after the yes: 3 \\(plans, step\\)`, 'm'));
 });
 
@@ -120,14 +120,14 @@ test('a plan sent with its questions before the person is asked: their one messa
   assert.match(made.text, /"answers":"Q1"[^\n]*"answers":"Q2"/, 'the reply hands one answer row per question, in the person\'s add');
   const said = ['Write 1,000 rows per batch.', 'An empty report is a file with the header only.'];
   await w.say(`${said.join(' ')} Yes, go ahead.`);
-  const answer = (q, i) => ({ t: 'decision', key: q.decides, value: ['1000', 'header'][i], why: 'the person chose', by: 'Ayse', said: said[i],
+  const answer = (q, i) => ({ t: 'decision', key: q.decides, value: ['1000', 'header'][i], why: 'the person chose', whose: 'person', said: said[i],
     answers: q.q, effect: ['check:AC-1'] });
   assert.equal(await w.add(made.out.id, [...asks.map(answer), YES]), 'READY');
-  assert.deepEqual(decidedBy(w.io, made.out.id), [['1000', 'the person'], ['header', 'the person']], 'each answer is theirs, said once');
+  assert.deepEqual(decidedBy(w.io, made.out.id), [['1000', 'Amy'], ['header', 'Amy']], 'each answer is theirs, said once');
 });
 
 const KEY = 'report.export.rows';
-const mine = { t: 'decision', key: KEY, value: 'stream', why: 'large exports', by: 'Ayse', files: [EXPORT], said: 'stream the rows' };
+const mine = { t: 'decision', key: KEY, value: 'stream', why: 'large exports', whose: 'person', files: [EXPORT], said: 'stream the rows' };
 const decidedBy = (io, id) => planRecords(io, id).filter((r) => r.t === 'decision').map((r) => [r.value, r.by]);
 
 test('a decision typed after a slash command of the repository stands on the person\'s own first sentence', async () => {
@@ -137,16 +137,16 @@ test('a decision typed after a slash command of the repository stands on the per
   const a = await w.created(draftOf('micro', [EXPORT]));
   await w.say('/decisionbook Stream the rows, do not buffer them. Then show me the plan.');
   await w.say('/tmp is full, send them at once.');
-  assert.equal((await w.add(a, [{ ...mine, said: 'Stream the rows' }]))[0], 'said-not-theirs', 'a part of a sentence with a negation is still refused');
-  await w.add(a, [{ ...mine, said: 'Stream the rows, do not buffer them.' }]);
+  await w.add(a, [{ ...mine, said: 'Stream the rows' }]);
+  assert.equal(planRecords(w.io, a).at(-1).said, 'Stream the rows, do not buffer them.', 'a part is kept as its whole sentence');
   const place = { ...mine, key: 'report.export.place', value: 'stream at once' };
-  assert.equal((await w.add(a, [{ ...place, said: 'is full' }]))[0], 'said-not-theirs', 'no /tmp command here: the word is of their clause');
+  assert.equal((await w.add(a, [{ ...place, said: 'is ful' }]))[0], 'said-not-theirs', 'a word cut short is not theirs');
   await w.add(a, [{ ...place, said: '/tmp is full, send them at once.' }]);
-  assert.deepEqual(decidedBy(w.io, a).slice(-2), [['stream', 'the person'], ['stream at once', 'the person']]);
+  assert.deepEqual(decidedBy(w.io, a).slice(-2), [['stream', 'Amy'], ['stream at once', 'Amy']]);
 });
 
 // a later message such as "thanks, also what is 2+2?" is no assent: it makes nothing the sender signed with a person's name theirs.
-test('a decision is the person\'s only on whole clauses they typed: a name, a later message or a piece of a negation is refused', async () => {
+test('a decision is the person\'s only on words they typed, kept as their whole sentence: a name or a later message is refused', async () => {
   const w = await askedWorld();
   await w.say(TASK);
   const a = await w.created(draftOf('micro', [EXPORT]));
@@ -156,14 +156,12 @@ test('a decision is the person\'s only on whole clauses they typed: a name, a la
   const { said, ...unsaid } = mine;
   assert.equal(await refused(unsaid), 'said-not-theirs', `a later message alone is no assent, and ${said} is not in it`);
   await w.say('Stream the rows, do not buffer them.');
-  const why = async (record) => (await w.add(a, [record]))[1].split('. ').at(-1); // each message of theirs, in the order typed, and why
-  assert.equal(await why({ ...mine, said: 'the rows' }), 'Their messages here, in the order typed: 1, 2, 3: no whole clause of it', 'a piece');
-  assert.equal(await why({ ...mine, said: 'Stream the rows' }), 'Their messages here, in the order typed: 1, 2: no whole clause of it; '
-    + '3: inside a sentence with a negation, so quote that sentence whole', 'a part of a sentence that holds a negation');
-  await w.add(a, [{ ...mine, said: 'Stream the rows, do not buffer them.' }]);
-  assert.deepEqual(decidedBy(w.io, a).at(-1), ['stream', 'the person'], 'their whole sentence, the value as the AI read it');
+  assert.equal(await refused({ ...mine, said: 'the row' }), 'said-not-theirs', 'a word cut short');
+  assert.equal(await refused({ ...mine, said: 'Stream the rows, buffer them' }), 'said-not-theirs', 'a word left out between');
+  await w.add(a, [{ ...mine, said: 'Stream the rows' }]);
+  assert.deepEqual(decidedBy(w.io, a).at(-1), ['stream', 'Amy'], 'their whole sentence, the value as the AI read it');
   assert.equal(planRecords(w.io, a).at(-1).said, 'Stream the rows, do not buffer them.', 'the record keeps the words it stands on');
-  await w.add(a, [{ ...mine, by: 'ai', said: 'Stream the rows, do not buffer them.', proposed: true }]);
+  await w.add(a, [{ ...mine, whose: 'assumed', said: 'Stream the rows, do not buffer them.', proposed: true }]);
   assert.deepEqual(decidedBy(w.io, a).at(-1), ['stream', 'ai'], 'the AI\'s own stays the AI\'s');
 });
 
@@ -173,15 +171,15 @@ test('a person\'s decision naming theirs in supersedes replaces it on their own 
   const a = await w.created(draftOf('micro', [EXPORT]));
   await w.say('stream the rows');
   await w.add(a, [mine]);
-  assert.deepEqual(decidedBy(w.io, a), [['stream', 'the person']], 'by is the product\'s word, never the sender\'s');
+  assert.deepEqual(decidedBy(w.io, a), [['stream', 'Amy']], 'by is the product\'s word, never the sender\'s');
   await w.add(a, [{ ...mine, value: 'x', supersedes: [`${a}/${KEY}`] }]); // the documented change of this plan's own decision
-  assert.deepEqual(decidedBy(w.io, a), [['stream', 'the person'], ['x', 'the person']], 'their words, the key written again naming itself');
+  assert.deepEqual(decidedBy(w.io, a), [['stream', 'Amy'], ['x', 'Amy']], 'their words, the key written again naming itself');
   const b = await w.created(draftOf('micro', [EXPORT]));
   await w.say('yes, buffer them');
-  const answer = { ...mine, value: 'buffer', why: 'shorter', by: 'Claude', said: 'yes, buffer them', supersedes: [`${a}/${KEY}`] };
-  assert.equal((await w.add(b, [{ ...answer, by: 'ai' }]))[0], 'supersede-theirs', 'only the person replaces a person\'s decision');
+  const answer = { ...mine, value: 'buffer', why: 'shorter', said: 'yes, buffer them', supersedes: [`${a}/${KEY}`] };
+  assert.equal((await w.add(b, [{ ...answer, whose: 'assumed' }]))[0], 'supersede-theirs', 'only the person replaces a person\'s decision');
   assert.equal(await w.add(b, [answer]), 'ready-no-confirm', 'their words replace it, no question asked; the plan waits for their yes');
-  assert.deepEqual([decidedBy(w.io, b), planRecords(w.io, b).at(-1).supersedes], [[['buffer', 'the person']], [`${a}/${KEY}`]]);
+  assert.deepEqual([decidedBy(w.io, b), planRecords(w.io, b).at(-1).supersedes], [[['buffer', 'Amy']], [`${a}/${KEY}`]]);
   await w.say('yes, go ahead');
   assert.equal(await w.add(b, [YES]), 'READY');
   const states = (await verbs.show(w.io, { rest: [`decision:${KEY}`] })).out.decisions.map((d) => [d.value, d.state]);
@@ -194,12 +192,12 @@ test('an AI decision over a key the person decided is refused and their line hol
   const a = await w.created(draftOf('micro', [EXPORT]));
   await w.say('stream the rows');
   await w.add(a, [mine]);
-  const over = await w.add(a, [{ ...mine, value: 'buffer', by: 'ai', said: undefined }]);
+  const over = await w.add(a, [{ ...mine, value: 'buffer', whose: 'assumed', said: undefined }]);
   assert.equal(over[0], 'decision-theirs', 'a plain rewrite of their key by the AI');
   assert.match(over[1], /only the person changes their decision: ask them/);
-  await w.add(a, [{ ...mine, value: 'buffer', by: 'ai', said: undefined, proposed: true }]);
+  await w.add(a, [{ ...mine, value: 'buffer', whose: 'assumed', said: undefined, proposed: true }]);
   const states = (await verbs.show(w.io, { rest: [`decision:${KEY}`] })).out.decisions.map((d) => [d.value, d.by, d.state]);
-  assert.deepEqual(states, [['stream', 'the person', 'active'], ['buffer', 'ai', 'proposed']]);
+  assert.deepEqual(states, [['stream', 'Amy', 'active'], ['buffer', 'ai', 'proposed']]);
 });
 
 test('a small fix that grew into normal work after the person\'s prompt is refused: they saw a smaller plan',
@@ -259,8 +257,9 @@ test('a raising signal added after the person\'s prompt is refused though the fi
   await w.add(id, answers); // the person's answers come after their message: a `new` holds none
   const glob = { t: 'link', rel: 'plans', to: 'file:src/report/**', why: 'every report file' };
   assert.deepEqual(await w.add(id, [glob, YES]), ['confirm-not-asked', `confirm-not-asked: nothing written: record 2 of 2: ${id}: ${grew('a glob (src/report/**)')}`]);
-  assert.deepEqual(await w.add(id, [{ t: 'amend', success: 'the payment export finishes' }, YES]), ['confirm-not-asked', 'confirm-not-asked: nothing written: '
-    + `record 2 of 2: ${id}: ${grew('critical work, was normal work; a risk word (payment)')}`]);
+  const callers = ['src/mail/digest.js', 'src/jobs/nightly.js', 'src/api/download.js'].map((text) => ({ t: 'item', kind: 'consumer', text }));
+  assert.deepEqual(await w.add(id, [...callers, YES]), ['confirm-not-asked', 'confirm-not-asked: nothing written: '
+    + `record 4 of 4: ${id}: ${grew('critical work, was normal work; 3+ shared consumers (3)')}`]);
   assert.equal(await w.add(id, [glob]), 'ready-no-confirm', 'the change alone is stored');
   assert.deepEqual(await w.add(id, [YES]), notAsked(id,grew('a glob (src/report/**)')), 'still the turn the person has not seen it in');
   await w.say('yes, go ahead, the whole folder');

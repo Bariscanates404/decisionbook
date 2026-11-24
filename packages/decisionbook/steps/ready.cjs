@@ -2,18 +2,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-// READY: a plan whose rubric holds at its level is recorded as READY; one that misses rows is answered with every
-// missing row and the one add that fills them. The verb and every write (steps/batch) read the rubric and answer
-// through here.
+// READY: a plan whose rubric holds at its level is recorded as READY; one that misses rows is answered with every missing row and the one
+// add that fills them. The verb and every write (steps/batch) read the rubric and answer through here.
 const { errors: { fail } } = require('@atlasbound/kit');
-const { isTheirs } = require('../base/text.cjs');
+const { isTheirs, isLive, isAi } = require('../base/text.cjs');
 const { scopeOf } = require('../core/fold.cjs');
 const { unreadyState, readyAgain, readResearch, unreadPlanned } = require('../core/ready.cjs');
 const { RUBRIC, RESEARCH_NOTE } = require('../contracts/rubric.cjs');
 const { nextAdd } = require('../core/text/calls.cjs');
 const { standardsAsked, standardsN } = require('./standards.cjs');
 const { CONTRACT } = require('./promise.cjs');
-const { phase } = require('./phase.cjs');
+const { phase, flowRow } = require('./phase.cjs');
+const { readyFlow } = require('../core/flow.cjs');
 const store = require('./store.cjs');
 const { openLines, NONE } = require('../core/text/open.cjs');
 const { openItems } = require('./touch.cjs');
@@ -41,9 +41,14 @@ function researchJudged(io, view) {
 /** Not READY. `before` (the rows a write found unmet, as they were said; none: a `new` or the `ready` verb): the reply says only
  * what the write changed; with none it says every row and the one add of everything the plan still lacks. */
 function missingAnswer(io, { view, n }, before = null) {
-  const said = before ? { before } : { next: nextAdd(view, store.dangerOf(io), io.session) };
+  const said = before ? { before } : { next: nextAdd(view, store.zonesOf(io).danger, io.session) };
   return { out: { ...unreadyState(view), ...said }, code: 'plan-not-ready', n };
 }
+
+/** Who decided what in a plan made READY, for the person to see before the build: each standing decision as a teammate's words, the
+ * person's own, or assumed (the AI's, no one's words). -> [{ as: said | person | assumed, who, key, value }] */
+const decidedBy = (web, view) => web.decisions.filter((d) => d.plan === view.id && isLive(d) && !d.proposed)
+  .map((d) => ({ as: (d.saidBy && 'said') || (isAi(d.by) ? 'assumed' : 'person'), who: d.saidBy ?? d.by, key: d.key, value: d.value }));
 
 /** The rubric holds: READY is recorded. Made again, its work still begins where it did; another READY plan of the
  * branch is parked by it; one a commit brought (not confirmed on this machine) is asked once at the gate. */
@@ -51,13 +56,14 @@ async function becomeReady(io, { web, view, n }) {
   const parked = web.views.find((v) => v.state === 'ready' && v.branch === view.branch && v.id !== view.id);
   const head = view.ready ? view.ready.head : await io.git.head();
   store.put(io, view.id, { t: 'ready', head, scope: scopeOf(view), level: view.level.level });
+  if (!view.builtAt) flowRow(io, view.id, 'ready', readyFlow(view, io.clock.now()));
   const here = trust.confirmedHere(io, view);
   if (here) trust.keepReady(io, store.readPlan(io, view.id), 'ready-here');
   const promised = view.links.filter((l) => l.rel === CONTRACT); // the READY reply repeats the plan's contract once
   const read = readResearch(view).length;
   const short = RESEARCH_NOTE[view.level.level] > read ? { read, needs: RESEARCH_NOTE[view.level.level] } : null;
-  const out = { id: view.id, ready: true, code: 'plan-ready', level: view.level, unmet: [],
-    parked: parked ? parked.id : null, here, promised, researchNote: short, undecided: !view.decisions.some(isTheirs) };
+  const out = { id: view.id, ready: true, code: 'plan-ready', level: view.level, unmet: [], parked: parked ? parked.id : null, here, promised,
+    researchNote: short, undecided: !view.decisions.some(isTheirs), decided: decidedBy(web, view) };
   return { out, code: 'plan-ready', n };
 }
 

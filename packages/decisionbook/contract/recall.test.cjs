@@ -12,14 +12,14 @@ const { errors: { fail } } = require('@atlasbound/kit');
 const { bookWorld, writeConfig, readOf, textOf, onDay, stepRows } = require('./world.cjs');
 
 const { verbs, handlers } = decisionbook;
-/** One plan's file as a team commits it: its plan record, plans, links, decisions (by Ayse) and, when READY or closed, its ready or closed record; `head`:
+/** One plan's file as a team commits it: its plan record, plans, links, decisions (by Amy) and, when READY or closed, its ready or closed record; `head`:
  * the
  * git head it began (and was made READY) on; `closed`: true, or the closeout's own fields. */
 function planText({ id, title, branch = 'main', day = 1, plans = [], decisions = [], links = [], ready = false, closed = false,
   why = 'it is a rule we do follow all the way', head }) {
   const rows = [{ schema: 'decisionbook-record/1', t: 'plan', id, title, why, branch, head },
     ...plans.map((to) => ({ t: 'link', rel: 'plans', to: `file:${to}`, why: 'the code' })),
-    ...links.map(([rel, to]) => ({ t: 'link', rel, to, why: 'fixture' })), ...decisions.map((d) => ({ t: 'decision', why: 'a rule', by: 'Ayse', ...d })),
+    ...links.map(([rel, to]) => ({ t: 'link', rel, to, why: 'fixture' })), ...decisions.map((d) => ({ t: 'decision', why: 'a rule', by: 'Amy', ...d })),
     ...(ready ? [{ t: 'ready', scope: plans, level: 'normal', head }] : []), ...(closed ? [{ t: 'closed', own: [], files: plans, tests: [], other: 0,
       ...closed }] : [])];
   return rows.map((r) => `${JSON.stringify({ ...r, at: onDay(day) })}\n`).join('');
@@ -51,7 +51,7 @@ test('[I-21] a file the session reads is given the plans that planned it or deci
   assert.match(textOf(said),
     /^- PLAN-20261004-user-email draft \(2026-10-04\): User email\n {2}why here: app\/models\/user\.rb ← decided-in PLAN-20261004-user-email \(user\.email\)$/m);
   assert.match(textOf(said),
-    /^- PLAN-20261003-remember-me draft \(2026-10-03\): Remember me\n {2}why here: app\/models\/user\.rb ← planned-in PLAN-20261003-remember-me\n {2}decisions: auth\.remember-me = off \(by Ayse\)$/m);
+    /^- PLAN-20261003-remember-me draft \(2026-10-03\): Remember me\n {2}why here: app\/models\/user\.rb ← planned-in PLAN-20261003-remember-me\n {2}decisions: auth\.remember-me = off \(by Amy\)$/m);
   assert.match(textOf(said), /^ {2}why here: app\/models\/user\.rb ← planned-in PLAN-20261002-models$/m, 'a glob plan covers the file');
   assert.match(textOf(said),
     /^ {2}deeper: atlasbound decisionbook show PLAN-20261003-remember-me decisions \| atlasbound decisionbook show file:app\/models\/user\.rb \| atlasbound decisionbook show decision:auth\.remember-me$/m);
@@ -87,7 +87,7 @@ test('[I-21] the concern hop: a prompt with no matching word reaches the decisio
   assert.deepEqual(cardIds(textOf(said)), ['PLAN-20261001-session-expiry', 'PLAN-20261003-remember-me'],
     'the neighbour first, then the same concern; the report export is another area');
   assert.match(textOf(said),
-    /^- PLAN-20261001-session-expiry closed \(2026-10-01\): Session expiry\n {2}why here: app\/controllers\/login_controller\.rb → same folder app\/controllers\/sessions_controller\.rb ← planned-in PLAN-20261001-session-expiry\n {2}decisions: auth\.session-ttl = 30 minutes \(by Ayse\)$/m);
+    /^- PLAN-20261001-session-expiry closed \(2026-10-01\): Session expiry\n {2}why here: app\/controllers\/login_controller\.rb → same folder app\/controllers\/sessions_controller\.rb ← planned-in PLAN-20261001-session-expiry\n {2}decisions: auth\.session-ttl = 30 minutes \(by Amy\)$/m);
   assert.match(textOf(said),
     /^ {2}why here: app\/controllers\/login_controller\.rb → same folder app\/controllers\/sessions_controller\.rb ← planned-in PLAN-20261001-session-expiry → decides auth\.session-ttl → area auth → auth\.remember-me$/m);
   assert.deepEqual(stepRows(io, 'decisionbook.prompt').map((r) => [r.codes, r.n.cards, r.n.seeds]), [[{ 'prompt-recall': 1 }, 2, 1]],
@@ -103,8 +103,8 @@ test('[I-21] a replaced decision is shown as replaced and a superseded plan name
     decisions: [{ key: 'auth.session-ttl', value: '30 minutes', files: [SESSIONS], supersedes: ['PLAN-20261001-ttl-old/auth.session-ttl'] }] };
   const said = textOf(await handlers.recall(readOf(SESSIONS), bookWorld({ files: webOf([OLD, NEW]) })));
   assert.deepEqual(cardIds(said), ['PLAN-20261008-ttl-new', 'PLAN-20261001-ttl-old']);
-  assert.match(said, /^- PLAN-20261008-ttl-new closed \(2026-10-08\): Shorter sessions\n.*\n {2}decisions: auth\.session-ttl = 30 minutes \(by Ayse\)$/m);
-  assert.match(said, /^- PLAN-20261001-ttl-old closed \(2026-10-01\), replaced by PLAN-20261008-ttl-new: Session TTL\n.*\n {2}decisions: auth\.session-ttl = 60 minutes \(by Ayse\) replaced by PLAN-20261008-ttl-new\/auth\.session-ttl \(Ayse, 2026-10-08\)$/m);
+  assert.match(said, /^- PLAN-20261008-ttl-new closed \(2026-10-08\): Shorter sessions\n.*\n {2}decisions: auth\.session-ttl = 30 minutes \(by Amy\)$/m);
+  assert.match(said, /^- PLAN-20261001-ttl-old closed \(2026-10-01\), replaced by PLAN-20261008-ttl-new: Session TTL\n.*\n {2}decisions: auth\.session-ttl = 60 minutes \(by Amy\) replaced by PLAN-20261008-ttl-new\/auth\.session-ttl \(Amy, 2026-10-08\)$/m);
 });
 
 test('[I-21] a linked earlier plan\'s card says what it built and its files; an unrelated plan gives no card and no line',
@@ -189,15 +189,16 @@ test('[I-21] nothing relevant is the prompt exactly; short common words match no
     'two long words that hold make a card where no plan is asked for');
   writeConfig(io, { protect: ['app/**'] });
   const nudged = await handlers.prompt(prompt(SHORT), io);
-  assert.deepEqual(Object.keys(nudged), ['code', 'say']);
+  assert.deepEqual(Object.keys(nudged).sort(), ['code', 'context', 'say']);
+  assert.match(nudged.context, /^DecisionBook: no plan on this branch yet\. What this message decides, parks with someone/, 'the one way to a plan, with every such message');
   assert.equal(nudged.code, 'prompt-nudge');
   // where protection needs a plan, the plan pack replaces the cards (contract/pack.test.cjs holds its lines); here no area: the level and the calls
-  assert.deepEqual(nudged.say.map((s) => s.key), ['decisionbook.nudge', 'decisionbook.pack']);
-  assert.match(textOf(nudged), /^DecisionBook: protected files need a READY plan on this branch and there is none\.\nno record here: no earlier plan relates to this work\nthis task runs as normal work [^\n]+\nA small fix instead [^\n]+\nIf this request changes code: [^\n]+\nA value the person's message sets[^\n]+\nwhere a blank is not free text: [^\n]+\nwrite this JSON with your Write tool to \.atlasbound\/drafts\/[0-9a-f]{12}\/new\.json:\n\{[^\n]+\nthen run: atlasbound decisionbook new --file \.atlasbound\/drafts\/[0-9a-f]{12}\/new\.json\nwrite this JSON with your Write tool to \.atlasbound\/drafts\/[0-9a-f]{12}\/<id>\.json:\n\[[^\n]+\nthen run: atlasbound decisionbook add <id> --file \.atlasbound\/drafts\/[0-9a-f]{12}\/<id>\.json$/,
-    'the nudge\'s head, no record here, the level line, the small form (the prompt names no file), the calls');
+  assert.deepEqual(nudged.say.map((s) => s.key), ['decisionbook.nudge', 'decisionbook.pack', 'decisionbook.whose']);
+  assert.match(textOf(nudged), /^DecisionBook: no plan on this branch yet\.[^\n]+\nDecisionBook: protected files need a READY plan on this branch and there is none\.\nno record here: no earlier plan relates to this work\nthis task runs as normal work [^\n]+\nA small fix instead [^\n]+\nIf this request changes code: [^\n]+\nA value the person's message sets[^\n]+\nwhere a blank is not free text: [^\n]+\nwrite this JSON with your Write tool \(it makes the folder; no shell write\) to \.atlasbound\/drafts\/[0-9a-f]{12}\/new\.json:\n\{[^\n]+\nthen run: atlasbound decisionbook new --file \.atlasbound\/drafts\/[0-9a-f]{12}\/new\.json\nwrite this JSON with your Write tool \(it makes the folder; no shell write\) to \.atlasbound\/drafts\/[0-9a-f]{12}\/<id>\.json:\n\[[^\n]+\nthen run: atlasbound decisionbook add <id> --file \.atlasbound\/drafts\/[0-9a-f]{12}\/<id>\.json\nWhose words a decision holds: one rule[^]+$/,
+    'the nudge\'s head, no record here, the level line, the small form (the prompt names no file), the calls, then the rule of whose words');
   const packed = await handlers.prompt(prompt(worded), io);
   assert.deepEqual(cardIds(textOf(packed)), [], 'no card where the pack is said');
-  assert.match(textOf(packed), /^- report\.export\.rows = streamed \(Ayse\)$/m, 'the words walk reached the report export: its decision is in the pack');
+  assert.match(textOf(packed), /^- report\.export\.rows = streamed \(Amy\)$/m, 'the words walk reached the report export: its decision is in the pack');
   const filed = bookWorld({ files: webOf([EXPIRY, REMEMBER, EXPORT]), changed: ['docs/notes.md'] });
   assert.match(textOf(await handlers.prompt(prompt(worded), filed)), /^- PLAN-20261005-report-export draft \(2026-10-05\): Report export is slow\n {2}why here: the words report, export, slow /m,
     'a changed file of other work seeds the walk too: the words still make their card');
@@ -217,7 +218,7 @@ const TEAM = [['Ders 16\'daki Hohmann transfer hesaplayıcısına Jüpiter ön a
   'Sadece Dünya, Venüs ve Mars ön ayar düğmeleri olsun, Jüpiter olmasın; kaydırıcı aralığı 0,4–5 AU.', 'Ders 16\'ya eklenen Hohmann transfer hesaplayıcısını duyurmak'],
 ['Add a Jupiter preset button to the Hohmann transfer calculator in Lesson 16.', 'Lesson 16: Earth→Mars Hohmann transfer time calculator',
   'Only Earth, Venus and Mars preset buttons, no Jupiter; the slider runs 0.4–5 AU.', 'announce the Hohmann transfer calculator of Lesson 16']];
-const mine = (key, value) => ({ key, value, by: 'the person' });
+const mine = (key, value) => ({ key, value, by: 'Amy' });
 for (const [task, title, inputs, why] of TEAM) {
   test(`[I-21] the task's words reach the plan they name beside the work's files: a teammate's decision is in the pack (${task.slice(0, 7)})`, async () => {
     const team = [{ id: 'PLAN-20261001-lesson-16', title, day: 1, plans: [LESSON], closed: true, decisions: [mine('inputs', inputs)] },
@@ -229,7 +230,7 @@ for (const [task, title, inputs, why] of TEAM) {
     };
     const packAt = async (io) => textOf(await handlers.prompt(prompt(task), io)).split('\n');
     const decided = (lines) => lines.filter((line) => /^- \S+ = /.test(line));
-    const [theirs, beside] = [`- inputs = ${inputs} (the person)`, '- badge.side = left (the person)'];
+    const [theirs, beside] = [`- inputs = ${inputs} (Amy)`, '- badge.side = left (Amy)'];
     const setup = worldOf(['.gitignore']);
     assert.deepEqual(decided(await packAt(setup)), [theirs, beside], 'the plan holding most of the task\'s words first, a newer one holding fewer after');
     assert.deepEqual((await verbs.related(setup, { rest: ['.gitignore', ...task.split(' ')] })).out.cards.map((c) => [c.id, c.rank]),
@@ -249,10 +250,10 @@ test('[I-21] a cut card keeps the person\'s decisions, newest first, and says ho
   const decided = (minute, key, by) => ({ t: 'decision', key, value: 'v', why: 'a rule', by, at: at(minute) });
   // the person's own wording is written last; three the AI recorded stand before it
   const rows = [{ schema: 'decisionbook-record/1', t: 'plan', id: 'PLAN-20261001-coupons', title: 'Coupons', why: 'checkout', branch: 'main', at: at(0) },
-    { t: 'link', rel: 'plans', to: `file:${A}`, why: 'the code', at: at(0) }, decided(1, 'coupon.limit', 'the person'), decided(2, 'coupon.codes', 'ai'),
-    decided(3, 'coupon.unknown', 'ai'), decided(4, 'coupon.edges', 'ai'), decided(5, 'coupon.stacking', 'the person')];
+    { t: 'link', rel: 'plans', to: `file:${A}`, why: 'the code', at: at(0) }, decided(1, 'coupon.limit', 'Amy'), decided(2, 'coupon.codes', 'ai'),
+    decided(3, 'coupon.unknown', 'ai'), decided(4, 'coupon.edges', 'ai'), decided(5, 'coupon.stacking', 'Amy')];
   const io = bookWorld({ files: { '.decisionbook/PLAN-20261001-coupons.jsonl': rows.map((row) => `${JSON.stringify(row)}\n`).join(''), [A]: 'x\n' } });
-  const line = '  decisions: coupon.stacking = v (by the person); coupon.limit = v (by the person); coupon.edges = v (by the AI); '
+  const line = '  decisions: coupon.stacking = v (by Amy); coupon.limit = v (by Amy); coupon.edges = v (by the AI); '
     + '2 more: atlasbound decisionbook show PLAN-20261001-coupons decisions';
   assert.equal(textOf(await handlers.recall(readOf(A), io)).split('\n')[2], line, 'the hook\'s card');
   assert.equal((await verbs.related(io, { rest: [A] })).text.split('\n')[2], line, 'by hand the same');
@@ -290,7 +291,7 @@ test('[I-21] the earlier plans of the work\'s own branch are cards, on a named b
     assert.deepEqual(cardIds(textOf(said)), ['PLAN-20261003-poll-options', 'PLAN-20261002-poll-draft', 'PLAN-20261001-poll-closed'],
       `newer first (branch ${branch})`);
     assert.match(textOf(said),
-      /^- PLAN-20261003-poll-options parked \(2026-10-03\): Poll options\n {2}why here: src\/a\.rb ← planned-in PLAN-20261003-poll-options\n {2}decisions: poll\.options = at most 10 \(by Ayse\)$/m);
+      /^- PLAN-20261003-poll-options parked \(2026-10-03\): Poll options\n {2}why here: src\/a\.rb ← planned-in PLAN-20261003-poll-options\n {2}decisions: poll\.options = at most 10 \(by Amy\)$/m);
     assert.deepEqual(stepRows(io, 'decisionbook.prompt').map((r) => [r.n.seeds, r.n.found, r.n.cards]), [[1, 3, 3]], 'the trace counts what was found');
     await assert.rejects(verbs.related(io, { rest: [] }), { code: 'args-invalid' }, 'by hand, related names a path or words: no guess from the branch');
   }
@@ -312,7 +313,7 @@ test('a task in words finds a plan by one long word and a form of another, and r
   const io = bookWorld({ files: { 'lessons/16.html': 'x\n' }, branch: 'team-mac' });
   const plan = { title: 'Jüpiter preset and hours', why: 'the calculator gets a Jüpiter düğmesi', success: 'it shows', kind: 'feature', level: 'micro',
     records: [{ t: 'link', rel: 'plans', to: 'file:lessons/16.html', why: 'the buttons' },
-      { t: 'decision', key: 'inputs', value: 'Jüpiter in', why: 'asked', by: 'Ali' }, { t: 'confirm', by: 'Ali', said: 'yes' }] };
+      { t: 'decision', key: 'inputs', value: 'Jüpiter in', why: 'asked', whose: 'person' }, { t: 'confirm', by: 'Abe', said: 'yes' }] };
   const { id } = (await verbs.create(io, { rest: [JSON.stringify(plan)] })).out;
   const related = (await verbs.related(io, { rest: ['lessons/16.html'] })).text;
   assert.ok(related.includes(id) && !related.includes('no record here'), related);

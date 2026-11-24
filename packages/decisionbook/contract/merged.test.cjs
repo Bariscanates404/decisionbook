@@ -21,9 +21,9 @@ const ASK = (q, decides, text) => ({ t: 'question', q, text, decides, whyNotCode
 const DRAFT = [{ t: 'research', tool: 'read', asked: 'the lesson', answer: 'a takeaway box', source: `${FILE}:1` },
   { t: 'link', rel: 'plans', to: `file:${FILE}`, why: 'the lesson' }, { t: 'check', id: 'AC-1', text: 'the note shows', command: 'node --check x' },
   ASK('Q1', KEY, 'What should the note say?'), ASK('Q2', 'note.place', 'Where does the note go?')];
-const noteSaid = (said, more = {}) => ({ t: 'decision', key: KEY, value: said, why: 'their wording', by: 'the person', said, answers: 'Q1',
+const noteSaid = (said, more = {}) => ({ t: 'decision', key: KEY, value: said, why: 'their wording', whose: 'person', said, answers: 'Q1',
   effect: [`file:${FILE}`], ...more });
-const [ALI, ZEY] = ['Escape velocity is the least speed that leaves a planet behind.', 'Escape velocity lets a rocket coast away for good.'];
+const [ABE, ZOE] = ['Escape velocity is the least speed that leaves a planet behind.', 'Escape velocity lets a rocket coast away for good.'];
 const CONFLICT = 'CONFLICT (2 person decisions in this plan, none replacing another; none holds until the person says which)';
 const READERS = (id) => [['show', [id, 'decisions']], ['show', [`decision:${KEY}`]], ['pr', [id]], ['inbox', []], ['ready', [id]],
   ['resume', []]];
@@ -59,8 +59,8 @@ async function readersOf(io, id) {
 }
 
 test('(1) a conflict a merge kept: every reader names it with both lines, whose, their words, where; holds neither; asks', async () => {
-  const { io, id, lineOf } = await mergedWorld([noteSaid(ALI, { saidBy: 'Ali' }), noteSaid(ZEY)]);
-  const parts = [CONFLICT, `line ${lineOf(ALI)}, by the person (relayed from Ali): "${ALI}"`, `line ${lineOf(ZEY)}, by the person: "${ZEY}"`,
+  const { io, id, lineOf } = await mergedWorld([noteSaid(ABE, { whose: 'Abe' }), noteSaid(ZOE)]);
+  const parts = [CONFLICT, `line ${lineOf(ABE)}, by Abe, relayed by Amy: "${ABE}"`, `line ${lineOf(ZOE)}, by Amy: "${ZOE}"`,
     `"supersedes":["${id}/${KEY}"]`, `\`git blame -L <line>,<line> .decisionbook/${id}.jsonl\` names the commit and author of each line`];
   for (const [reader, text] of (await readersOf(io, id)).filter(([reader]) => !reader.startsWith('resume'))) { // a draft's start: one line
     for (const part of parts) assert.ok(text.includes(part), `${reader} says ${part}:\n${text}`);
@@ -70,45 +70,45 @@ test('(1) a conflict a merge kept: every reader names it with both lines, whose,
 });
 
 test('(2) only the same value byte for byte is compatible: the same words, or no words, with another value are a conflict', async () => {
-  const same = await mergedWorld([noteSaid(ZEY, { said: 'Use this text.' }), noteSaid(ZEY, { said: 'Yes, that one.' })]);
+  const same = await mergedWorld([noteSaid(ZOE, { said: 'Use this text.' }), noteSaid(ZOE, { said: 'Yes, that one.' })]);
   for (const [reader, text] of await readersOf(same.io, same.id)) assert.doesNotMatch(text, /CONFLICT \(/, `${reader}:\n${text}`);
   assert.equal(await waitsForAnswer(same.io, same.id), false);
-  const yes = await mergedWorld([noteSaid(ALI, { said: 'Yes.' }), noteSaid(ZEY, { said: 'Yes.' })]);
-  const bare = await mergedWorld([noteSaid(ALI, { said: undefined }), noteSaid(ZEY, { said: undefined })]);
+  const yes = await mergedWorld([noteSaid(ABE, { said: 'Yes.' }), noteSaid(ZOE, { said: 'Yes.' })]);
+  const bare = await mergedWorld([noteSaid(ABE, { said: undefined }), noteSaid(ZOE, { said: undefined })]);
   for (const { io, id } of [yes, bare]) assert.equal(await waitsForAnswer(io, id), true);
 });
 
 test('(3) the person\'s documented change replaces the lines before it: its history shows, and no conflict', async () => {
-  const { io, id } = await mergedWorld([noteSaid(ALI), noteSaid(ZEY)]);
-  await added(io, id, noteSaid(ZEY, { supersedes: [`${id}/${KEY}`] })); // the person's answer to the conflict
+  const { io, id } = await mergedWorld([noteSaid(ABE), noteSaid(ZOE)]);
+  await added(io, id, noteSaid(ZOE, { supersedes: [`${id}/${KEY}`] })); // the person's answer to the conflict
   for (const [reader, text] of await readersOf(io, id)) assert.doesNotMatch(text, /CONFLICT \(/, `${reader}:\n${text}`);
   const states = (await verbs.show(io, { rest: [`decision:${KEY}`] })).out.decisions.map((d) => [d.value, d.state]);
-  assert.deepEqual(states, [[ALI, 'revised'], [ZEY, 'revised'], [ZEY, 'active']]);
+  assert.deepEqual(states, [[ABE, 'revised'], [ZOE, 'revised'], [ZOE, 'active']]);
   assert.equal(await waitsForAnswer(io, id), false);
 });
 
 test('a merge that puts an AI line after a person\'s on one key: the person\'s line holds in every reader', async () => {
-  const { io, id } = await mergedWorld([noteSaid(ALI), { ...noteSaid('An AI text.'), by: 'ai', said: undefined }]);
+  const { io, id } = await mergedWorld([noteSaid(ABE), { ...noteSaid('An AI text.'), whose: 'assumed', said: undefined }]);
   const states = (await verbs.show(io, { rest: [`decision:${KEY}`] })).out.decisions.map((d) => [d.value, d.by, d.state]);
-  assert.deepEqual(states, [[ALI, 'the person', 'active'], ['An AI text.', 'ai', 'revised']]);
+  assert.deepEqual(states, [[ABE, 'Amy', 'active'], ['An AI text.', 'ai', 'revised']]);
   for (const [reader, text] of await readersOf(io, id)) { // a decision's own node lists its history, the AI's line as no holder
     if (reader.startsWith('show decision:')) assert.match(text, /An AI text\. .*by the AI\) revised in/, text);
     else assert.doesNotMatch(text, /An AI text\./, `${reader}:\n${text}`);
   }
-  await added(io, id, [{ t: 'decision', key: 'note.place', value: 'top', why: 'theirs', by: 'the person', said: 'top', answers: 'Q2',
-    effect: [`file:${FILE}`] }, { t: 'confirm', by: 'the person', said: 'go' }]);
+  await added(io, id, [{ t: 'decision', key: 'note.place', value: 'top', why: 'theirs', whose: 'person', said: 'top', answers: 'Q2',
+    effect: [`file:${FILE}`] }, { t: 'confirm', by: 'Amy', said: 'go' }]);
   const start = await verbSays(io, 'resume', []); // a READY plan's start: the settled decisions a new session builds from
-  assert.ok(start.includes(ALI) && !start.includes('An AI text.'), start);
+  assert.ok(start.includes(ABE) && !start.includes('An AI text.'), start);
 });
 
 test('in one place, the documented change is one decision; the key again in other words with no supersedes is refused', async () => {
   const io = bookWorld({ files: { [FILE]: 'a\n' }, branch: 'main' });
   writeConfig(io, { protect: ['lessons/**'] });
   const id = await begin(io, { title: 'Escape velocity note', level: 'micro' });
-  await added(io, id, [...DRAFT, noteSaid(ALI)]);
-  await added(io, id, noteSaid(ZEY, { supersedes: [`${id}/${KEY}`] }));
+  await added(io, id, [...DRAFT, noteSaid(ABE)]);
+  await added(io, id, noteSaid(ZOE, { supersedes: [`${id}/${KEY}`] }));
   assert.ok(!(await verbSays(io, 'show', [id, 'decisions'])).includes('CONFLICT ('), 'the documented change');
-  const again = await added(io, id, noteSaid(ALI)).then(() => null, (err) => err.message);
+  const again = await added(io, id, noteSaid(ABE)).then(() => null, (err) => err.message);
   assert.ok(again.startsWith(`decision-unnamed: nothing written: ${id}/${KEY}:`), again); // the write makes no conflict; only a merge does
 });
 
@@ -116,10 +116,10 @@ test('a plan file git left with conflict markers is a merge conflict to every re
   const io = bookWorld({ files: { [FILE]: 'a\n' }, branch: 'main' });
   writeConfig(io, { protect: ['lessons/**'] });
   const id = await begin(io, { title: 'Escape velocity note', level: 'micro' });
-  await added(io, id, [...DRAFT.slice(0, 3), { t: 'confirm', by: 'the person', said: 'yes' }]);
+  await added(io, id, [...DRAFT.slice(0, 3), { t: 'confirm', by: 'Amy', said: 'yes' }]);
   const [plan, ...rest] = io.fs.readText(logFile(id)).split('\n').filter(Boolean);
   const side = (said) => JSON.stringify({ ...noteSaid(said), at: '2026-11-02T07:00:00.000Z' });
-  io.fs.writeAtomic(logFile(id), [plan, ...rest, '<<<<<<< HEAD', side(ALI), '=======', side(ZEY), '>>>>>>> theirs', ''].join('\n'));
+  io.fs.writeAtomic(logFile(id), [plan, ...rest, '<<<<<<< HEAD', side(ABE), '=======', side(ZOE), '>>>>>>> theirs', ''].join('\n'));
   const markers = `.decisionbook/${id}.jsonl has unresolved git conflict markers at lines ${rest.length + 2}, ${rest.length + 4}, `
     + `${rest.length + 6}: resolve them in git`;
   for (const [verb, args] of [['show', [id]], ['ready', [id]]]) {
@@ -132,7 +132,7 @@ test('a plan file git left with conflict markers is a merge conflict to every re
   assert.deepEqual([gate.verdict, gate.code, gate.reason.includes(markers)], ['deny', 'plan-unmerged', true], gate.reason);
   const doctor = await decisionbook.doctor(io);
   assert.deepEqual([doctor.ok, doctor.says.includes(markers)], [false, true], doctor.says);
-  io.fs.writeAtomic(logFile(id), [plan, '<<<<<<< HEAD', side(ALI), '||||||| base', '=======', side(ZEY), '>>>>>>> theirs', ''].join('\n'));
+  io.fs.writeAtomic(logFile(id), [plan, '<<<<<<< HEAD', side(ABE), '||||||| base', '=======', side(ZOE), '>>>>>>> theirs', ''].join('\n'));
   assert.ok((await verbSays(io, 'inbox', [])).includes('markers at lines 2, 4, 5, 7:'), 'the base line of a three-way merge is a marker too');
   const start = await verbSays(io, 'resume', []);
   assert.ok(start.startsWith('Resolve the merge first') && !start.includes('No plan on this branch'), `no new plan is asked for:\n${start}`);
@@ -145,7 +145,7 @@ test('a plan file that does not read is unknown, never absent: start, resume, in
   const io = bookWorld({ files: { [FILE]: 'a\n' }, branch: 'main' });
   writeConfig(io, { protect: ['lessons/**'] });
   const id = await begin(io, { title: 'Escape velocity note', level: 'micro' });
-  await added(io, id, [...DRAFT.slice(0, 3), { t: 'confirm', by: 'the person', said: 'yes' }]);
+  await added(io, id, [...DRAFT.slice(0, 3), { t: 'confirm', by: 'Amy', said: 'yes' }]);
   const whole = io.fs.readText(logFile(id));
   const [plan, ...rest] = whole.split('\n').filter(Boolean);
   const unread = (place) => `a record could not be read: .decisionbook/${id}.jsonl${place} (record-invalid); what it holds is unknown, not absent`;
@@ -172,7 +172,7 @@ test('beside an earlier plan\'s conflict, an answer typed before its question is
   writeConfig(io, { protect: ['lessons/**'] });
   const old = await begin(io, { title: 'Escape velocity note', level: 'micro' });
   const TYPED = 'Yes, the textbook line, in bold.';
-  await added(io, old, [...DRAFT.slice(0, 4), noteSaid(TYPED, { value: 'The textbook line, bold.' }), { t: 'confirm', by: 'the person', said: 'go' }]);
+  await added(io, old, [...DRAFT.slice(0, 4), noteSaid(TYPED, { value: 'The textbook line, bold.' }), { t: 'confirm', by: 'Amy', said: 'go' }]);
   const [head, ...rest] = io.fs.readText(logFile(old)).split('\n');
   const first = rest.findIndex((line) => line.includes('"t":"decision"'));
   const twin = JSON.stringify({ ...JSON.parse(rest[first]), value: TYPED, at: '2026-11-02T06:00:00.900Z' }); // the same words written again,
@@ -193,8 +193,13 @@ test('beside an earlier plan\'s conflict, an answer typed before its question is
   const early = await sent([ask, stays]); // asked in the chat only: the question reaches the record with the answer
   assert.ok(early.startsWith(`conflict-unasked: nothing written: record 2 of 2: ${ref}: this answer ends a conflict, and no replace question`)
     && !early.includes('quotes the person'), early);
-  await sent([ask]);
+  await sent([ask, ASK('Q2', 'note.place', 'Where does the line go?')]);
   assert.ok((await sent([stays])).startsWith('conflict-unasked: '), 'typed before the question was on record');
+  assert.ok((await verbSays(io, 'inbox', [])).includes('CONFLICT'), 'the conflict waits for the person');
   await say('The note stays as it is.');
-  assert.ok((await sent([stays])).includes(`recorded as the person's: ${KEY}: "The note stays as it is.", replaces ${ref}`), 'their answer after it');
+  assert.ok((await sent([stays])).includes(`recorded, by Amy: ${KEY}: "The note stays as it is.", replaces ${ref}`), 'their answer after it');
+  // the answer ends the conflict at once, though its plan is still a draft that waits for another answer
+  assert.match(await verbSays(io, 'show', [id]), new RegExp(`^${id} draft `), 'Q2 is still open');
+  assert.ok(!(await verbSays(io, 'inbox', [])).includes('CONFLICT') && !(await verbSays(io, 'show', [`decision:${KEY}`])).includes('CONFLICT'),
+    'no reader shows the conflict any more');
 });

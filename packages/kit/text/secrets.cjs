@@ -125,7 +125,7 @@ const scrub = (text) => SHAPES.reduce((out, shape, i) => (TESTS[i].re.test(out) 
 const clipped = (text, max) => clip(scrub(text), max);
 // A mask keeps its line's indentation: a reader finding a block by indentation never takes it for the block's end.
 const MASK = '█';
-const maskOf = (line) => `${/^[ \t]*/.exec(line)[0]}█`;
+const maskOf = (line) => `${/^[ \t]*/.exec(line)[0]}${MASK}`;
 const isMask = (line) => typeof line === 'string' && line.trim() === MASK;
 function masked(text) {
   const shapes = find(text);

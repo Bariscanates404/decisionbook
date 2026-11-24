@@ -27,9 +27,9 @@ test('[I-29] a plan writing a new file where the repository shows two ways is no
   const text = await readyText(io, id);
   assert.match(text, /\n {2}module · app, export: default in 9, named in 5 of 14; e\.g\. src\/app\/a\.js:1, src\/app\/c\.js:2\n/u);
   assert.match(text, /\n {4}ask the person once which is the team's standard, then: \/decide style\.module\.app\.export "default", "named" or "either" with files src\/app\/\*\*\n/u);
-  await added(io, id, { t: 'decision', key: KEY, value: 'default', why: 'the house way', by: 'ai', files: ['src/app/**'] });
+  await added(io, id, { t: 'decision', key: KEY, value: 'default', why: 'the house way', whose: 'assumed', files: ['src/app/**'] });
   assert.deepEqual(codesOf(await verbs.ready(io, { rest: [id] })), ['ready-standard-undecided'], "an AI's guess decides nothing");
-  await added(io, id, { t: 'decision', key: KEY, value: 'default', why: 'the house way', by: 'Ayse', files: ['src/app/**'] });
+  await added(io, id, { t: 'decision', key: KEY, value: 'default', why: 'the house way', whose: 'person', files: ['src/app/**'] });
   assert.equal((await verbs.ready(io, { rest: [id] })).out.ready, true);
   assert.equal(lastN(io, 'decisionbook.ready').standards, 0);
 });
@@ -37,7 +37,7 @@ test('[I-29] a plan writing a new file where the repository shows two ways is no
 test('[I-29] a decided key of two ways is never asked again; a later plan planning a new file there is READY', async () => {
   const io = twoWaysWorld();
   const first = await readyOne(io, { plans: [NEW], title: 'First' });
-  await added(io, first.id, { t: 'decision', key: KEY, value: 'either', why: 'both stay', by: 'Ayse', files: ['src/app/**'] });
+  await added(io, first.id, { t: 'decision', key: KEY, value: 'either', why: 'both stay', whose: 'person', files: ['src/app/**'] });
   const second = await readyOne(io, { plans: ['src/app/Other.js'], title: 'Second' });
   assert.deepEqual([second.res.out.ready, codesOf(second.res)], [true, []]);
   const { standards, standardsDecided } = lastN(io, 'decisionbook.add');

@@ -1,16 +1,13 @@
 {
   "$comment": [
     "A person's own words, by language: a language's words are added here, never in code. Words are lower case; a role is a list of words,",
-    "or `words` (whole) and `parts` (inside a word, or in a text with no spaces). `negations`: a sentence holding one is quoted only whole;",
-    "`joins` set clauses apart; `intent` says done, dropped or changed; `common` carry no content; `endings` are what a form adds to a",
+    "or `words` (whole) and `parts` (inside a word, or in a text with no spaces). `intent` says done, dropped or changed; `common` carry no",
+    "content; `endings` are what a form adds to a",
     "stem. `about`: the numbers of the test of what words are about."
   ],
   "about": { "share": 0.25, "least": 1, "stem": 4 },
   "languages": {
     "en": {
-      "negations": { "words": ["no", "not", "never", "none", "nothing", "neither", "nor", "without", "cannot", "stop", "avoid", "refuse", "forbid",
-        "forbidden", "unless", "except", "against", "wrong"], "parts": ["n't"] },
-      "joins": ["and", "or", "but", "then", "also", "plus"],
       "intent": { "words": ["done", "drop", "dropped", "cancel", "cancelled", "canceled", "forget", "skip", "remove", "scrap", "abandon", "change",
         "changed", "instead", "replace", "replaced", "finished", "complete", "completed", "aside", "shelve", "park"],
         "parts": ["no longer", "never mind", "not needed"] },
@@ -20,9 +17,6 @@
       "endings": ["s", "es", "ed", "d", "ing", "e", "er", "al", "ion", "ly"]
     },
     "tr": {
-      "negations": { "words": ["değil", "yok", "asla", "hiç", "hiçbir", "sakın", "olmaz", "yasak", "hayır", "olmadan", "yapma", "etme", "dokunma",
-        "silme", "değiştirme"], "parts": ["masın", "mesin", "mayalım", "meyelim", "miyor", "mıyor", "muyor", "müyor"] },
-      "joins": ["ve", "veya", "ama", "fakat", "sonra", "ayrıca"],
       "intent": { "words": ["kenara", "rafa", "bitti", "tamam", "tamamlandı", "vazgeç", "vazgeçtim", "iptal", "bırak", "unut", "değiştir", "değişti",
         "kaldır"], "parts": ["gerek yok"] },
       "common": ["teşekkürler", "lütfen", "hepsi", "bir", "ile", "için", "olan"],
@@ -30,19 +24,12 @@
         "ın", "in", "un", "ün", "nın", "nin", "nun", "nün", "sı", "si", "su", "sü", "m", "n", "k", "dı", "di", "du", "dü", "tı", "ti", "tu", "tü",
         "sın", "sin", "sun", "sün", "ıl", "il", "ul", "ül", "ma", "me", "mak", "mek", "r", "ar", "ır", "ir"]
     },
-    "de": { "negations": ["nicht", "kein", "keine", "keinen", "nie", "niemals", "ohne", "nichts"], "joins": ["und", "oder", "aber", "dann"],
-      "intent": ["fertig", "erledigt", "abbrechen", "vergiss", "streich", "ändern", "geändert"], "common": ["der", "die", "das", "und", "ein", "eine"] },
-    "es": { "negations": ["no", "nunca", "jamás", "ningún", "ninguna", "nada"], "joins": ["pero", "luego"],
-      "intent": ["listo", "hecho", "cancela", "olvida", "cambia", "quita"], "common": ["los", "las", "una"] },
-    "fr": { "negations": ["pas", "jamais", "sans", "aucun", "aucune", "rien", "non"], "joins": ["et", "ou", "mais", "puis"],
-      "intent": ["fini", "terminé", "annule", "oublie", "laisse"], "common": ["les", "des", "une"] },
-    "pt": { "negations": ["não", "sem", "nenhum", "nenhuma"], "joins": ["mas"] },
-    "it": { "negations": ["non", "senza", "nessun", "nessuna"], "joins": ["poi"] },
-    "vi": { "negations": ["không", "đừng", "chưa", "chẳng", "cấm"], "joins": ["và", "hoặc", "nhưng", "rồi"], "intent": ["xong", "bỏ", "hủy", "thôi", "đổi"] },
-    "ru": { "negations": ["не", "нет", "никогда", "без", "нельзя"], "joins": ["или", "но"], "intent": ["готово", "отмена", "отмени", "забудь", "измени"] },
-    "ja": { "negations": { "parts": ["ない", "ません", "禁止", "だめ", "ダメ", "なし"] },
-      "intent": { "parts": ["完了", "済み", "やめ", "中止", "キャンセル", "不要", "変更", "取り消"] } },
-    "zh": { "negations": { "parts": ["不", "没", "別", "别", "勿", "禁", "无", "無"] }, "intent": { "parts": ["完成", "取消", "不用", "放弃"] } },
-    "ko": { "negations": { "parts": ["않", "못", "마세요", "금지"] } }
+    "de": { "intent": ["fertig", "erledigt", "abbrechen", "vergiss", "streich", "ändern", "geändert"], "common": ["der", "die", "das", "und", "ein", "eine"] },
+    "es": { "intent": ["listo", "hecho", "cancela", "olvida", "cambia", "quita"], "common": ["los", "las", "una"] },
+    "fr": { "intent": ["fini", "terminé", "annule", "oublie", "laisse"], "common": ["les", "des", "une"] },
+    "vi": { "intent": ["xong", "bỏ", "hủy", "thôi", "đổi"] },
+    "ru": { "intent": ["готово", "отмена", "отмени", "забудь", "измени"] },
+    "ja": { "intent": { "parts": ["完了", "済み", "やめ", "中止", "キャンセル", "不要", "変更", "取り消"] } },
+    "zh": { "intent": { "parts": ["完成", "取消", "不用", "放弃"] } }
   }
 }

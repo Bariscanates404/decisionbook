@@ -5,7 +5,7 @@
 // Whether a namespace reports, pure, first match wins: an environment switch -> no readable choice -> your off -> the namespace's off ->
 // its on under the current (core, namespace) policy pair -> nobody chose (on only as the beta's default, after its notice, with an
 // address). Env can only close. And what each command writes: a command never turns on a namespace it did not name or list.
-const { closedState, choiceEntry, onUnderPair } = require('../contracts/helpers.cjs');
+const { closedState, choiceEntry, onUnderPair, noticeCovers } = require('../contracts/helpers.cjs');
 
 const OFF_WORDS = ['0', 'off', 'false', 'no'];
 // An environment switch, as its value reads (trimmed, lower case): the process it is set in makes and sends nothing.
@@ -30,10 +30,15 @@ const choiceRead = (record, schema) => (record.schema === schema.consentOld ? { 
 // What closes a namespace before any on is looked at: a switch, a record that does not read, your off, its own off.
 const closedBy = ({ killed, choice, refused }, entry) => (killed && closedState('telemetry-killed', killed)) || (refused && closedState(refused))
   || ((choice.all === 'off' || entry?.on === false) && closedState('telemetry-off')) || null;
-/** Whether the notice a person saw covers a namespace: said under the current core policy and this namespace's current policy. */
-const noticeCovers = (noticed, { wire, space }) => noticed?.core === wire.policy && noticed.policies?.[space.ns] === space.policy;
 const byDefault = ({ noticed }, at) => at.wire.unchosen === 'on' && Boolean(at.wire.url) && at.wire.betaModules.includes(at.space.ns)
   && at.today <= at.wire.betaUntil && noticeCovers(noticed, at);
+
+/** The beta's namespaces here while its default holds (`unchosen: on`, through betaUntil), and whether the notice a person saw covers
+ * them all (`shown`; with none, nothing is left to show). */
+function betaNotice(choice, { wire, spaces, today }) {
+  const beta = wire.unchosen === 'on' && today <= wire.betaUntil ? spaces.filter((space) => wire.betaModules.includes(space.ns)) : [];
+  return { beta, shown: beta.every((space) => noticeCovers(choice.noticed, { wire, space })) };
+}
 
 /** One namespace's state: `{ on, code, source, since, why }`. `held`: { killed, choice, refused }; `at`: { wire, space, today }. */
 function reportingState(held, at) {
@@ -79,4 +84,4 @@ function choiceAfter(choice, { act, names = [], yes, here, core, at }) {
   return { all: writes.all, modules, noticed: act === 'notice' ? { core, at, policies } : choice.noticed };
 }
 
-module.exports = { NONE, SWITCH_NAMES, switchOf, choiceRead, reportingState, unanswered, choiceAfter, noticeCovers };
+module.exports = { NONE, SWITCH_NAMES, switchOf, choiceRead, reportingState, unanswered, choiceAfter, betaNotice };

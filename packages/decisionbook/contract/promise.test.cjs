@@ -26,7 +26,9 @@ test('[I-30] a test file binding the promised module whole under a promised name
   assert.match(first.reason, /test\/sched-e2e\/helpers\.js:2 `const createScheduler = require\('\.\.\/\.\.\/lib\/sched'\)` binds lib\/sched\/index\.js whole/);
   assert.match(first.reason, /the promise is `const \{ createScheduler, replay \} = require\('\.\/lib\/sched'\)` \(in heard:h1\.1\)/);
   const again = await handlers.preEdit(asMode(testWrite('test/sched-e2e/helpers.js', WHOLE), 'default'), io);
-  assert.deepEqual(ruling(again), ['allow', 'gate-off'], 'asked once a session and file: the second write keeps it');
+  assert.deepEqual(ruling(again), ['ask', 'contract-unpromised'], 'the person said no (the write never ran): the retry is asked again');
+  await handlers.postEdit({ ...testWrite('test/sched-e2e/helpers.js', WHOLE), hook_event_name: 'PostToolUse' }, io); // their yes: the write ran
+  assert.deepEqual(ruling(await handlers.preEdit(asMode(testWrite('test/sched-e2e/helpers.js', WHOLE), 'default'), io)), ['allow', 'gate-off'], 'only a yes passes');
 });
 
 test('[I-30] where no one is asked the unpromised import is refused once with the same line; the promised import passes', async () => {
@@ -84,7 +86,7 @@ test('[I-30] debug decisionbook lists every promise it reads, the file, the name
 test('[I-30] a promise recorded in a plan decision is the contract with no journal at all', async () => {
   const io = promisedWorld({ heard: null });
   const id = await begin(io);
-  await added(io, id, { t: 'decision', key: 'api.sched-surface', value: "const { createScheduler } = require('./lib/sched')", why: 'the task promised it', by: 'Ayse' });
+  await added(io, id, { t: 'decision', key: 'api.sched-surface', value: "const { createScheduler } = require('./lib/sched')", why: 'the task promised it', whose: 'person' });
   const said = await handlers.preEdit(asMode(testWrite('test/sched-e2e/helpers.js', WHOLE), 'default'), io);
   assert.deepEqual(ruling(said), ['ask', 'contract-unpromised']);
   assert.match(said.reason, /\(in decision:api\.sched-surface\)/);

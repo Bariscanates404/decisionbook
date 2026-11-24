@@ -10,7 +10,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { hash: { sha256 } } = require('@atlasbound/kit');
-const { makeWorld, makeRepo, tmp, setupRepo, fire, portRow, hookDecisionOf, protect, run } = require('./support.cjs');
+const { makeWorld, makeRepo, tmp, setupRepo, fire, portRow, hookDecisionOf, protect, run, knownIn } = require('./support.cjs');
 
 const FILE = 'app/x.rb';
 const PLAN = [{ t: 'research', tool: 'grep', asked: 'MAX_OPTIONS', answer: 'one constant', source: `${FILE}:1` }, { t: 'item', kind: 'feature', text: 'poll options' },
@@ -24,7 +24,7 @@ function spelled(hookVia) {
   const link = path.join(tmp('realroot-link-'), 'repo');
   fs.symlinkSync(repo, link);
   const [hookRoot, verbRoot] = hookVia === 'link' ? [link, repo] : [repo, link];
-  const home = tmp('realroot-home-');
+  const home = knownIn(repo, tmp('realroot-home-'));
   const ab = (session, ...args) => run(world.bin, [...args, '--target', verbRoot], { env: { HOME: home, ...(session ? { CLAUDE_CODE_SESSION_ID: session } : {}) } });
   const said = (session, event, payload = {}) => fire(repo, portRow(repo, event, payload.tool_name || ''), { session_id: session, cwd: hookRoot,
     hook_event_name: event, ...payload }, { HOME: home, CLAUDE_PROJECT_DIR: hookRoot });

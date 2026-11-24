@@ -9,7 +9,7 @@ const { WORDS, SHOWN: { pack: shown } } = require('../../contracts/codes.cjs');
 const { RUBRIC } = require('../../contracts/rubric.cjs');
 const { RAISERS } = require('../level.cjs');
 const { draftedCall, addCall, showCall, shapesLine, replaceLine } = require('./calls.cjs');
-const { deciderOf, agedOf, rivalText } = require('./records.cjs');
+const { whoseOf, agedOf, rivalText } = require('./records.cjs');
 
 const RAISED_BY = `${RAISERS.slice(0, -1).join(', ')} or ${RAISERS.at(-1)}`;
 
@@ -20,7 +20,7 @@ function decidedLines(decisions, more) {
   const rest = more ? [filled(WORDS.packMore, { file: shown.more(more) })] : [];
   if (!decisions.length) return rest;
   const rows = decisions.flatMap((d, i) => [...(d.from.id === decisions[i - 1]?.from.id ? [] : [sourceLine(d.from)]),
-    d.conflict ? `- ${shown.key(d.key)} ${rivalText(d.conflict)}` : `- ${shown.key(d.key)} = ${shown.value(d.value)} (${deciderOf(d.by, d.author)}${agedOf(d,
+    d.conflict ? `- ${shown.key(d.key)} ${rivalText(d.conflict)}` : `- ${shown.key(d.key)} = ${shown.value(d.value)} (${whoseOf(d)}${agedOf(d,
       dayOf(d.from.at))})`]);
   return [WORDS.packDecided, ...rows, ...rest, `${replaceLine(WORDS.packRef)} ${WORDS.packRefAt}`];
 }
@@ -49,13 +49,6 @@ function needsOf({ rows, level }) {
   return rows.map((id) => (countOf(id) > 1 ? `${id} ${countOf(id)}` : id)).join(', ');
 }
 
-/** Where the level comes from: the files the prompt names, its words alone, or the layout given when it names no
- * file. */
-function levelFrom({ named, unnamed }) {
-  if (named) return WORDS.packFrom.files;
-  return unnamed ? WORDS.packFrom.unnamed : filled(WORDS.packFrom.words, { raisers: RAISED_BY });
-}
-
 /** The level line, the small form in one line when the layout was raised for a prompt naming no file, what to do (`first`: where another
  * package sends the research before this pack), the shapes of the blanks, then the `new` and the person's `add` as fill-in JSON. */
 function levelLines(judged, first, session) {
@@ -64,7 +57,7 @@ function levelLines(judged, first, session) {
   const [needs, smallNeeds] = layouts.map(needsOf);
   const slots = {
     level: WORDS.levels[level],
-    from: levelFrom(judged),
+    from: judged.named ? WORDS.packFrom.files : WORDS.packFrom.unnamed, // the files the prompt names, or the layout where it names none
     signals: signals.length ? `: ${shown.signals(signals.join(', '))}` : '',
     needs,
   };

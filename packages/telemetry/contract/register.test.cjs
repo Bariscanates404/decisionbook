@@ -15,7 +15,7 @@ const EXTRA = { namespace: 'extra', schema: 1, policy: 1, lock: { 1: '0'.repeat(
 test('[I-8] a package claiming an owned namespace registers nothing; a split namespace forms one schema or none', () => {
   const rows = declaredDescriptors({ open: true });
   const thief = one('thief', { ...EXTRA, namespace: 'db' });
-  assert.deepEqual(schemaOf([...rows, thief]).modules.db[1], schemaOf(rows).modules.db[1], 'db stays decisionbook\'s alone');
+  assert.deepEqual(schemaOf([...rows, thief]).modules.db, schemaOf(rows).modules.db, 'db stays decisionbook\'s alone');
   const half = (name, over = {}) => one(name, { ...EXTRA, steps: { tick: 'measured', stop: 'measured' }, metrics: {}, ...over });
   const two = schemaOf([half('extra-a'), half('extra-b')]).modules.extra[1];
   assert.deepEqual([...two.metrics.step.dims.step].sort(), ['extra-a-stop', 'extra-a-tick', 'extra-b-stop', 'extra-b-tick'].sort(),

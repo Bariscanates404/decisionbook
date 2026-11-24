@@ -17,8 +17,11 @@ const { createTerminal } = require('./terminal.cjs');
 const { ceilingOf } = require('../core/windows.cjs');
 const { floor } = require('./node-floor.cjs');
 const { installFacts } = require('../steps/doctor.cjs');
+const { keptPerson } = require('../core/whoami.cjs');
 
 const CLI_DIR = parentDir(__dirname);
+// what the person's `gh` runs on and reads its login from: the tracker port's child gets these and nothing else
+const TRACKER_ENV = ['PATH', 'HOME', 'GH_TOKEN', 'GITHUB_TOKEN', 'GH_ENTERPRISE_TOKEN', 'GH_HOST', 'GH_CONFIG_DIR', 'XDG_CONFIG_HOME'];
 const SELF = Object.freeze({ node: process.execPath, bin: `${CLI_DIR}/bin/atlasbound.cjs` }); // this install: the one place that spells either
 let FINDER = null;
 /** The packages of this install, found once per process: argv routes with its table before any repository is opened. */
@@ -123,8 +126,6 @@ const recordsFsOf = (fs, quiet) => (!quiet ? fs
 const digitsOf = (text) => [...text].filter((char) => char >= '0' && char <= '9').join('');
 /** Never HOME: env must not be able to point telemetry's consent at a forged record. The user's alone. */
 const userHomeFs = () => (kitIo.env.userHome() ? kitIo.createFs(kitIo.env.userHome(), { private: true }) : null);
-const selfOf = () => ({ hostPid: Number.parseInt(kitIo.env.get(pidEnv), 10) || null, writer: nameOf(kitIo.env.userHome() || '') || null,
-  self: SELF });
 const machineOf = () => Object.freeze({ node: process.versions.node, platform: process.platform, exec: SELF.node, bin: SELF.bin, floor,
   fsAt: kitIo.createFs, scratch: kitIo.scratch, releases: releasesOf });
 
@@ -156,15 +157,18 @@ function actorRows(trace, run) {
 function everyonesIo({ opened, run, config, trace, found, actor, stdio, swap, facts }) {
   const { root, boundFrom, fs, start } = opened; // start: the folder the verb was typed in (a path a person types is read from there)
   const git = kitIo.createGit({ proc: kitIo.proc, root, env: childEnv(kitIo.env, ['PATH', 'HOME'], root) });
+  const tracker = kitIo.createTracker({ proc: kitIo.proc, root, env: childEnv(kitIo.env, TRACKER_ENV, root) });
   // what a session's write tool may write in the product's store: the host data's files and each wired manifest's
   const sessionWrites = () => [...HOST_OPEN, ...found.declared().manifests.flatMap((manifest) => manifest.sessionWrites ?? [])];
   // a data file every package of this install may declare (the cli's own and each one's on disk), e.g. the telemetry words it may leave as
   const packageData = (rel) => [{ name: 'cli', text: kitIo.createFs(CLI_DIR).readText(rel) }, ...found.dataOf(rel)]
     .filter((r) => r.text !== null);
   const session = stdio.out.isTTY ? null : kitIo.env.get(sessionEnv); // a terminal's text is the person's: no AI session's memory cuts it
-  return Object.freeze({ root, start, boundFrom, session, ...selfOf(), run, config, version: productVersion(),
+  return Object.freeze({ root, start, boundFrom, session, self: SELF, run, config, version: productVersion(),
     versionNow: versionNowOf(trace, run), fs, home: userHomeFs(), clock: kitIo.clock, git, env: kitIo.env, proc: kitIo.proc, ...swap,
-    stdio, absent: found.absent, sessionWrites, actor, packageData, // actor(prompts): kit's one answer to "who is acting"
+    stdio, absent: found.absent, sessionWrites, actor, packageData, tracker, // actor(prompts): kit's one answer to "who is acting"
+    // who the person working here is: the name kept in their home since setup (steps/whoami); a root that holds an account hands that
+    identity: async () => ({ name: null, from: 'setup', ...keptPerson(userHomeFs(), root) }),
     hostEnv: [projectEnv, sessionEnv, pidEnv], // the host's variables a session's command never sets (the shell gate)
     installFacts: facts });
 }

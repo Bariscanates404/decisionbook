@@ -3,19 +3,21 @@
 // See LICENSE and NOTICE in the package root.
 'use strict';
 // PreToolUse on a shell command: each file it writes meets the Edit gate's ladder, the gravest verdict stands; unplaced or unread in
-// BUDGET_MS asks.
-// A folder written is every file under it; a glob is the folder before its first wildcard. Not a sandbox: Stop sees git.
-const { text: { shell: { writtenBy, setBy, readBy } }, paths: { resolveFrom, nameOf, folderAfter }, host: { SHELL_TOOLS },
-  scripts: { scriptReaders } } = require('@atlasbound/kit');
-const { CONFIG } = require('../contracts/shapes.cjs');
+// BUDGET_MS asks. A folder written is every file under it; a glob is the folder before its first wildcard. Not a sandbox: Stop sees git.
+const { text: { shell: { writtenBy, setBy, readBy } }, paths: { resolveFrom, nameOf, folderAfter }, host: { SHELL_TOOLS, draftsOf },
+  scripts: { scriptReaders }, person: { asksPerson } } = require('@atlasbound/kit');
+const { CONFIG, bound } = require('../contracts/shapes.cjs');
+const { claimed, heldAs } = require('../core/whose.cjs');
+const { otherOf } = require('../base/text.cjs');
+const { whoseListing, whoseNote } = require('../core/text/refused.cjs');
 const { unplacedReason, unplacedOf, shellReason, gateReason } = require('../core/text/gate.cjs');
 const { guardOf } = require('./host.cjs');
 const { anyOverlap, folderOf, isGlob } = require('../base/glob.cjs');
 const { isGuarded } = require('../core/gate.cjs');
 const { preEdit } = require('./gate.cjs');
 const { guardedPolicy } = require('./changed.cjs');
-const { sawCall } = require('./phase.cjs');
-const { keepReads } = require('./here.cjs');
+const { sawCall, SHOWN, ALLOWED } = require('./phase.cjs');
+const { keepReads, personOf, sessionRows, sessionAdd } = require('./here.cjs');
 
 const RANK = ['deny', 'ask', 'allow'];
 const FOLDER = /(?:^|\/)\.{0,2}$/; // spelled as a folder: `.`, `..` or a final `/`
@@ -122,17 +124,36 @@ async function preShell(event, io) {
   // the host's variables say which session and project a verb acts for: a command that sets one would act as another
   const posed = setBy(read, io.hostEnv ?? []).join(', ');
   return posed ? { out: { verdict: 'deny', code: 'shell-host-env', reason: gateReason({ code: 'shell-host-env', file: posed }) },
-    code: 'shell-host-env', n: { writes: read.writes.length } } : laddered(event, io, read, past);
+    code: 'shell-host-env', n: { writes: read.writes.length } } : laddered(event, io, read, { past, shown: await whoseShown(io, event, cwd) });
 }
 
-async function laddered(event, io, read, past) {
+async function laddered(event, io, read, { past, shown }) {
   const { judged, told, folders, unread } = await judgedAll(io, event, read, past);
   const asking = (read.unplaced || unread) && guardedPolicy(io).off !== 'gate-off';
-  const asks = asking ? [{ verdict: 'ask', code: 'shell-unplaced', reason: unplacedOf(read, unread) }] : [];
+  const asks = [...(asking ? [{ verdict: 'ask', code: 'shell-unplaced', reason: unplacedOf(read, unread) }] : []), ...(shown ? [shown] : [])];
   const out = gravest([...judged, ...asks]);
   const n = { writes: read.writes.length, judged: judged.length, unplaced: Number(read.unplaced), ...(folders ? { folders } : {}),
     ...(unread ? { unread: 1 } : {}) };
   return { out, code: out.code, n: { ...n, ...told } };
+}
+
+const ADD = /(?:^|[;&|])\s*atlasbound\s+decisionbook\s+(?:add\s+\S+|new)\s+--file\s+(\S+)/u; // a record call (commands/decisionbook): its draft's records where a person is asked
+function sentDraft(io, event, cwd) {
+  const given = asksPerson(event.permission_mode) && ADD.exec(String(event.tool_input?.command))?.[1];
+  const key = given ? io.fs.keyAt(resolveFrom(cwd, given)) : null;
+  const sent = (key?.startsWith(draftsOf(event.session_id)) && bound.jsonOrNull(io.fs.readText(key, { noLink: true }) ?? 'null')) || [];
+  return [].concat(sent.records ?? sent); // a new's plan holds its records
+}
+/** Its teammate words no format names (core/whose), put to the person once as the host's prompt; on Allow this call's verb credits them. */
+async function whoseShown(io, event, cwd) {
+  const person = await personOf(io);
+  const [heard, shown, asked] = ['prompt', ALLOWED, SHOWN].map((t) => sessionRows(io, event.session_id).filter((row) => row.t === t));
+  const items = sentDraft(io, event, cwd).map((raw) => raw?.t === 'decision' && claimed(raw, person, { questions: [] })).filter(Boolean)
+    .map((record) => [otherOf(record, person), heldAs({ record, heard, person, ended: [], shown })]) // allowed: asked no more
+    .filter(([who, held]) => who && !held.refused && !held.saidBy && !held.read).map(([who, held]) => ({ who, said: held.said }));
+  const listing = items.length && whoseListing(items); // one the person denied (shown, never allowed) is not asked: their own words
+  return listing && !asked.some((row) => row.listing === listing) ? (sessionAdd(io, event.session_id, { t: SHOWN, items, listing }),
+  { verdict: 'ask', code: 'whose-unproven', reason: listing, context: whoseNote(items) }) : null; // the AI reads it on a Deny too
 }
 
 module.exports = { preShell };

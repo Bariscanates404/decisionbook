@@ -119,7 +119,7 @@ test('a policy word the gate does not read asks on every write and names that wo
   writeConfig(io, { protected: ['src/**'], danger: [] });
   const said = await handlers.preEdit(editEvent('src/a.js'), io);
   assert.deepEqual(ruling(said), ['ask', 'policy-unreadable'], 'an unknown policy word asks, never a quiet allow');
-  assert.match(said.reason, /cannot be read, so every write asks the person until it is repaired \(policy-word-unknown: protected: the policy's words are protect, danger, answer\)/);
+  assert.match(said.reason, /cannot be read, so every write asks the person until it is repaired \(policy-word-unknown: protected: the policy's words are protect, danger, risk, answer\)/);
   assert.match(textOf(await handlers.session({ hook_event_name: 'SessionStart', session_id: 's1' }, io)), /\(policy-word-unknown: protected: /m);
   writeConfig(io, { protect: ['src/**'], danger: [], answer: { answer: 'chosen', door: 'protect-command', at: '2026-11-09T00:00:00.000Z' } });
   assert.deepEqual(ruling(await handlers.preEdit(editEvent('src/a.js'), io)), ['deny', 'plan-none'], 'the three words the policy holds stay readable');

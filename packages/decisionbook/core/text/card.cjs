@@ -5,7 +5,7 @@
 // PURE. One earlier plan as a card: which plan, why it is relevant to the work, what it decided and built, its links, what goes deeper.
 const { text: { lines: { dayOf } } } = require('@atlasbound/kit');
 const { showCall } = require('./calls.cjs');
-const { deciderOf, agedOf, replacedBy, rivalText } = require('./records.cjs');
+const { whoseOf, agedOf, replacedBy, rivalText } = require('./records.cjs');
 const { WORDS, SHOWN: { card: shown } } = require('../../contracts/codes.cjs');
 const { refOf } = require('../../contracts/shapes.cjs');
 
@@ -22,7 +22,7 @@ function builtLine({ files, own }) {
 }
 
 const cardDecision = (d, day) => (d.conflict ? `${shown.key(d.key)} ${rivalText(d.conflict)}` : `${shown.key(d.key)} = ${shown.value(d.value)} (by ${
-  deciderOf(d.by, d.author)}${agedOf(d, day)})${d.supersededBy ? ` replaced${replacedBy(d)}` : ''}`);
+  whoseOf(d)}${agedOf(d, day)})${d.supersededBy ? ` replaced${replacedBy(d)}` : ''}`);
 
 /** The commands that show more of a card: its decisions, the history of the file it was found by, its first
  * decision. */

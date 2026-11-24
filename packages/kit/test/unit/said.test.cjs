@@ -2,87 +2,87 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-// kit's one owner of the person's words: whole clauses of their message, a sentence with a negation only whole; words about a line,
-// and words that settle it. Fragments of a clause are the first cases.
+// kit's one owner of the person's words: a message read as whole sentences; a quote found in it stands for the whole sentences it runs
+// over, never the part; whose a sentence is, by the names in it and over its block; words about a line, and words that settle it.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { said: { clausesOf, notTheirs, isAbout, intends }, host: { personWords }, errors: { fail } } = require('@atlasbound/kit');
+const { said: { sentencesOf, quotedAt, wholeOf, voicedBy, isAbout, intends }, host: { personWords }, errors: { fail } } = require('@atlasbound/kit');
 
-// an answer given as a list item is that whole item; the question it quotes back is the asker's sentence, not theirs
-test('a list item is the person\'s whole; its quoted opening may be left out', () => {
-  const LIST = 'Answers:\n- About "Keep the old rows, or not?": Hide them everywhere. They are NOT deleted.\n- About "Which key?": Use y.\nThanks';
-  const said = clausesOf(LIST);
-  assert.deepEqual(said.map(({ key, sentence, item = 0, lead }) => `${sentence} ${lead ? -item : item} ${key}`), ['0 0 answers', '1 -1 about "keep the old rows',
-    '1 -1 not', '2 1 hide them everywhere', '3 1 they are not deleted', '5 -2 about "which key', '6 2 use y', '7 0 thanks']);
-  assert.equal(notTheirs('Hide them everywhere. They are NOT deleted.', said), null, 'the negation in the quoted question is not their sentence\'s');
-  assert.equal(notTheirs('Hide them everywhere. They are NOT deleted.\nUse y.', said), null, 'two items, the opening between left out');
+/** What is kept for `words` quoted from `message`: the whole sentences of their first place; null where they are not there. */
+const kept = (words, message, units = sentencesOf(message)) => {
+  const [place] = quotedAt(words, units);
+  return place ? wholeOf(units, place) : null;
+};
+/** Whether `words` of `message` are `who`'s, at their first place (null: not there). */
+const whose = (words, message, who, units = sentencesOf(message)) => {
+  const [place] = quotedAt(words, units);
+  return place ? voicedBy(units, place, who) : null;
+};
+
+test('a sentence ends at its full stop or a blank line; any other line break goes on, whatever the next line starts with', () => {
+  const wrapped = [['late cancellations do not get\n100% of the deposit back', '100% of the deposit back'],
+    ['a single coupon can not be\n¥1,000 or more', '¥1,000 or more'], ['Refunds are NOT\nPaid out in cash', 'Paid out in cash'],
+    ['the app must never\nSMS the customer after 9pm', 'SMS the customer after 9pm'], ['honestly I wouldnt\nkeep the legacy rounding', 'keep the legacy rounding'],
+    ['for the record there is no way\nI want the importer rewritten', 'I want the importer rewritten'], ['we do not,\nopen the terrace', 'open the terrace'],
+    ['ship the new menu\nnot before friday', 'ship the new menu'], ['please do not do this:\ndelete the old invoices', 'delete the old invoices'],
+    ['staff discounts are not\n\tstacked with coupons', 'stacked with coupons'], ['we never take bookings after 21:30\nfor the terrace', 'for the terrace'],
+    ['ratio is 2:1 for staff meals and we do not\n**count drinks** in it', 'count drinks in it'], ['we do not \r\nreturn the deposit', 'return the deposit']];
+  for (const [message, words] of wrapped) assert.equal(kept(words, message), message.replace(/\s*\r?\n\s*/gu, ' ').trim(), words);
+  assert.equal(kept('migrate the old coupons', 'ok got it. we will not\nmigrate the old coupons'), 'we will not migrate the old coupons', 'after a stop');
+  assert.equal(kept('tips go to the staff pool', 'tips go to the staff pool\n\ndo not\nrename it'), 'tips go to the staff pool', 'a blank line ends it');
+  assert.equal(kept('We do not refund', 'Deposits are 20%.\nWe do not refund them! After 48 hours? never'), 'We do not refund them!', '. ! ?');
+  assert.equal(kept('the 2.5 rule', 'we keep the 2.5 rule here, always'), 'we keep the 2.5 rule here, always', 'a stop inside a number ends nothing');
 });
 
-const RULE = 'Do not delete tests, and never force-push to main.';
-const JOBS = 'Three things: add the CSV export to the report page, fix the flaky login test, and rename Invoice to Bill.';
-const theirs = (words, message) => notTheirs(words, clausesOf(message));
-
-test('a piece of a clause is no quote: fragments, a paraphrase, one letter, no words', () => {
-  const pieces = [['delete tests', RULE], ['force-push to main', RULE], ['o', 'ok go on'], ['', RULE], ['i', 'what time is it in Tokyo?'],
-    ['want you to touch src/login.js at all', 'I do not want you to touch src/login.js at all'],
-    ['Money math uses lib/amount.js only', 'Money math goes through lib/amount.js, never floats.'], ['テストを削除', 'テストを削除しないでください。']];
-  for (const [words, message] of pieces) assert.equal(theirs(words, message), 'fragment', words);
+test('a list item, a chat line or a header ends the sentence before it; a list goes on from the sentence that opens it', () => {
+  const things = 'things Emma does not want\n- charge a fee on gift cards\n- send receipts by sms';
+  assert.equal(kept('send receipts by sms', things), 'things Emma does not want send receipts by sms', 'an item keeps its list\'s opening');
+  assert.equal(kept('bill tips separately', 'we will not do these\n1. bill tips separately\n2) bill corkage'), 'we will not do these bill tips separately');
+  assert.equal(kept('charge a fee on gift cards send receipts by sms', things), 'things Emma does not want charge a fee on gift cards send receipts by sms');
+  assert.equal(kept('drop the banner', 'Two things.\n- keep the limit\n- drop the banner'), 'drop the banner', 'an opening with a full stop is its own');
+  assert.equal(kept('the banner', 'Things we skip\n- the fee.\nWe keep this.\n- the banner'), 'the banner', 'a sentence between ends the list before it');
+  assert.equal(kept('1. bill tips separately', 'we will not do these\n1. bill tips separately'), 'we will not do these bill tips separately', 'quoted with its mark');
+  assert.equal(kept('earned on gift card purchases', '- loyalty points are not\n  earned on gift card purchases'), 'loyalty points are not earned on gift card purchases');
+  assert.equal(kept('staff meals are capped', 'emma: no service charge on staff meals\nemma: staff meals are capped'), 'emma: staff meals are capped');
+  assert.equal(kept('and no BOM', 'Here is the thread:\n[2026-11-20 14:02] Olivia: keep the header row\n[14:03] Olivia: and no BOM'), '[14:03] Olivia: and no BOM');
+  for (const header of ['Emma  [2:07 PM]', '[11/23 2:07 PM] Emma (BA)', 'Emma (BA) 08:52', '# Answers']) {
+    assert.equal(kept('kids eat free', `kids menu is half price\n${header}\nkids eat free`), 'kids eat free', header);
+  }
+  assert.deepEqual(sentencesOf('Emma  [2:07 PM]\nkeep it').map((unit) => unit.text), ['Emma  [2:07 PM]', 'keep it'], 'a header is a line of its own');
 });
 
-test('whole clauses are the person\'s words, case, spacing, quote marks and the last stop aside; a joining word opens no clause', () => {
-  const whole = [[RULE, RULE], ['do not  delete tests, and never force-push to MAIN', RULE], [`"${RULE}"`, RULE],
-    ['add the CSV export to the report page', JOBS], ['rename Invoice to Bill', JOBS], ['fix the flaky login test, and rename Invoice to Bill', JOBS],
-    ['add the CSV export', 'Two jobs: add the CSV export and fix the flaky login test.'], ['fix login', 'Jobs:\n- fix login\n- add tests'],
-    ['Force-push is fine', 'Do not delete tests. Force-push is fine.'], ['run the linter', 'Never:\n- delete tests\n\nrun the linter'],
-    ['forget the rename', 'forget the rename, we keep Invoice'], ['testleri silme, main\'e force-push yapma', 'testleri silme, main\'e force-push yapma']];
-  for (const [words, message] of whole) assert.equal(theirs(words, message), null, words);
-  assert.equal(theirs('add the CSV export to the report page, rename Invoice to Bill', JOBS), 'fragment', 'a clause left out between is no run');
+test('a quote is found as written: spacing, line breaks, a mail\'s ">", list and quote marks aside; never a part of a word', () => {
+  const mail = 'From: Emma (BA)\nSent: Monday\n\n> we do not\n> refund the booking fee';
+  for (const words of ['refund the booking fee', 'we do not\nrefund the booking fee', '> we do not\n> refund the booking fee', '"we do not refund the booking fee."',
+    'WE DO NOT  refund the booking fee']) assert.equal(kept(words, mail), 'we do not refund the booking fee', words);
+  for (const words of ['refund the booking fees', 'refund the fee', 'o', '', 'efund the booking fee', 'the booking fee was refunded']) {
+    assert.equal(kept(words, mail), null, `not there: ${words}`);
+  }
+  assert.equal(kept('Deposits are 20%. We do not refund them', 'Deposits are 20%. We do not refund them.'), 'Deposits are 20%. We do not refund them.', 'two sentences');
+  assert.equal(kept('テストを削除', 'テストを削除しないでください。'), 'テストを削除しないでください。', 'a script with no spaces');
+  assert.deepEqual(quotedAt('keep it', sentencesOf('keep it. ok, keep it.')), [[0, 0], [1, 1]], 'every place');
 });
 
-test('a sentence that holds a negation is quoted whole: a part of it, a list item under it, a wrapped line of it are refused', () => {
-  const parts = [['never force-push to main', RULE], ['Money math goes through lib/amount.js', 'Money math goes through lib/amount.js, never floats.'],
-    ['delete tests', 'Never do these:\n- delete tests.\n- force-push to main.'], ['force-push to main', 'Never do these:\n- delete tests.\n- force-push to main.'],
-    ['delete tests', 'Please do not under any circumstances\ndelete tests'], ['rename fmt', 'I don\'t want you to touch the tests, rename fmt'],
-    ['testleri silme', 'testleri silme, main\'e force-push yapma'], ['テストを削除しない', 'テストを削除しない、mainにpushする'],
-    ['mainにpushする', 'テストを削除しない、mainにpushする']];
-  for (const [words, message] of parts) assert.equal(theirs(words, message), 'negation', words);
-  assert.equal(theirs('Never do these: delete tests, force-push to main', 'Never do these:\n- delete tests.\n- force-push to main.'), null, 'the whole list');
-});
-
-test('a quote opened after a colon is a sentence of its own: whole it is theirs, though the one before holds a negation', () => {
-  const message = 'The open answer is not settled, so here is mine: "Escape speed is the least speed to leave the pull." Record it; do not write code.';
-  assert.equal(theirs('Escape speed is the least speed to leave the pull.', message), null);
-  assert.equal(theirs('so here is mine', message), 'negation', 'the sentence before the quote is still whole only');
-});
-
-test('the clauses of a message: its sentences, list items, its own commas and joining words; a long one is read whole', () => {
-  assert.deepEqual(clausesOf(RULE), [{ key: 'do not delete tests', sentence: 0, no: true }, { key: 'never force-push to main', sentence: 0, no: true }]);
-  assert.deepEqual(clausesOf('Jobs:\n1. fix login.\n2) add tests\n\nThen ship v1.2, ok?').map(({ key, sentence, no }) => `${sentence}${no ? '!' : ''} ${key}`),
-    ['0 jobs', '1 fix login', '3 add tests', '4 ship v1.2', '4 ok'], 'an item of a list no negation opens is its own sentence');
-  assert.deepEqual(clausesOf('Never:\n- delete tests.\n- push to main\n\nship it').map(({ key, sentence, no }) => `${sentence}${no ? '!' : ''} ${key}`),
-    ['0! never', '0 delete tests', '0 push to main', '1 ship it'], 'a negation in the line that opens a list governs every item');
-  assert.deepEqual(clausesOf(null), []);
-});
-
-// a message is read whole: no count of its clauses is cut, so what the person wrote after the 80th is theirs too,
-// and words quoted past the 80th are checked
-test('a long message is read whole: an answer after its 80th clause is theirs, a tail the person never wrote is not', () => {
-  const steps = Array.from({ length: 200 }, (_, i) => `- step ${i + 1} stays as it is`);
-  const said = clausesOf(['Notes:', ...steps].join('\n'));
-  assert.equal(said.length, 201, 'every clause of a 200-item message');
-  assert.equal(notTheirs('step 200 stays as it is', said), null, 'their last item is theirs');
-  assert.equal(notTheirs([...steps.slice(0, 80), '- delete every test'].join('\n'), clausesOf(steps.slice(0, 85).join('\n'))), 'fragment',
-    '80 of their items and one they never wrote are not theirs');
-  const many = Array.from({ length: 20000 }, (_, i) => `item ${i}`).join('\n');
-  assert.equal(notTheirs(many, clausesOf(many)), null, 'a 20,000-clause quote of a 20,000-clause message is read in time');
-});
-
-test('a store that keeps no words keeps sealed clauses: the same test runs over the digests', () => {
-  const seal = (key) => `#${key.length}:${key.charCodeAt(0)}:${key.charCodeAt(key.length - 1)}`;
-  const sealed = clausesOf(RULE).map((clause) => ({ ...clause, key: seal(clause.key) }));
-  assert.equal(notTheirs(RULE, sealed, seal), null);
-  assert.equal(notTheirs('never force-push to main', sealed, seal), 'negation');
-  assert.equal(notTheirs('delete tests', sealed, seal), 'fragment');
+test('whose a sentence is only what the format says: a chat line and its block, a chat header, a quote under "Emma wrote:"', () => {
+  const theirs = [['Emma: keep the limit at 100', 'keep the limit'], ['Emma (BA): keep the limit at 100. drop the banner.', 'drop the banner'],
+    ['pasting\n\nEmma  [2:07 PM]\nkeep the limit. drop the banner', 'drop the banner'], ['[11/23 2:07 PM] Emma (BA)\nkeep the limit', 'keep the limit'],
+    ['Emma [BA] 3:41 PM\nkeep the limit. drop the banner.', 'drop the banner'], ['Emma (BA):\n- keep the limit\n- drop the banner', 'drop the banner'],
+    ['Emma wrote:\n> keep the limit\n> at 100', 'at 100'], ['On Mon, 23 Nov 2026 at 10:02, Emma wrote:\n> keep the limit\n>\n> drop it', 'drop it'],
+    ['Emma <emma@shop.test> wrote:\n> keep it', 'keep it'], ['[14:03] Emma: keep the limit', 'keep the limit']];
+  for (const [message, words] of theirs) assert.equal(whose(words, message, 'Emma (BA)'), true, message);
+  const not = [['I told Emma we charge 10%', 'we charge 10%'], ['caught Emma in the kitchen, she says: keep the limit', 'keep the limit'],
+    ['Emma pinged me. Her answer: keep the limit', 'keep the limit'], ['Emma\'s reply:\nkeep the limit', 'keep the limit'],
+    ['ok. Emma says keep the limit at 100.', 'keep the limit'], ['ok, Emma sent me this: "keep the limit. drop the banner"', 'drop the banner'],
+    ['Hi Lee,\n\nDeposits are 20%.\n\nThanks,\nEmma', 'Deposits are 20%'], ['Emma says: keep the limit', 'keep the limit'],
+    ['Emma  [2:07 PM]\nkeep the limit\n\nfor the rest take your proposals', 'for the rest take your proposals'], ['Emma: keep it\nand the rest as you say', 'the rest'], ['Emma (BA) 08:53\nit is taxed\nfor the rest go with your proposals', 'for the rest'], ['Emma:\n- keep it\n- drop it\nmy own line', 'my own line'],
+    ['Emma: keep the limit\nOlivia: drop the banner', 'drop the banner'], ['Emmanuel: keep the limit', 'keep the limit'],
+    ['Emma wrote:\nkeep the limit', 'keep the limit'], ['Emma wrote:\n> keep the limit\nand round the totals', 'and round the totals'],
+    ['On Monday Emma wrote:\n> keep the limit', 'keep the limit'], ['From: Emma (BA)\n\n> keep the limit', 'keep the limit'],
+    ['Emma: keep the limit.\n\nok go', 'keep the limit. ok go'], ['# Emma\nkeep the limit', 'keep the limit']];
+  for (const [message, words] of not) assert.equal(whose(words, message, 'Emma'), false, message);
+  assert.equal(whose('keep the limit', 'BA: keep the limit', 'Emma (BA)'), true, 'a role as the speaker is the one whose role it is');
+  assert.equal(whose('keep the limit', 'the PM: keep the limit', 'the PM'), true, 'a role written as a name');
+  assert.equal(whose('keep the limit', 'Emma Stone: keep the limit', 'Emma'), false, 'a fuller name than the one given is not proven theirs');
 });
 
 test('words are about a decision when they hold it or share enough of its content words; common words count for nothing', () => {
@@ -92,40 +92,29 @@ test('words are about a decision when they hold it or share enough of its conten
   assert.equal(isAbout('thanks, also what is 2+2?', 'cart rounding round half up'), false);
   assert.equal(isAbout('yes', 'report export rows stream'), false, 'a bare yes names nothing');
   assert.equal(isAbout('anything at all', ''), false, 'no subject');
+  assert.deepEqual([isAbout('sure, go on', 'fee.mode on'), isAbout('sounds good, no objection from me', 'tax.included no'), isAbout('a monthly fee', 'month')], [false, false, true],
+    'a short value names nothing on its own; a word, in its other form, does');
+  assert.equal(isAbout('the subtotals', 'total'), false, 'never a part of another word');
 });
 
+const RULE = 'Do not delete tests, and never force-push to main.';
 test('words are about a kept line, or not, and say done, drop, cancel or change, or not (handoff settles a line on both)', () => {
   const about = [['You can drop the rule about tests and force-push, it is done.', RULE], ['forget the rename', 'rename Invoice to Bill'],
     ['drop the first two steps', 'go on with step 5'], ['drop this: "use tabs"', 'Use tabs'],
     ['testler ve force-push kuralını iptal et', 'testler silinmez, force-push yok']];
   assert.deepEqual(about.map(([words, line]) => [isAbout(words, line), intends(words)]), about.map(() => [true, true]), 'steps and step are one word');
   assert.deepEqual(['what time is it in Tokyo?', 'i', 'drop what we said, never do that with the rule', 'change how you run the tests']
-    .map((words) => isAbout(words, RULE)), [false, false, false, false], 'a negation and common words are no content; one of five words is under the share');
+    .map((words) => isAbout(words, RULE)), [false, false, false, false], 'common words are no content; one shared word is under the share');
   assert.deepEqual([isAbout('the tests and the force-push matter a lot', RULE), intends('the tests and the force-push matter a lot')], [true, false]);
 });
 
-// Sentences as people type them (and the same in Turkish): three numbered answers on one line and on three.
-const T1 = ['1. A second positional argument is fine: a percent from 0 to 100, default 0.',
-  '2. Outside 0 to 100 throw a RangeError, and a TypeError when it is not a number.', '3. No rounding in total(), leave formatting to format.js.'];
-const T1_TR = ['1. İkinci konumsal argüman olsun: 0 ile 100 arası yüzde, varsayılan 0.', '2. 0 ile 100 dışında RangeError fırlat, sayı değilse TypeError.',
-  '3. total() içinde yuvarlama yok, biçimlendirme format.js\'e kalsın.'];
-const ROUNDED = 'Should the discounted result be rounded (e.g. to 2 decimals / cents)?';
-
-test('a numbered list on one line is the same items as on three', () => {
-  for (const list of [T1, T1_TR]) assert.deepEqual(clausesOf(list.join(' ')), clausesOf(list.join('\n')), list[0]);
-  assert.deepEqual(clausesOf(T1.join(' ')).map((clause) => clause.item), [1, 1, 1, 2, 2, 3, 3]);
-  assert.deepEqual(clausesOf('1. Round to 2. 2. Throw.').map((clause) => `${clause.item} ${clause.key}`), ['1 round to 2', '2 throw'], 'a number in an item is no mark');
-  for (const plain of ['Use version 2. It is faster.', 'Set it to 1. 2 is too many.', 'Jobs: fix 1. and 3. only', '1. Keep 0. 3. is too many.']) {
-    assert.equal(new Set(clausesOf(plain).map((clause) => clause.item)).size, 1, `no list on one line: ${plain}`);
-  }
-});
-
 test('two forms of one word are one word: an ending aside, in English and in Turkish; other words stay apart', () => {
-  assert.deepEqual([T1[2], 'The discounted result should not be rounded.'].map((said) => isAbout(said, ROUNDED)), [false, true]);
+  const rounded = 'Should the discounted result be rounded (e.g. to 2 decimals / cents)?';
+  assert.deepEqual(['No rounding in total(), leave formatting to format.js.', 'The discounted result should not be rounded.']
+    .map((said) => isAbout(said, rounded)), [false, true]);
   assert.equal(isAbout('adet 0 olursa ürün sepetten çıkarılsın', 'Ürünü sepetinden çıkarsın mı?'), true);
   assert.deepEqual([isAbout('discount', 'discover'), isAbout('format', 'formal'), isAbout('İkinci soru', 'ikinci')], [false, false, true]);
 });
-
 
 const TYPED = "/handoff RETRY'a dokunma. Sıradaki iş: ayarlara log seviyesi eklemek, şimdilik sadece aklında tut.";
 const inRepository = (folder) => (folder === '.claude/commands' ? ['handoff.md', 'notes.txt', '.md'] : null); // the one command held here
@@ -133,10 +122,8 @@ const inRepository = (folder) => (folder === '.claude/commands' ? ['handoff.md',
 test('a slash command the person typed is the host\'s word: their sentence is the words after it', () => {
   const words = personWords(TYPED, inRepository);
   assert.equal(words, "RETRY'a dokunma. Sıradaki iş: ayarlara log seviyesi eklemek, şimdilik sadece aklında tut.");
-  assert.equal(theirs("RETRY'a dokunma.", TYPED), 'fragment', 'read with the command, their first sentence is a piece of another');
-  assert.equal(theirs("RETRY'a dokunma.", words), null);
-  assert.equal(theirs('Sıradaki iş: ayarlara log seviyesi eklemek, şimdilik sadece aklında tut.', words), null);
-  for (const piece of ["RETRY'a", 'dokunma', 'log seviyesi']) assert.equal(theirs(piece, words), 'fragment', piece);
+  assert.equal(kept("RETRY'a dokunma.", words), "RETRY'a dokunma.");
+  assert.equal(kept('log seviyesi', words), 'Sıradaki iş: ayarlara log seviyesi eklemek, şimdilik sadece aklında tut.', 'a part: its whole sentence');
   assert.equal(personWords('/handoff', inRepository), '', 'a command alone: no words of theirs');
   assert.equal(personWords('  /handoff\n  keep the v1 API', inRepository), 'keep the v1 API');
 });
@@ -146,8 +133,7 @@ test('a sentence that opens with a slash word the repository holds no command fo
     '/../handoff klasörünü silme.', 'RETRY için /handoff yazma.', '/ handoff', '/Handoff RETRY\'a dokunma.', '/handoff.md dosyasını silme.',
     '/notes dosyasını silme.', '/notes.txt dosyasını silme.', '~/handoff dosyasını silme.', 'handoff RETRY\'a dokunma.', ''];
   for (const sentence of whole) assert.equal(personWords(sentence, inRepository), sentence, sentence);
-  assert.equal(theirs('/tmp klasörünü silme.', personWords('/tmp klasörünü silme.', inRepository)), null);
-  assert.equal(theirs('klasörünü silme.', personWords('/tmp klasörünü silme.', inRepository)), 'fragment', 'the path is a word of their sentence');
+  assert.equal(kept('klasörünü silme', personWords('/tmp klasörünü silme.', inRepository)), '/tmp klasörünü silme.', 'the path is a word of their sentence');
   assert.equal(personWords(TYPED, () => null), TYPED, 'a repository with no command: every word is theirs');
   assert.equal(personWords(TYPED, () => { throw fail('io-read-failed', 'commands'); }), TYPED, 'a folder that does not read holds no command');
   assert.equal(personWords('ok go on', () => assert.fail('listed')), 'ok go on', 'no slash opens it: the folder is not read');

@@ -20,7 +20,7 @@ const evidence = (gap, over) => ({ t: 'item', kind: 'gap', gap, status: 'evidenc
 const askedGap = (gap, q) => ({ t: 'item', kind: 'gap', gap, status: 'asked', q, text: 'the person decides it' });
 const question = (q, gap, text = 'Lowering the limit: polls with more options keep them, or edits are refused? Default: keep.') => ({ t: 'question', q, text,
   decides: `gap.${gap}`, whyNotCode: 'a product rule: no file says which', blocking: false });
-const gapAnswer = (q, by = 'Ayse') => ({ t: 'decision', key: 'poll.existing-options', value: 'keep', why: 'no vote is lost', by, answers: q,
+const gapAnswer = (q, whose = 'person') => ({ t: 'decision', key: 'poll.existing-options', value: 'keep', why: 'no vote is lost', whose, answers: q,
   effect: ['check:AC-2'] });
 const codeOf = async (io, id, record) => ((await refusedWith(io, id, record)) || [null])[0];
 
@@ -53,7 +53,7 @@ test('[I-27] the seven gaps are a guide said with the answers row, in the list\'
   assert.deepEqual([lines[at + 1], lines[at + 2].startsWith('  forks counted: none')], [`  ${WORDS.askGuide}`, true],
     'under the row that asks for questions: what to ask about, then what was counted');
   const [head, guide] = WORDS.askGuide.split(': ');
-  assert.equal(head, 'what to ask about and research (a guide, never records to fill)');
+  assert.equal(head, 'what to research, and to ask only where a human must decide (a guide, never records to fill)');
   const parts = guide.split('; ');
   const words = [/already exists under the old behaviour/, /unset, empty, malformed or hostile input/, /defined, defaulted and documented/,
     /other consumers and the upgrade path/, /the user and the operator see when it fails/, /every entry point and the shape the person asked for/,

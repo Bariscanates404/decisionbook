@@ -48,7 +48,7 @@ flowchart TD
   port; only a row with no node at all, or its bin gone, says one plain line, exit 0, and blocks nothing (the line sits in the row's `else`, so a shell whose `exec` comes back never says it). A row is POSIX sh: on Windows
   the host runs hooks in Git Bash, which Claude Code needs there; a hook's paths are read as Windows opens them (`/c/...` is `C:\`).
 - Doctor is never green on silence: each package and machine probe is measured, not measured, or a problem; a required package missing is a problem.
-- Doctor holds every promise against its code (`core/capabilities`): each verb row's package call, render and `with`, each manifest hook's handler.
+- Doctor holds every promise against its code (`core/capabilities`): each verb row's package call and render, each answer a manifest provides, each manifest hook's handler, each free MCP tool.
   One with no code is said as `capability-missing` (not a problem: `ok` stays the packages' and
   probes'); `debug doctor` lists each in `capabilities`, and the released tarball is held to none missing.
 - A failure the verb goes on past is one line with its code once and one trace record (an uncoded error is recorded by its name only); a refused verb exits non-zero

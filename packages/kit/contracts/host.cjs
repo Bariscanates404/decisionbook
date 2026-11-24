@@ -50,7 +50,7 @@ const DRAFTS = `${OWN_STORE}drafts/`;
 /** A session's own drafts folder (a digest of its id), or the folder itself where no session acts (a person at their terminal). */
 const draftsOf = (session) => (session ? `${DRAFTS}${sha256(String(session)).slice(0, 12)}/` : DRAFTS);
 /** The one form a text hands a call whose JSON a session sends: the draft in its own folder, then the call (no brace or quote). */
-const draftCall = (command, name, json, session) => `write this JSON with your Write tool to ${draftsOf(session)}${name}.json:\n${json}\n`
+const draftCall = (command, name, json, session) => `write this JSON with your Write tool (it makes the folder; no shell write) to ${draftsOf(session)}${name}.json:\n${json}\n`
   + `then run: ${command} --file ${draftsOf(session)}${name}.json`;
 
 module.exports = { WRITE_TOOLS, SHELL_TOOLS, RESUME_PROMPT, personWords, DRAFTS, draftsOf, mcpTool, mcpToolOf, toolSearch, draftCall };

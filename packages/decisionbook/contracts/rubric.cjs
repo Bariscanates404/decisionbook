@@ -42,13 +42,15 @@ const RUBRIC = Object.freeze([
 const HARD_PATHS = [/(^|\/)(migrations|migrate)\//, /(^|\/)(db|database)\//, /(^|\/)schema\.[A-Za-z]+$/];
 /** A danger path: a danger zone of the policy, or a database schema or migration. Only the person lets one into a plan. */
 const isDangerPath = (danger, file) => danger.some((zone) => globsOverlap(zone, file)) || HARD_PATHS.some((re) => re.test(file));
-const SOFT_PATHS = [/(^|\/)(auth|authn|authz|authentication|authorization)\//, /(^|\/)(billing|payments?)\//,
-  /(^|\/)(infrastructure|infra|terraform|deploy|deployment|ci|\.github|\.gitlab)\//];
+// A risk area: where a mistake costs money or lets the wrong one in. A planned path is in one where a folder of it, or its file before
+// the first `.`, is named so, whole: `src/auth/token.ts` and `lib/billing.py` are, `src/orders/authToken.ts` is not. It is read from the
+// path alone, never from what a plan says of itself, so one file gives one level in every plan; only the person waives it. A repository
+// names its own list in its policy (`risk`), which then stands in place of this one.
+const RISK_AREAS = ['auth', 'authn', 'authz', 'authentication', 'authorization', 'login', 'password', 'passwords', 'permission', 'permissions',
+  'billing', 'payment', 'payments', 'payout', 'payouts', 'refund', 'refunds', 'invoice', 'invoices', 'subscription', 'subscriptions', 'checkout', 'kyc'];
 const MICRO_PATHS = [/(^|\/)(common|shared)(-[^/]+)?\//, /(^|\/)(bin|cmd|entrypoints?)\//, /(^|\/)(e2e|playwright|cypress)\//];
-const RISK_WORDS = ['migration', 'backfill', 'transact', 'schema change', 'auth', 'login', 'logout', 'session', 'jwt', 'permission', 'billing', 'payment',
-  'invoice', 'subscription', 'pricing', 'kyc', 'webhook', 'cron', 'scheduled job', 'email template', 'smtp', 'deploy', 'infrastructure', 'pipeline'];
 const UI_PATHS = [/(^|\/)([^/]*-)?(frontend|css)\//, /(^|\/)(ui|web|views?|pages|screens|styles?)\//, /\.(css|scss|sass|less|jsx|tsx|vue|html|cljs)$/];
-const QUIET_ROLES = ['test', 'fixture', 'docs']; // kit's file roles a plan of which alone stays a small fix at any count
+const QUIET_ROLES = ['test', 'fixture', 'docs']; // kit's file roles: a plan of them alone stays a small fix at any count, and none is a risk area
 const FANOUT_MIN = 3; // shared consumers outside the plan's own plan that make normal work critical, unless waived
 const MICRO_FILES = 2;
 const GROWN_FACTOR = 3;
@@ -74,5 +76,5 @@ const GAPS = Object.freeze(['existing-data', 'invalid-input', 'config-docs', 'co
 // A record made as the person's stores their words (`said`) up to this many characters, cut at a word and marked: a plan file is committed
 const HEARD = Object.freeze({ said: 500 });
 
-module.exports = { LEVELS, higher, RUBRIC, isDangerPath, HARD_PATHS, SOFT_PATHS, MICRO_PATHS, RISK_WORDS, UI_PATHS,
+module.exports = { LEVELS, higher, RUBRIC, isDangerPath, HARD_PATHS, RISK_AREAS, MICRO_PATHS, UI_PATHS,
   QUIET_ROLES, FANOUT_MIN, MICRO_FILES, GROWN_FACTOR, GROWN_FLOOR, FORKS, GAPS, HEARD, isPointerTool, RESEARCH_NOTE };

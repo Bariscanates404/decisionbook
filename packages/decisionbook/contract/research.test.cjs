@@ -85,7 +85,7 @@ test('[I-12] critical: a no-fork item stands for a planned file only once that f
   const plans = ['src/report/export.js', 'src/report/csv.js'];
   const asked = recordsFor('critical', plans).filter((r) => !['question', 'decision', 'confirm'].includes(r.t));
   const links = plans.map((file) => ({ t: 'link', rel: 'plans', to: `file:${file}`, why: 'the export' }));
-  const res = await added(io, id, [...asked, ...noForks(links), { t: 'confirm', by: 'Ayse', said: 'yes' }]);
+  const res = await added(io, id, [...asked, ...noForks(links), { t: 'confirm', by: 'Amy', said: 'yes' }]);
   assert.equal(stateOf(res), 'ready-answers', res.text);
   assert.match(res.text, /none yet for: src\/report\/csv\.js/, 'the file it did not read');
   await readFor(io, id, ['src/report/csv.js']);
@@ -113,7 +113,7 @@ test('[I-12] show decisions gives a person\'s decision in their own sentence bes
   const said = 'The setting is the only list. Whatever accepts a reaction name refuses one the setting does not list, with 422.';
   await added(io, id, [{ t: 'research', tool: 'read', asked: 'where names are taken', answer: 'the controller', source: 'src/report/export.js:1' },
     { t: 'question', q: 'Q1', text: 'How do open clients follow a palette change?', decides: 'ui.palette', whyNotCode: 'a product rule', blocking: true },
-    { t: 'decision', key: 'ui.palette', value: 'the setting is the only list', why: 'one source', by: 'Ayse', said, answers: 'Q1', effect: ['check:AC-1'] }]);
+    { t: 'decision', key: 'ui.palette', value: 'the setting is the only list', why: 'one source', whose: 'person', said, answers: 'Q1', effect: ['check:AC-1'] }]);
   const text = (await verbs.show(io, { rest: [id, 'decisions'] })).text;
-  assert.match(text, /- ui\.palette = the setting is the only list \(one source; by the person\) active; the person: "The setting is the only list\. Whatever accepts a reaction name refuses one the setting does not list, with 422\."/);
+  assert.match(text, /- ui\.palette = the setting is the only list \(one source; by Amy\) active; Amy: "The setting is the only list\. Whatever accepts a reaction name refuses one the setting does not list, with 422\."/);
 });

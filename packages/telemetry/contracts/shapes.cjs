@@ -9,7 +9,6 @@ const { createValidate, paths: { OWN_STORE } } = require('@atlasbound/kit');
 const { isCode } = require('./codes.cjs');
 const WIRE = require('./wire.json');
 
-const PKG = 'telemetry';
 const SCHEMA = { consent: 'ab-consent/2', consentOld: 'ab-consent/1', period: 'ab-period/1' };
 const UNSENT = ['prepared', 'attempted']; // a report waits in these; it ends received or rejected
 const ENUMS = { step: Object.keys(require('./telemetry.json').steps), report: [...UNSENT, 'received', 'rejected'] };
@@ -35,4 +34,4 @@ const SHAPES = {
 
 const validate = createValidate({ shapes: SHAPES, enums: ENUMS, refuse: { TraceRow: 'trace-invalid' }, isCode });
 
-module.exports = { PKG, SCHEMA, ENUMS, UNSENT, PATHS, WIRE, validate };
+module.exports = { SCHEMA, ENUMS, UNSENT, PATHS, WIRE, validate };

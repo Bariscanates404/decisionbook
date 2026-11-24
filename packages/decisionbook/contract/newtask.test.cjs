@@ -10,13 +10,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const decisionbook = require('@atlasbound/decisionbook');
-const { bookWorld, readyOne, starting, writeConfig, textOf } = require('./world.cjs');
+const { bookWorld, readyOne, starting, writeConfig, textOf, LEVEL_KEPT } = require('./world.cjs');
 
 const { handlers } = decisionbook;
 const { WORDS } = decisionbook.codes;
 const TASK = 'Add tenants and quotas to the scheduler, with tests';
 /** How a READY plan's start opens: its title line, then the freeze, in the words of words.json. */
-const intake = (id) => `Plan ${id} READY on feat/export: Report export is slow\n${WORDS.frozen}\n${WORDS.data}\nlevel: normal work\n`
+const intake = (id) => `Plan ${id} READY on feat/export: Report export is slow\n${WORDS.frozen}\n${WORDS.data}\n${LEVEL_KEPT}\n`
   + 'why: large exports time out\nfiles: app/x.rb\n';
 
 /** A READY plan of an earlier session, app/** protected, and a later session `session` started; `prompt` and `edit` are that session's. */

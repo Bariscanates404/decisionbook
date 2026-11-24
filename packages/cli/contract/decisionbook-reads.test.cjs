@@ -33,18 +33,18 @@ function plannedRepo() {
   const plans = {
     [ROUNDING]: [stampedPlan(ROUNDING, 'Export rounding', branch, 8), { t: 'link', rel: 'plans', to: 'file:src/export.rb', why: 'the rounding' },
       { t: 'check', id: 'AC-1', text: 'totals match the ledger', command: 'rake test' }, ASKED,
-      { t: 'decision', key: 'export.rounding', value: 'half-even', why: 'audit', by: 'Ayse', answers: 'Q1', said: SAID, effect: ['check:AC-1'] },
+      { t: 'decision', key: 'export.rounding', value: 'half-even', why: 'audit', by: 'Amy', answers: 'Q1', said: SAID, effect: ['check:AC-1'] },
       { ...ASKED, q: 'Q2', text: 'Show the cent column?', decides: 'export.cents', proposal: 'yes' },
-      { t: 'decision', key: 'export.cents', value: 'yes', why: 'clarity', by: 'Ayse', answers: 'Q2', said: 'yes', effect: ['check:AC-1'] },
+      { t: 'decision', key: 'export.cents', value: 'yes', why: 'clarity', by: 'Amy', answers: 'Q2', said: 'yes', effect: ['check:AC-1'] },
       { t: 'ready', scope: ['src/export.rb'], level: 'micro' },
       { t: 'closed', head: sha, own: [{ sha, subject: 'round half-even' }], files: ['src/export.rb'], tests: [], other: 0 }],
     [REFUNDS]: [stampedPlan(REFUNDS, 'Refund rounding', branch, 12), { t: 'link', rel: 'plans', to: 'file:src/export.rb', why: 'the rounding' },
-      { t: 'decision', key: 'export.rounding', value: 'half-up for refunds, half-even elsewhere', why: 'refunds', by: 'Ayse',
+      { t: 'decision', key: 'export.rounding', value: 'half-up for refunds, half-even elsewhere', why: 'refunds', by: 'Amy',
         said: 'refunds round half-up', supersedes: [`${ROUNDING}/export.rounding`] },
       { t: 'ready', scope: ['src/export.rb'], level: 'micro' }],
     [FORMAT]: [stampedPlan(FORMAT, 'Export format', branch, 13), { ...ASKED, text: 'CSV or JSON?', decides: 'export.format', proposal: 'CSV with a header row' },
-      { ...ASKED, q: 'Q2', text: 'Which delimiter does the bank read?', decides: 'export.delimiter', to: 'Mehmet', source: 'the bank call' }],
-    [OLD]: [stampedPlan(OLD, 'Old export', branch, 7), { t: 'aside', by: 'Ayse', said: 'later, after the release' }],
+      { ...ASKED, q: 'Q2', text: 'Which delimiter does the bank read?', decides: 'export.delimiter', to: 'Lee', source: 'the bank call' }],
+    [OLD]: [stampedPlan(OLD, 'Old export', branch, 7), { t: 'aside', by: 'Amy', said: 'later, after the release' }],
   };
   const write = (id, rows) => fs.writeFileSync(path.join(repo, '.decisionbook', `${id}.jsonl`),
     rows.map((row, i) => JSON.stringify({ at: plannedOn(Number(id.slice(8, 10))).replace('09:00:00', `09:${String(i).padStart(2, '0')}:00`), ...row })).join('\n') + '\n');
@@ -55,7 +55,7 @@ function plannedRepo() {
   write(TEAM, [stampedPlan(TEAM, 'Team import', 'feat/team', 14), { ...ASKED, text: 'Skip or stop on a bad row?', decides: 'import.bad-row',
     proposal: 'skip it and report it' }]);
   git(repo, 'add', '.decisionbook');
-  git(repo, '-c', 'user.name=Mehmet', 'commit', '-qm', 'a teammate\'s plan, pulled');
+  git(repo, '-c', 'user.name=Lee', 'commit', '-qm', 'a teammate\'s plan, pulled');
   fs.appendFileSync(path.join(repo, 'README.md'), 'not yet committed\n');
   return { repo, branch, sha };
 }
@@ -68,16 +68,17 @@ test('inbox: what waits for the person on this branch, and the teammates\' plans
   const before = fs.readdirSync(path.join(given.repo, '.decisionbook')).map((name) => fs.readFileSync(path.join(given.repo, '.decisionbook', name), 'utf8'));
   const said = ab('decisionbook', 'inbox');
   assert.equal(said.code, 0, said.err);
-  assert.equal(said.out, [`Waiting for you on ${given.branch}: open questions 1, READY plans not closed 1, set aside 1`,
+  assert.equal(said.out, [`Waiting for you on ${given.branch}: open questions 1, questions parked with someone 1, READY plans not closed 1, set aside 1`,
     `- ${FORMAT} Q1: CSV or JSON? (proposed: CSV with a header row)`,
+    `- ${FORMAT} Q2 for Lee: Which delimiter does the bank read? (from the bank call)`,
     `- ${REFUNDS} READY, not closed: Refund rounding`,
-    `- ${OLD} set aside: Old export (Ayse: "later, after the release")`,
-    'Pulled from other branches: open questions 1, READY plans not closed 0, set aside 0',
-    `- ${TEAM} on feat/team by Mehmet Q1: Skip or stop on a bad row? (proposed: skip it and report it)`, ''].join('\n'),
-  'the closed plan and the question parked with a colleague wait for no one here');
+    `- ${OLD} set aside: Old export (Amy: "later, after the release")`,
+    'Pulled from other branches: open questions 1, questions parked with someone 0, READY plans not closed 0, set aside 0',
+    `- ${TEAM} on feat/team by Lee Q1: Skip or stop on a bad row? (proposed: skip it and report it)`, ''].join('\n'),
+  'the closed plan waits for no one; the question parked with a colleague waits for him, said here too');
   const json = JSON.parse(ab('decisionbook', 'inbox', '--json').out);
   assert.deepEqual([json.branch, json.here.map((row) => [row.id, row.waits]), json.pulled.map((row) => [row.id, row.branch, row.by, row.q, row.proposal])],
-    [given.branch, [[FORMAT, 'question'], [REFUNDS, 'ready'], [OLD, 'aside']], [[TEAM, 'feat/team', 'Mehmet', 'Q1', 'skip it and report it']]]);
+    [given.branch, [[FORMAT, 'question'], [FORMAT, 'parked'], [REFUNDS, 'ready'], [OLD, 'aside']], [[TEAM, 'feat/team', 'Lee', 'Q1', 'skip it and report it']]]);
   const after = fs.readdirSync(path.join(given.repo, '.decisionbook')).map((name) => fs.readFileSync(path.join(given.repo, '.decisionbook', name), 'utf8'));
   assert.deepEqual(after, before, 'read-only: no record written');
 });
@@ -89,7 +90,7 @@ test('show: under a person\'s decision that differs from its question\'s proposa
   const at = lines.findIndex((line) => line.startsWith('- export.rounding = half-even'));
   assert.deepEqual([lines[at + 1], lines.filter((line) => /its question proposed:/.test(line)).length], ['  its question proposed: half-up', 1],
     'export.cents took its proposal word for word: no line under it');
-  assert.match(lines[at], new RegExp(`; Ayse: "${SAID}"`), 'the person\'s own words stay on the decision');
+  assert.match(lines[at], new RegExp(`; Amy: "${SAID}"`), 'the person\'s own words stay on the decision');
 });
 
 test('why: blame names the commit, its closed plan says why in the person\'s words; an unknown is said, never guessed', () => {
@@ -97,9 +98,9 @@ test('why: blame names the commit, its closed plan says why in the person\'s wor
   const shipped = ab('decisionbook', 'why', 'src/export.rb:1');
   assert.equal(shipped.code, 0, shipped.err);
   assert.equal(shipped.out, [`src/export.rb:1: commit ${short} "round half-even"`, `plan ${ROUNDING} (closed) shipped it: Export rounding`,
-    `- export.rounding = half-even (audit; by Ayse) superseded by ${REFUNDS}/export.rounding (Ayse, 2026-11-12: "refunds round half-up"); Ayse: "${SAID}"`,
-    `  replaced by ${REFUNDS}: export.rounding = half-up for refunds, half-even elsewhere (refunds; by Ayse) active; Ayse: "refunds round half-up"`,
-    '- export.cents = yes (clarity; by Ayse) active', ''].join('\n'));
+    `- export.rounding = half-even (audit; by Amy) superseded by ${REFUNDS}/export.rounding (Amy, 2026-11-12: "refunds round half-up"); Amy: "${SAID}"`,
+    `  replaced by ${REFUNDS}: export.rounding = half-up for refunds, half-even elsewhere (refunds; by Amy) active; Amy: "refunds round half-up"`,
+    '- export.cents = yes (clarity; by Amy) active', ''].join('\n'));
   const json = JSON.parse(ab('decisionbook', 'why', 'src/export.rb', '--json').out);
   assert.deepEqual(json.commits.map((c) => [c.sha, c.plans.map((p) => p.id)]), [[given.sha, [ROUNDING]]], 'every line of the file: one commit');
   assert.equal(ab('decisionbook', 'why', 'lib/z.cjs:1').out.split('\n')[1],
@@ -112,8 +113,8 @@ test('pr: a pull request description in Markdown from the plan records only: goa
   assert.equal(one.code, 0, one.err);
   assert.equal(one.out, ['## Export rounding', '', `Plan \`${ROUNDING}\` (closed)`, '**Why:** totals are off by a cent',
     '**Success:** totals match the ledger', '', '### Decisions',
-    `- **export.rounding**: half-even (Ayse: "${SAID}"), superseded by ${REFUNDS}/export.rounding`, '  - its question proposed: half-up',
-    '- **export.cents**: yes (Ayse: "yes")', '', '### Checks', '- AC-1: totals match the ledger (`rake test`)', '', '### Commits',
+    `- **export.rounding**: half-even (Amy: "${SAID}"), superseded by ${REFUNDS}/export.rounding`, '  - its question proposed: half-up',
+    '- **export.cents**: yes (Amy: "yes")', '', '### Checks', '- AC-1: totals match the ledger (`rake test`)', '', '### Commits',
     `- ${given.sha.slice(0, 8)} round half-even`, '',
     '<sub>From the DecisionBook records in .decisionbook/ (atlasbound decisionbook pr): no chat text, nothing sent.</sub>', ''].join('\n'));
   const branch = ab('decisionbook', 'pr', '--branch').out;

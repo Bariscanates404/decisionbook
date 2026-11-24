@@ -49,8 +49,8 @@ const decides = (v) => [...new Set(v.decisions.map((d) => d.key))].map((key) => 
 const derivedOf = (v) => [...decides(v), ...(v.closed ? fromGit(v.closed).map((l) => ({ ...l, source: 'git' })) : [])];
 
 // asked: per plan id, the rows done two ways its new files fall in (null: not read), only where `ready` read them; receipts: per plan id,
-// the files read in its sessions and the files it names that are here (steps/store)
-function webOf(views, danger = [], asked = {}, receipts = {}) {
+// the files read in its sessions and the files it names that are here (steps/store); risk: the policy's own risk areas, or null
+function webOf(views, { danger = [], risk = null } = {}, asked = {}, receipts = {}) {
   const decisions = validity(views);
   const mine = new Map(views.map((v) => [v.id, []]));
   decisions.forEach((d) => mine.get(d.plan).push(d));
@@ -58,7 +58,7 @@ function webOf(views, danger = [], asked = {}, receipts = {}) {
   const built = new Set(views.filter((v) => ['ready', 'parked', 'closed'].includes(stateOf(v))).map((v) => v.id));
   // the files a decision governs (its own, else its plan's) once its plan stands
   const holdsOn = (d) => (!built.has(d.plan) ? [] : (d.files.length ? d.files : scopeOf(views.find((v) => v.id === d.plan))));
-  const levelOf = (v, judged = planLevel(v, danger)) => ({ ...judged, level: levelAt(v, judged.level, danger) });
+  const levelOf = (v, judged = planLevel(v, danger, risk)) => ({ ...judged, level: levelAt(v, judged.level, danger, risk) });
   const marked = views.map((v) => ({ ...v, state: stateOf(v), level: levelOf(v), undecided: undecidedOf(asked[v.id], decisions),
     receipts: receipts[v.id] || v.receipts, changed: changedOf(v, decisions, holdsOn) }))
     .map((v) => ({ ...v, unmet: unmet(v, v.level.level, danger), decisions: mine.get(v.id) }));

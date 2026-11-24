@@ -118,7 +118,7 @@ test('[I-6] a danger zone or protect word typed with `./` in the config guards w
 test('[I-3] a shown value cut at its cap never splits a character pair and is marked cut', async () => {
   const io = bookWorld();
   const { id } = await readyOne(io);
-  await verbs.add(io, { rest: [id, wire({ t: 'decision', key: 'report.export.big', value: `${'x'.repeat(98)}😀😀 tail`, why: 'w', by: 'Ayse' })] });
+  await verbs.add(io, { rest: [id, wire({ t: 'decision', key: 'report.export.big', value: `${'x'.repeat(98)}😀😀 tail`, why: 'w', whose: 'person' })] });
   const { text } = await verbs.show(io, { rest: [id, 'decisions'] });
   assert.doesNotMatch(text, /[\ud800-\udbff](?![\udc00-\udfff])/u, 'no lone high surrogate');
   assert.match(text, new RegExp(`${'x'.repeat(98)}~`), 'the cut is marked');

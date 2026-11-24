@@ -1,7 +1,7 @@
 {
   "$comment": "The cli's namespace: its own steps and the host's hook calls as counts, codes and time ranges. setup, update and uninstall ask a person inside the step, so their time is not measured. A new metric, dimension, bucket set or count read raises policy; a new step or code word raises schema.",
   "namespace": "cli",
-  "schema": 1, "policy": 1,
+  "schema": 2, "policy": 1,
   "lock": {"1": "53c99aa6c56dc91675b730d4a5f4cd9723644c3e2bbd5688e017fdc18e6c5f44"},
   "says": "the command line and its hooks",
   "steps": {
@@ -18,7 +18,7 @@
     "hook-not-host", "hook-noted", "hook-only-host", "hook-timeout", "host-invalid", "ignore-defeated", "ignore-unasked",
     "inject-handshake-unread", "install-path-unsafe", "leftovers-running", "leftovers-unread", "manifest-invalid", "mcp-tracked",
     "module-kept-data", "module-kept-home", "module-off", "module-refused", "not-a-repo", "notice-unread", "own-file", "package-broken",
-    "package-not-installed", "package-unread", "person-only", "person-only-shell", "person-wrapped", "phrase-not-typed", "protect-refused",
+    "package-not-installed", "package-unread", "person-kept", "person-name-ai", "person-name-empty", "person-named", "person-no-home", "person-only", "person-only-shell", "person-unnamed", "person-wrapped", "phrase-not-typed", "protect-refused",
     "root-unsafe", "run-interrupted", "schema-major", "server-empty-fine", "settings-committed", "setup-run-failed", "state-tracked", "store-absent",
     "store-foreign", "target-is-product", "target-missing", "verb-module-off", "verb-unknown"
   ],

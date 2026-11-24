@@ -3,11 +3,13 @@
 // See LICENSE and NOTICE in the package root.
 'use strict';
 // `why <file>[:<line>]`: git blame names the commit that last changed the line (with no line, each commit of the file); the closed plan
-// whose `closed` record lists that commit says why, with its decisions in the person's words and what replaced each since. A commit no
-// closed plan lists, a line not committed yet, a file git does not hold: each is said so, never guessed. Reads only.
+// whose `closed` record lists that commit, or whose work rode in it (steps/close), says why, with its decisions in the person's words
+// and what replaced each since. A commit no closed plan lists, a line not committed yet, a file git does not hold: each is said so,
+// never guessed. Reads only.
 const { errors: { fail }, paths: { join } } = require('@atlasbound/kit');
 const { isShown } = require('../base/text.cjs');
 const { openLines } = require('../core/text/open.cjs');
+const { closeAsShipped } = require('./close.cjs');
 const store = require('./store.cjs');
 const { openItems } = require('./touch.cjs');
 const { WORDS } = require('../contracts/codes.cjs');
@@ -30,9 +32,12 @@ function whyPlace(word = '') {
   return { file, line: number ? Number(number) : null };
 }
 
-/** The closed plans whose `closed` record lists `sha`, each with its decisions and its open items; none for a line not committed. */
-const shippedBy = (web, items, sha) => web.views.filter((v) => sha && v.closed && v.closed.own.some((c) => c.sha === sha))
-  .map((v) => ({ id: v.id, title: v.title, state: v.state, open: openLines(items, [v.id]), decisions: replacedChain(web, v.id) }));
+/** Each closed plan with its own commits as git holds them now: only a plan whose riding work holds `file` is read from git. */
+const closedPlans = (io, web, file) => Promise.all(web.views.filter((v) => v.closed).map(async (v) => (
+  { v, own: ((v.closed.rides || []).includes(file) ? await closeAsShipped(io, v) : v.closed).own })));
+/** Those of `closed` that shipped `sha`, each with its decisions and its open items; none for a line not committed. */
+const shippedBy = (web, items, closed, sha) => closed.filter(({ own }) => sha && own.some((c) => c.sha === sha))
+  .map(({ v }) => ({ id: v.id, title: v.title, state: v.state, open: openLines(items, [v.id]), decisions: replacedChain(web, v.id) }));
 
 async function why({ rest }, io) {
   const { file, line } = whyPlace(rest[0]);
@@ -43,7 +48,8 @@ async function why({ rest }, io) {
   const web = store.readWeb(io);
   const items = await openItems(io, web);
   const blamed = new Map((await io.git.blame(file, line)).map((c) => [c.sha, c])); // each commit once
-  const commits = [...blamed.values()].map((c) => ({ ...c, plans: shippedBy(web, items, c.sha) }));
+  const closed = await closedPlans(io, web, file);
+  const commits = [...blamed.values()].map((c) => ({ ...c, plans: shippedBy(web, items, closed, c.sha) }));
   const n = { commits: commits.length, plans: commits.flatMap((c) => c.plans).length };
   return { out: { file, line, held: true, commits }, code: 'plan-shown', n };
 }

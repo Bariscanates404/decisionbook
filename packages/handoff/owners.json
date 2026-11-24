@@ -5,11 +5,11 @@
   "caps": {
     "pipeline": 883,
     "debug": 92,
-    "tests": 869
+    "tests": 866
   },
   "traceAs": {
-    "run/steps.cjs": "every hook handler (start, prompt, touched, compact) and every verb (handoff, keep, show, drop) as one traced step of its own name",
-    "steps/session.cjs": "inside the traced steps start, prompt, touched and compact",
+    "run/steps.cjs": "every hook handler (start, prompt, touched, compact, stop) and every verb (handoff, keep, show, drop) as one traced step of its own name",
+    "steps/session.cjs": "inside the traced steps start, prompt, touched, compact and stop",
     "steps/verbs.cjs": "inside the traced steps handoff, keep, show and drop",
     "steps/facts.cjs": "inside the traced steps that rebuild the note: handoff, keep and compact",
     "steps/store.cjs": "the one reader and writer of the home folder, inside every step that reads or writes a note or a session"

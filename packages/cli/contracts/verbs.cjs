@@ -46,6 +46,8 @@ const CLI_VERBS = [
     what: '<module>: turn a module off here: its hooks, commands, MCP servers and allow rules go, its data stays (the last one: uninstall)' },
   { words: ['uninstall'], run: 'uninstall', cleans: true, noWords: true, flags: ['--purge'], asks: true, by: 'person', phrase: 'uninstall',
     what: 'take out everything setup put in this repository (--purge also deletes the data it kept); you type the phrase it shows' },
+  { words: ['whoami'], run: 'whoami', looks: true, noWords: true, flags: ['--name'], values: ['--name'], by: 'person', when: ['--name'],
+    what: 'who you are here: the name your decisions are recorded under; --name "<name>" changes it (only you, in your own terminal)' },
   { words: ['doctor'], run: 'doctor', looks: true, degrades: true, noWords: true,
     what: 'check that everything is installed and connected here, and say what is missing and what to do about it' },
   { words: ['status'], run: 'status', looks: true, noWords: true, what: 'say what is installed and whether this repository is connected (no checks)' },

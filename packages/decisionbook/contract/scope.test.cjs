@@ -14,7 +14,7 @@ const { ROOT, bookWorld, begin, added, editEvent, writeConfig, ruling, planRecor
 async function smallFix(io, plans, title = 'Fix add') {
   const id = await begin(io, { title, level: 'micro' });
   const res = await added(io, id, [{ t: 'research', tool: 'read', asked: 'what add does', answer: 'returns a+b', source: `${plans[0]}:1` },
-    ...plans.map((to) => ({ t: 'link', rel: 'plans', to: `file:${to}`, why: 'the math code' })), { t: 'confirm', by: 'Ayse', said: 'yes, go ahead' }]);
+    ...plans.map((to) => ({ t: 'link', rel: 'plans', to: `file:${to}`, why: 'the math code' })), { t: 'confirm', by: 'Amy', said: 'yes, go ahead' }]);
   assert.equal(res.out.state.ready, true, 'READY as a small fix');
   return { id };
 }
@@ -32,7 +32,7 @@ test('[I-5] a file outside the READY plan asks, says to plan it apart, and joins
   await handlers.postEdit(ran('src/core/geometry.js'), io); // the write ran: the person said yes
   const { at, ...link } = planRecords(io, id).at(-1);
   assert.ok(at, 'the product\'s line, with its time');
-  assert.deepEqual(link, { t: 'link', rel: 'plans', to: 'file:src/core/geometry.js', by: 'the person', source: 'the person\'s yes to the gate\'s ask' });
+  assert.deepEqual(link, { t: 'link', rel: 'plans', to: 'file:src/core/geometry.js', by: 'Amy', source: 'the person\'s yes to the gate\'s ask' });
   assert.deepEqual(ruling(await handlers.preEdit(editEvent('src/core/geometry.js'), io)), ['allow', 'gate-in-scope']);
 });
 
@@ -40,7 +40,7 @@ test('[I-5] a file the AI links to a READY plan by itself is still outside it un
   const io = bookWorld();
   writeConfig(io, { protect: ['src/**'] });
   const { id } = await smallFix(io, ['src/core/math.js']);
-  await added(io, id, { t: 'link', rel: 'plans', to: 'file:src/core/geometry.js', why: 'area() too, signed for them', by: 'the person' });
+  await added(io, id, { t: 'link', rel: 'plans', to: 'file:src/core/geometry.js', why: 'area() too, signed for them', by: 'Amy' });
   assert.equal(planRecords(io, id).at(-1).by, undefined, 'the product sets a link\'s by, never the sender');
   assert.deepEqual(ruling(await handlers.preEdit(editEvent('src/core/geometry.js'), io)), ['ask', 'plan-outside']);
 });

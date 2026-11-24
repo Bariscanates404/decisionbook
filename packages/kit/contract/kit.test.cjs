@@ -223,6 +223,8 @@ test('[I-9] head and branch are null when there is none; statusZ names changes; 
   assert.match(await g.head(), /^[0-9a-f]{40}$/);
   git(dir, 'checkout', '-q', '--detach');
   assert.equal(await g.branch(), null);
+  git(dir, 'config', 'author.name', 'Sam <3 Rivers>');
+  assert.deepEqual((await g.me()).name, 'Sam <3 Rivers>', 'a name that holds < or > is read whole, never cut at it');
   const notRepo = createGit({ proc, root: os.tmpdir(), env: { PATH: process.env.PATH, GIT_CEILING_DIRECTORIES: path.dirname(os.tmpdir()) } });
   await assert.rejects(notRepo.lsFiles(), coded('git-failed'));
 }));
@@ -290,11 +292,11 @@ test('[I-9] one absent rule: no commit yet is an empty history, and a base this 
   const mine = { author: 'kit', mail: 'kit@example.invalid' };
   assert.deepEqual(await g.blame('a.txt'), [{ sha: head, subject: 'one', ...mine }, { sha: null, subject: null, author: null, mail: null }],
     'a line not committed is null');
-  assert.equal(await g.me(), mine.mail, 'the mail this clone commits as, the one blame names on its own commits');
+  assert.deepEqual(await g.me(), { name: 'kit', mail: mine.mail }, 'who this clone commits as, as blame names them on its own commits');
   nodeFs.writeFileSync(path.join(dir, '.mailmap'), 'Kit <kit@work.invalid> <kit@example.invalid>\n'); // one author under two mails
-  assert.deepEqual([(await g.blame('a.txt', 1))[0].mail, await g.me()], ['kit@work.invalid', 'kit@work.invalid'], 'both read through the mailmap');
+  assert.deepEqual([(await g.blame('a.txt', 1))[0].mail, await g.me()], ['kit@work.invalid', { name: 'Kit', mail: 'kit@work.invalid' }], 'both read through the mailmap');
   git(dir, 'config', 'author.email', 'kit@other.invalid');
-  assert.equal(await g.me(), 'kit@other.invalid', 'an author.email is the mail a commit here carries, before user.email');
+  assert.deepEqual(await g.me(), { name: 'kit', mail: 'kit@other.invalid' }, 'an author.email is the mail a commit here carries, before user.email');
   const notRepo = createGit({ proc, root: os.tmpdir(), env: { PATH: process.env.PATH, GIT_CEILING_DIRECTORIES: path.dirname(os.tmpdir()) } });
   await assert.rejects(notRepo.commits(null), coded('git-failed'));
   await assert.rejects(notRepo.shared(null, 'trunk'), coded('git-failed'));
@@ -420,14 +422,10 @@ test('[I-18] published shape of ab-trace/1 is pinned: changing a field needs a m
 
 test('[I-19] the debug loader names what is missing and never pretends: rows through the caller validator', () => {
   const v = kit.createValidate({ shapes: { Row: { a: 'int' } }, enums: {}, refuse: { Row: 'shape-invalid' }, isCode: kit.codes.isCode });
-  const io = { fs: kit.testing.memoryFs({ 'p/CURRENT': 'abc\n', 'p/r1': '{"a":1}\n{"a":2}\n', 'p/bad': '{"a":-1}\n', 'p/one': '{"a":3}' }) };
+  const io = { fs: kit.testing.memoryFs({ 'p/r1': '{"a":1}\n{"a":2}\n', 'p/bad': '{"a":-1}\n' }) };
   const l = kit.debug.load.createLoader(io, v);
-  assert.equal(l.pointer('p/CURRENT'), 'abc');
-  assert.throws(() => l.pointer('p/NONE'), coded('store-empty'));
   assert.deepEqual(l.rows(['p/r1', 'p/gone'], 'Row'), [{ a: 1 }, { a: 2 }]);
-  assert.deepEqual(l.one('p/one', 'Row'), { a: 3 });
-  assert.equal(l.one('p/none', 'Row'), null);
-  assert.deepEqual(l.missing, ['p/gone', 'p/none']);
+  assert.deepEqual(l.missing, ['p/gone']);
   assert.deepEqual(l.rows(['p/bad', 'p/r1'], 'Row'), [{ a: 1 }, { a: 2 }], 'a refused line costs only itself');
   assert.deepEqual(l.refused, [{ key: 'p/bad', line: 1, code: 'shape-invalid' }]);
 });
@@ -1018,7 +1016,7 @@ test('the host\'s facts, a shape\'s example, an emptied folder, letters without 
   const { host, text, paths } = kit;
   assert.deepEqual([host.DRAFTS, host.SHELL_TOOLS], ['.atlasbound/drafts/', { Bash: 'sh', PowerShell: 'powershell' }]);
   assert.equal(host.draftCall('book add x', 'x', '{}'),
-    'write this JSON with your Write tool to .atlasbound/drafts/x.json:\n{}\nthen run: book add x --file .atlasbound/drafts/x.json');
+    'write this JSON with your Write tool (it makes the folder; no shell write) to .atlasbound/drafts/x.json:\n{}\nthen run: book add x --file .atlasbound/drafts/x.json');
   assert.deepEqual(ROWS.example('Row', { fixed: { level: 'high' } }), { value: { name: '<text>', level: 'high' }, optional: ['tags'] });
   assert.deepEqual(Object.keys(ROWS.example('Row', { whole: true }).value), ['name', 'level', 'tags']);
   const fs = createFs(dir);

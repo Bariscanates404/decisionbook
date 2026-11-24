@@ -22,7 +22,7 @@ const SHAPES = {
   TraceDecl: { facet: 'word?', ref: 'word[]?', counts: 'obj?' },
   // VerbDecl by: who alone may run it; when: only with one of these flags; phrase: a grave act, typed with these words at a plain terminal
   VerbDecl: { words: 'word[]', what: 'str', call: 'str?', short: 'word?', flags: 'str[]?', values: 'str[]?', render: 'str?',
-    looks: 'bool?', reads: 'bool?', asks: 'bool?', noWords: 'bool?', host: 'bool?', next: 'bool?', stdin: 'int?',
+    looks: 'bool?', reads: 'bool?', asks: 'bool?', noWords: 'bool?', host: 'bool?', stdin: 'int?',
     tasks: 'TaskDecl[]?', by: 'by?', when: 'str[]?', phrase: 'str?', help: 'VerbHelp?' },
   // what a newcomer reads in `--help`: `line` the plain line where `what` is a format the AI reads, `when` to use it, one `example`, what
   // it `changes`, each own flag's meaning, `ai` when the AI session runs it (a person seldom does), `exit` where it is not the usual,
@@ -79,7 +79,7 @@ const ENUMS = { event: Object.keys(EVENTS), verdict: ['deny', 'ask', 'allow'], b
 const PORT_GATE = { event: 'PreToolUse', matcher: [...Object.keys(SHELL_TOOLS), ...Object.keys(WRITE_TOOLS)].join('|'), timeout: 10 };
 const PORT_READ_MS = 300; // how long the port itself reads a shell command (the seal, a gate that formed no verdict); past it, it asks
 
-const STEPS = ['cli.verb', 'actor', 'hook.in', 'hook.handler', 'hook.out', 'hook.said', 'packages', 'setup', 'update', 'uninstall', 'doctor', 'probes', 'protect', 'status', 'debug.trace', 'debug.doctor', 'debug.shell', 'debug.inject', 'debug.who', 'modules', 'leftovers'];
+const STEPS = ['cli.verb', 'actor', 'hook.in', 'hook.handler', 'hook.out', 'hook.said', 'packages', 'setup', 'update', 'uninstall', 'doctor', 'probes', 'protect', 'status', 'debug.trace', 'debug.doctor', 'debug.shell', 'debug.inject', 'debug.who', 'modules', 'leftovers', 'whoami'];
 const DEBUG_SCHEMA = 'ab-debug/1';
 
 // How compose opens the repository, one word per verb (argv picks it from the row): `hostRoot` the host's project directory names it,

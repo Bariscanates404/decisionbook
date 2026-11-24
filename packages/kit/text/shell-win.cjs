@@ -286,4 +286,4 @@ function rowKind(c, head) {
   return { kind: 'cmd', row: WIN.cmd.commands[c.name], args: c.args.filter((w) => !CMD_SWITCH.test(w.word)) };
 }
 
-module.exports = { lexWin, rowKind, cmdletWrites, shellLang, handsText, asFolder, HERE, WIN };
+module.exports = { lexWin, rowKind, cmdletWrites, shellLang, handsText, asFolder, HERE };

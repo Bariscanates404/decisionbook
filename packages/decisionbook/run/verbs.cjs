@@ -64,7 +64,7 @@ const HANDLERS = {
   start: ['decisionbook.start', stop.keepStart],
   stop: ['decisionbook.stop', stop.stopCheck],
 };
-const STEPS = [...Object.values(VERBS), ...Object.values(HANDLERS)].map(([step]) => step).concat('decisionbook.debug', 'plan.phase', 'research.read', 'research.pointer', 'ready.research');
+const STEPS = [...Object.values(VERBS), ...Object.values(HANDLERS)].map(([step]) => step).concat('decisionbook.debug', 'plan.phase', 'plan.flow', 'research.read', 'research.pointer', 'ready.research');
 const vocabulary = Object.freeze({ steps: STEPS, isCode }); // what a trace of this package accepts; the composition root binds it
 
 // a row names the file it judged and the plan it read or wrote (repo-relative path and id, never a command or a record's text)

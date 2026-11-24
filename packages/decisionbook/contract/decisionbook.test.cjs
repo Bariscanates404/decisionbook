@@ -64,17 +64,19 @@ test('[I-11] the AI proposes the level and code decides: danger or schema forces
   assert.deepEqual(await said(await plan('micro', ['a/b.js', 'a/c.js', 'a/d.js'])), ['micro', 'normal', 'level-micro-rejected']);
   const soft = await plan('normal', ['src/auth/token.js']);
   assert.deepEqual(await said(soft), ['normal', 'critical', 'level-raised']);
-  await added(io, soft, { t: 'waiver', reason: 'a copy change', by: 'Ayse' });
+  await added(io, soft, { t: 'waiver', reason: 'a copy change', by: 'Amy' });
   assert.deepEqual(await said(soft), ['normal', 'normal', 'level-waived']);
   for (const hard of [await plan('normal', ['src/payroll/run.js']), await plan('normal', ['db/migrations/001.sql'])]) {
-    await added(io, hard, { t: 'waiver', reason: 'please', by: 'Ayse' });
+    await added(io, hard, { t: 'waiver', reason: 'please', by: 'Amy' });
     assert.deepEqual(await said(hard), ['normal', 'critical', 'level-raised'], 'a hard signal is never waived');
   }
-  assert.deepEqual(await said(await plan('normal', ['src/report/a.js'], { title: 'Fix the login redirect' })), ['normal', 'critical', 'level-raised'],
-    'a risk word');
+  assert.deepEqual(await said(await plan('normal', ['src/report/a.js'], { title: 'Fix the login redirect', why: 'billing and payment break' })),
+    ['normal', 'normal', null], 'what a plan says of itself raises nothing');
+  assert.deepEqual(await said(await plan('normal', ['src/report/login-redirect.js'])), ['normal', 'normal', null], 'a word inside a file name is no risk area');
+  assert.deepEqual(await said(await plan('normal', ['src/report/login.js'])), ['normal', 'critical', 'level-raised'], 'a file named for one is');
   const danger = await plan('critical', ['src/payroll/run.js']);
   assert.ok((await unmetOf(io, danger)).includes('ready-danger-undecided'));
-  await added(io, danger, { t: 'decision', key: 'payroll.rounding', value: 'banker', why: 'audit', by: 'Ayse', files: ['src/payroll/**'] });
+  await added(io, danger, { t: 'decision', key: 'payroll.rounding', value: 'banker', why: 'audit', whose: 'person', files: ['src/payroll/**'] });
   assert.ok(!(await unmetOf(io, danger)).includes('ready-danger-undecided'), 'a decision whose files cover the danger zone');
 });
 
@@ -97,7 +99,7 @@ test('[I-3] a decision lives in one record, valid by scope and supersedes, never
   async () => {
   const io = world();
   const { id } = await readyOne(io);
-  const idle = (over) => ({ t: 'decision', key: 'report.export.timeout', why: 'w', by: 'Ayse', ...over });
+  const idle = (over) => ({ t: 'decision', key: 'report.export.timeout', why: 'w', whose: 'person', ...over });
   await added(io, id, idle({ value: '30 s' }));
   await added(io, id, idle({ value: '45 s', supersedes: [`${id}/report.export.timeout`] })); // the documented change
   const states = async () => (await verbs.show(io, { rest: ['decision:report.export.timeout'] })).out.decisions.map((d) => [d.plan === id ? 'A' : 'B',
@@ -111,19 +113,19 @@ test('[I-3] a decision lives in one record, valid by scope and supersedes, never
   await added(io, mobile, idle({ value: '60 s', supersedes: [`${id}/report.export.timeout`] }));
   assert.equal((await states())[1][3], 'active', 'a draft voids nothing');
   assert.deepEqual((await states()).filter(([, , , s]) => s === 'active').map((row) => row[4]), [0, 0, 0], 'it replaces it once READY: no conflict');
-  assert.match((await verbs.show(io, { rest: ['decision:report.export.timeout'] })).text, new RegExp(`= 60 s \\(w; by the person\\) active, replaces ${id}/report\\.export\\.timeout \\(pending until READY\\)`));
+  assert.match((await verbs.show(io, { rest: ['decision:report.export.timeout'] })).text, new RegExp(`= 60 s \\(w; by Amy\\) active, replaces ${id}/report\\.export\\.timeout \\(pending until READY\\)`));
   await added(io, mobile, idle({ value: '60 s' })); // the same decision, naming none it replaces
   assert.deepEqual((await states()).filter(([, , , s]) => s === 'active').map(([w, v, , , c]) => [w, v, c]),
     [['A', '45 s', 1], ['B', '5 s', 0], ['B', '60 s', 1]], 'a conflict, shown');
   const across = `- report.export.timeout CONFLICT (2 person decisions across plans, none replacing another; none holds until the person says which)`;
   assert.ok((await verbs.resume(io, { rest: [] })).text.includes(across), 'the start says the conflict, never a value as settled');
   assert.ok((await verbs.show(io, { rest: [id, 'decisions'] })).text.includes(across.replace('- ', '')));
-  await added(io, id, { t: 'decision', key: 'report.export.limit', value: '10000', why: 'w', by: 'ai', files: ['src/report/export.js'] });
+  await added(io, id, { t: 'decision', key: 'report.export.limit', value: '10000', why: 'w', whose: 'assumed', files: ['src/report/export.js'] });
   io.state.commits = [{ after: 'h0', sha: 'c1', subject: 'x', body: '', files: ['src/report/export.js'] },
     { after: 'h0', sha: 'c2', subject: 'y', body: '', files: ['docs/a.md'] }];
   assert.match((await verbs.show(io, { rest: [id, 'decisions'] })).text,
     /report\.export\.limit = 10000 \(w; by the AI\) active; 1 commits touched its files since/);
-  const again = await added(io, mobile, { t: 'decision', key: 'report.export.max', value: '5000', why: 'w', by: 'Ayse', files: ['src/report/**'] });
+  const again = await added(io, mobile, { t: 'decision', key: 'report.export.max', value: '5000', why: 'w', whose: 'person', files: ['src/report/**'] });
   assert.deepEqual(again.out.existing.map((d) => d.ref), [`${id}/report.export.limit`]);
   assert.match(again.text, /decisions already on these files/);
 });
@@ -182,7 +184,7 @@ test('[I-6] resume is computed at read and bounded, and a stored text never star
   assert.equal((await handlers.session({ hook_event_name: 'SessionStart', source: 'clear' }, io)).code, 'session-unprotected');
   writeConfig(io, { protect: ['src/**'] });
   const { id } = await readyOne(io);
-  for (let i = 0; i < 200; i += 1) await added(io, id, { t: 'decision', key: `k.${i}`, value: 'v'.repeat(80), why: 'w'.repeat(80), by: 'a' });
+  for (let i = 0; i < 200; i += 1) await added(io, id, { t: 'decision', key: `k.${i}`, value: 'v'.repeat(80), why: 'w'.repeat(80), whose: 'person' });
   const said = await handlers.session({ hook_event_name: 'SessionStart', session_id: 's1', source: 'clear' }, io); // the session that made it READY
   assert.deepEqual([said.verdict, said.code], ['allow', 'session-ready']);
   assert.ok(Buffer.byteLength(textOf(said)) <= 4096, `${Buffer.byteLength(textOf(said))} bytes`); // the intake's room: 4 KB
@@ -220,7 +222,7 @@ test('[I-7] closeout counts only the plan\'s own commits: its id, its issue or a
   assert.deepEqual([res.out.files, res.out.unplanned], [['lib/x.py', 'src/report/export.js', 'test/export.test.js'], 1],
     'a commit that names the plan is its work whole; one owned by a planned file gives its planned files and tests, CLAUDE.md is a number');
   assert.deepEqual(res.out.tests, ['test/export.test.js']);
-  assert.match(res.text, new RegExp(`1 files outside the plan not linked; commit this record: git add \\.decisionbook/${id}\\.jsonl, then git commit -m "DecisionBook: close ${id}" \\.decisionbook/${id}\\.jsonl`));
+  assert.match(res.text, new RegExp(`1 files outside the plan not linked; the work is committed and its last commit cannot take this record in, so the record is one more commit: git add \\.decisionbook/${id}\\.jsonl, then git commit -m "DecisionBook: close ${id}" \\.decisionbook/${id}\\.jsonl`));
   assert.deepEqual((await verbs.show(io, { rest: ['file:src/report/export.js'] })).out.links.map((l) => [l.from, l.rel, l.to]),
     [['file:src/report/export.js', 'planned-in', `plan:${id}`], ['file:src/report/export.js', 'changed-in', `plan:${id}`]]);
   assert.deepEqual((await verbs.show(io, { rest: ['file:CLAUDE.md'] })).out.links, [], 'a file outside the plan is no link of it');
@@ -232,7 +234,7 @@ test('close with no own commit says nothing to record yet and records nothing; a
   const { id } = await readyOne(io);
   const records = () => io.fs.readText(logFile(id));
   const [before, early] = [records(), await verbs.close(io, { rest: [id] })];
-  assert.deepEqual([early.out.code, early.text], ['plan-close-empty', `${id}: nothing to record yet: close after its commit exists\n`]);
+  assert.deepEqual([early.out.code, early.text], ['plan-close-empty', `${id}: nothing to record yet: no commit of this plan and no changed file of it\n`]);
   io.state.commits = [{ after: 'h0', sha: 'c1', subject: 'unrelated docs', body: '', files: ['docs/a.md'] }];
   io.state.head = 'c1';
   assert.equal((await verbs.close(io, { rest: [id] })).out.code, 'plan-close-empty', 'another\'s commit is not its own');
@@ -240,7 +242,7 @@ test('close with no own commit says nothing to record yet and records nothing; a
   io.state.commits = [{ after: 'h0', sha: 'c2', subject: 'wip', body: `DecisionBook: ${id}`, files: ['lib/x.py'] }, ...io.state.commits];
   io.state.head = 'c2';
   assert.deepEqual((await verbs.close(io, { rest: [id] })).text, `${id} closed: 1 own commit, 1 file, 0 tests; 1 other commit not attributed; `
-    + `commit this record: git add .decisionbook/${id}.jsonl, then git commit -m "DecisionBook: close ${id}" .decisionbook/${id}.jsonl\n`);
+    + `the work is committed and its last commit cannot take this record in, so the record is one more commit: git add .decisionbook/${id}.jsonl, then git commit -m "DecisionBook: close ${id}" .decisionbook/${id}.jsonl\n`);
   assert.equal((await verbs.show(io, { rest: [id] })).out.state, 'closed');
 });
 
@@ -270,10 +272,10 @@ test('[I-9] decisionbook-record/1 is pinned; an unknown major is refused; a torn
   assert.deepEqual(shown.notes.map((n) => n.text), ['after the tear']);
   io.fs.writeAtomic('.decisionbook/old.jsonl', `${wire({ schema: 'decisionbook-record/2', t: 'plan', id: 'old', title: 'x' })}\n`);
   await assert.rejects(verbs.show(io, { rest: ['old'] }), { code: 'schema-major' });
-  assert.deepEqual(Object.keys(decisionbook.SHAPES).sort(), ['Answer', 'Cited', 'Commit', 'Config', 'Gap', 'Probe', 'Record', 'Step', 'amend', 'aside', 'assumption',
+  assert.deepEqual(Object.keys(decisionbook.SHAPES).sort(), ['Answer', 'Cited', 'Commit', 'Config', 'DecisionSent', 'Gap', 'Probe', 'Record', 'Step', 'amend', 'aside', 'assumption',
     'check', 'closed', 'confirm', 'decision',
-    // + Probe and Step (record.json variants); + Gap; + resume; + unlink; + aside (a reader of /1 names its line, keeps the rest)
-    'item', 'link', 'note', 'plan', 'pointer', 'question', 'ready', 'research', 'resume', 'unlink', 'waiver']); // + pointer (research rests on files read)
+    // + Probe and Step (record.json variants); + Gap; + resume; + unlink; + aside; + later (a reader of /1 names its line, keeps the rest)
+    'item', 'later', 'link', 'note', 'plan', 'pointer', 'question', 'ready', 'research', 'resume', 'unlink', 'waiver']); // + pointer (research rests on files read)
   // a gap item
   assert.deepEqual(decisionbook.SHAPES.Gap, { t: 't', kind: 'itemKind', gap: 'gap', status: 'gapStatus', text: 'str', source: 'ref?', run: 'str?', q: 'word?' });
   // + settles, optional (a reader of /1 ignores it)

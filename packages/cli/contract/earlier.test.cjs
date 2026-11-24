@@ -8,8 +8,9 @@
 // resume record; a protected file outside the plan joins it, said in one line; a resume record is still taken and kept as history.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const path = require('node:path');
-const { makeWorld, tmp, setupRepo, fire, portRow, hookDecisionOf, hookContextOf, protect, run, typedYes } = require('./support.cjs');
+const { makeWorld, tmp, setupRepo, fire, portRow, hookDecisionOf, hookContextOf, protect, run, typedYes, knownIn } = require('./support.cjs');
 
 const FILE = 'app/x.rb';
 const OTHER = 'app/y.rb';
@@ -22,7 +23,7 @@ test('through the real bin a plan made READY in one session covers its Edit and 
   const world = makeWorld();
   const { repo } = setupRepo(world, { [FILE]: 'class X\nend\n', [OTHER]: 'class Y\nend\n' });
   protect(repo, ['app/**']);
-  const env = { HOME: tmp('earlier-home-') };
+  const env = { HOME: knownIn(repo, tmp('earlier-home-')) };
   const ab = (...args) => run(world.bin, [...args, '--target', repo], { env: typedYes(env).env }); // the person types the verbs at their terminal
   const said = (session, event, payload = {}) => fire(repo, portRow(repo, event, payload.tool_name || ''), { session_id: session, cwd: repo,
     hook_event_name: event, ...payload }, env);
@@ -53,4 +54,32 @@ test('through the real bin a plan made READY in one session covers its Edit and 
   assert.deepEqual([decided('s2', edit), decided('s3', edit)], [{}, {}], 'with it or without it (a third session), allowed');
   assert.match(ab('decisionbook', 'show', id, 'resumes').out,
     /^resumed 20\d\d-[^:]+:\d\d:\d\d\.\d{3}Z: The same task after \/clear: the limit step is still open\.$/m);
+});
+
+test('each message while READY work is in the tree, or its close is not committed yet, is told the close through the real hook', () => {
+  const world = makeWorld();
+  const { repo } = setupRepo(world, { [FILE]: 'class X\nend\n' });
+  protect(repo, ['app/**']);
+  const env = { HOME: knownIn(repo, tmp('earlier-home-')) };
+  const ab = (...args) => run(world.bin, [...args, '--target', repo], { env: typedYes(env).env });
+  const said = (event, payload = {}) => fire(repo, portRow(repo, event, payload.tool_name || ''), { session_id: 's1', cwd: repo,
+    hook_event_name: event, ...payload }, env);
+  const told = (prompt) => hookContextOf(said('UserPromptSubmit', { prompt })); // fire() fails on a hook that formed no verdict
+  assert.equal(said('SessionStart', { source: 'startup' }).code, 0);
+  const id = ab('decisionbook', 'new', JSON.stringify({ title: 'Poll option limit', why: 'the limit is fixed', success: 'the env sets it', kind: 'feature',
+    level: 'micro' })).out.split(' ')[0];
+  assert.equal(ab('decisionbook', 'add', id, JSON.stringify(PLAN)).code, 0);
+  assert.match(ab('decisionbook', 'ready', id).out, / READY as small fix\. /);
+  const edit = { tool_name: 'Edit', tool_input: { file_path: path.join(repo, FILE), old_string: 'X', new_string: 'Y' } };
+  assert.deepEqual(hookDecisionOf(said('PreToolUse', edit)), {}, 'the session works under the plan');
+  fs.writeFileSync(path.join(repo, FILE), 'class Y\nend\n');
+  const due = new RegExp(`DecisionBook: the work of plan ${id} is in the work tree and no close records it[^\\n]+run atlasbound decisionbook close ${id} first`);
+  for (const prompt of ['Looks good to me. Wrap it up and tell me what to commit.', 'Thanks, and how long did the tests take?', 'ok']) {
+    assert.match(told(prompt), due, `work in the tree, no close: "${prompt}" is told to close first, each time`);
+  }
+  assert.match(ab('decisionbook', 'close', id).out, / closed: /);
+  const waits = new RegExp(`DecisionBook: plan ${id} is closed and no commit holds its record yet[^\\n]+git add [^\\n]*${FILE}[^\\n]*git commit -m `);
+  for (const prompt of ['wrap it up, what do I commit?', 'One more thing before I commit: is the README fine?', 'ok']) {
+    assert.match(told(prompt), waits, `closed, not committed: "${prompt}" is told the one commit, each time`);
+  }
 });

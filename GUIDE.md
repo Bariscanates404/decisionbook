@@ -12,8 +12,11 @@ Every command below prints its own help: `atlasbound <command> --help`, and `atl
 
 - Node 22 or newer. An older Node is named at the first command, with what to do. Your project can keep its own Node
   version; see the README.
-- git: setup works only inside a git repository, and plans travel with your commits. Set `git config user.name`: a plan
-  that came from a teammate is named by the author of the commit that brought it.
+- git: setup works only inside a git repository, and plans travel with your commits. What you decide is recorded under
+  your name: setup suggests the one git gives (`git config user.name`), asks you to keep it or type another when you run
+  it in your own terminal, and keeps it on your machine. `atlasbound whoami` shows it; only you change it, in your own
+  terminal: `atlasbound whoami --name "<name>"`. A git name changed later changes no record. A plan that came from a teammate
+  is named by the author of the commit that brought it.
 - Claude Code: its hooks and slash commands. No minimum version is checked. On Windows, Git Bash too.
 
 **1. Install.**
@@ -60,9 +63,19 @@ was decided>"` asks your session to add it to the branch's plan, with your words
 own messages. Then `/clear` and `/resume-handoff`: the new context starts from the note and from the plan's settled
 decisions.
 
-**8. Close the plan.** When the work is done, `atlasbound decisionbook close <id>` records the plan's own commits, files
-and tests, and prints the one `git commit` command for that record. The product never commits for you. The record says who
-closed it; a teammate's plan is closed by a person in a terminal, never by an AI session.
+**8. Close the plan.** When the work is done, before you commit it, `atlasbound decisionbook close <id>` records the
+plan's own commits, files and tests, and prints one `git add`, `git commit` command: one commit then carries the code
+and the plan. The commit's subject is the plan's title, or the line given with `--subject "<what shipped>"` where less or
+other than the title shipped; a plan with a question still unanswered asks for that line (`plan-close-subject`), since its
+title may name a part that was left out. You do not have to ask for it: a turn of your AI that ends on work no close records is held once (for the
+work tree as it is) until it closes or tells you what is left, and each message you send is told the commit that waits,
+so "what do I commit?" gets that command. Until you make the commit the plan stays open: ask for one more change and
+the edit goes through, the next close takes the earlier record's place. If you committed first, close prints
+`git add <the plan's file>`, `git commit --amend --no-edit`: the record goes into your commit, as long as the commit was
+made in this checkout and no other branch, remote or tag holds it; a commit that is already shared is never rewritten,
+and close says the record is one more commit. The product never commits for you. The record says who closed it: you,
+by name, in your terminal or in a session you prompted; a teammate's plan is closed by a person in a terminal, never by
+an AI session.
 
 **Read what was decided** (none of these change anything):
 
@@ -134,10 +147,42 @@ it is (the `.gitignore` block, the team notice) stays as it came, and uninstall 
 **Plans follow branches.** A plan records the branch it was started on, and the gate looks for a plan on the branch you
 are on. Merging a branch brings its plan files with it.
 
-**Someone else's decision.** When you pass on what a colleague decided, say so in your answer ("I asked our designer:
-keep 100"). It is recorded as yours, with the name of the one you asked. When a question can only be answered by someone
-else, your session can address it to them: such a question waits without blocking the plan, every session start names it
-until it is answered, and the answer is stored as theirs, with their quoted words and where the quote is.
+**Someone else's decision.** A colleague is credited only for words that are theirs; everything else you say is your own
+decision, and what nobody stated is marked as assumed. *You relay it*: paste their words in a form that names them, and
+they are recorded as theirs, relayed by you ("said in session"), with the whole sentence beside it. The forms are a chat
+line `Emma: …`, the first line under a chat header with a name and a time (`Emma  [2:07 PM]`, `[11/23 2:07 PM] Emma (BA)`),
+a bare `Emma:` line with the line or list under it, and the `>` lines under `Emma wrote:` or `On …, Emma wrote:`. A line
+you type right under a paste is yours. A relay in your own words ("I asked our designer: keep 100", "Emma says …") is
+put to you once when your AI records it: Claude Code's own permission prompt lists every such sentence of the batch,
+"Record as Emma's words: 1) "…" 2) "…"  Allow = yes, Deny = no". Allow credits them to her, and each record keeps that list
+and its time (`show` says it). Deny, or a mode where no one can be asked (`bypassPermissions`, `dontAsk`, `-p` without a
+prompt tool), records them as your own words and the plan goes on; the same list is not asked again. No reply of yours is read
+for it. Your AI keeps the whole sentence your words stand in, never a part of it. When a teammate's words are mixed into your own sentence, or you choose Deny, they are recorded as your words. Separate them on an `Emma:` line to credit Emma. *They wrote it down*: point at it ("Olivia answered on the issue, see her comment") or let your
+session find it in the issue. It is recorded as theirs, in your session, with the comment's address; the product
+reads that address itself (through your own `gh`) and refuses the record when the quoted words are not there. A
+sentence you said for yourself ("the rest is fine as you suggested") is yours, never a colleague's. It settles the
+open questions only: a decision a colleague made is replaced by words of yours that name it, or by your answer when your
+AI asks you about that decision by name (`replace-blanket` otherwise). The same holds wherever you pass their words on:
+in the task message, before any question, or later. A question you put off ("as a todo", "not sure yet")
+is recorded as put off, in your words: it decides nothing and stays open until you answer it.
+
+When the plan is READY the reply lists who decided what in plain words ("Emma (BA) said: … · you decided: … · assumed:
+…"), and your session shows it to you: correct a wrong name there, before anything is built.
+
+When the issue, a comment or a document names someone else as the one who answers a question, your session addresses it
+to them: such a question waits without blocking the plan. Until it is answered, by them or by you, every session start and
+`atlasbound decisionbook inbox` name it, in every clone that holds the plan: with the plan, the one it waits for and the
+teammate who asked. A teammate who pulls your branch sees it too, marked where it waits for them, so whoever talks to that
+person brings the answer.
+
+**Work that starts from an issue.** Name the issue as the work in your task message ("Get issue #12", "fix #12", `GH-12`,
+or the address of an issue of this repository), or work on a branch that says `issue` or `gh` before the number (`issue-12`,
+`fix/gh-12-export`): the new plan is linked to it (`for issue:#12`) without anyone having to remember. The link is written
+only where one issue is named so. A number named any other way links nothing: a pull request, "step #3", a colour, a
+version or a date in a branch (`release/2026-11`, `fix/404-page`, `feat/12-export`), another repository's issue, several
+issues at once. The issue is the one your task message names: a later message that mentions another issue changes
+nothing. A second plan in the same session takes the issue you named after the first. If a link is wrong, say so: the removal is recorded as yours (an `unlink` record with `rel` `for`), the
+plan and the issue no longer show it, and the right issue is linked after it.
 
 **Changing a decision.** A later decision replaces an earlier one by naming it. A person's decision is replaced only by a
 decision of a person; the AI's own decision never replaces it. The earlier records stay in the file. Inside one plan, a
@@ -149,7 +194,9 @@ keeps both lines, neither answer replaces the other, whatever their order. Where
 it and their words, and that none holds until the person says which; `git blame` on those lines names who committed each. The
 plan is not READY until the person's answer is recorded as that change: in a session, the answer to a question whose
 `supersedes` names every line, typed after that question was on record (the AI records the question first, then asks; an
-answer typed before it is refused as `conflict-unasked`). The same value is no conflict; the same words with another value
+answer typed before it is refused as `conflict-unasked`). That answer ends the conflict at once, also while the plan that
+holds it is still a draft; it ends only the lines the question named, and anything else the answer replaces waits for
+READY like any draft's. The same value is no conflict; the same words with another value
 are. Two plans that replace one old decision under two key names are a conflict the same way, and so are one person's keep of a
 decision and another person's replacement of it, in two plans or under two keys: the person's answer names both lines, under
 any key, as the answer to a question naming both. In one copy, a replacement of a decision a person keeps names their keep too.
@@ -191,21 +238,25 @@ Upgrade together where you can, and run `atlasbound update` in each repository a
 
 PRIVACY.md is the full statement; this is its outline, and where the two differ, PRIVACY.md holds.
 
-- **Where it runs:** on your machine, when your Claude Code session calls its hooks or you type a command. It has no
-  server.
+- **Where it runs:** on your machine, when your Claude Code session calls its hooks or you type a command. Your code and
+  your records stay there; the one thing that leaves is the daily usage report under Telemetry below.
 - **In the repository:** setup's wiring, `.decisionbook/` (plans, decisions, assumptions, checks and its config; a
   decision, a confirmation and a plan set aside hold your answer in your own words, by design), and under `.atlasbound/`
   the trace, setup's record, telemetry's local files and `drafts/` (a record your AI session wrote for a command, removed
   once the command took it, kept when it was refused: it may hold your sentence; out of git like the rest of `.atlasbound/`).
-- **In your home folder,** under `~/.atlasbound/`: per repository, the statements DecisionBook took from your prompts and
-  Handoff's notes, journal and edited files; and whether you turned telemetry on. On macOS and Linux the product makes it
+- **In your home folder,** under `~/.atlasbound/`: per repository, the name your decisions are recorded under, the statements
+  DecisionBook took from your prompts and Handoff's notes, journal and edited files; and whether you turned telemetry on. On macOS and Linux the product makes it
   your user's only (folders 0700, files 0600, tightened again at each write); Windows has no such modes, so there the
   folder has the permissions it inherits from your user profile, which on a default profile are your user's, the system's
   and the administrators'.
-- **What it sends:** nothing, by default. Your code, records, prompts and paths are never sent. What the hooks add to
-  your session goes where that session already goes. No command starts a model or your `claude` command line.
-- **Telemetry:** off unless you turn it on yourself at a plain terminal; counts only; in this build the destination
-  address is empty, so nothing is sent.
+- **What it sends:** the daily usage report under Telemetry, and nothing else. Your code, records, prompts and paths are
+  never sent. What the hooks add to your session goes where that session already goes. No command starts a model or your
+  `claude` command line.
+- **Telemetry:** on by default during the beta, from the moment its notice has been shown to you (by setup at a plain
+  terminal, or by Claude Code at a session start): one report per module and finished day of step counts, time ranges and
+  outcome codes goes to api.atlasbound.dev, at most once a day. `atlasbound telemetry next` prints every byte before it
+  leaves and `history` what left; `atlasbound telemetry off` stops it; `atlasbound telemetry reset --forget` has the
+  server's copy deleted. Every field: PRIVACY.md.
 - **Removing it:** `atlasbound uninstall`, and `--purge` for the data it kept.
 
 ## Settings
@@ -214,16 +265,33 @@ PRIVACY.md is the full statement; this is its outline, and where the two differ,
 |---|---|---|
 | `.decisionbook/config.json` `protect` | the paths and globs an AI edit needs a READY plan for | `atlasbound protect`; `--none` is yours only |
 | `.decisionbook/config.json` `danger` | paths that make any plan naming them critical work | you, by hand; an AI edit there asks you first |
+| `.decisionbook/config.json` `risk` | this repository's own risk areas: the folder or file names that make work critical unless you waive it, in place of the built-in list (`[]`: none) | you, by hand; an AI edit that takes an area out asks you first |
 | `.decisionbook/config.json` `answer` | your answer to setup's protect question, with how and when it was given | `atlasbound protect` writes it |
 | `.atlasbound/cli/config.json` `hookTraceDays` | how many days of hook trace files are kept (default 14, at least 1) | you, by hand |
 | `atlasbound modules`, `modules on` / `off <module>` | which modules are wired in this repository; turning one off keeps its data | `on` and `off` are yours only |
 | `atlasbound telemetry on` / `off` | telemetry for your user on this machine | `on` is yours only, at a plain terminal |
 
 **Levels.** A plan runs at one of three levels: `micro` (a small fix), `normal` or `critical`. The agent proposes the level
-and code only raises it: a small fix that plans more than 2 files, a glob or any risk signal runs as normal work (unless it
-writes only tests, fixtures or docs); a path under
-`danger` or another hard signal, or a soft one you did not waive, makes it critical; no level proposed is critical; a proposal
-is never lowered (`core/level.cjs`). What READY needs at each level, from the rubric (`contracts/rubric.cjs`):
+and code only raises it, from what the plan touches: its planned paths and the shared consumers it names, never the words of
+its title or reason, so the same file gives the same level in every plan. One rule, by what the plan touches and never by
+its size: a path under `danger` or a database schema or migration path makes the work critical and is never waived; a risk
+area or 3 shared consumers make it critical unless you waive it; a small fix that plans more than 2 files, a glob or a
+shared or entry path runs as normal work (unless it writes only tests, fixtures or docs); anything else runs as proposed,
+so a one-file fix outside those paths stays a small fix. No level proposed is critical; a proposal is never lowered
+(`core/level.cjs`).
+
+A risk area is where a mistake costs money or lets the wrong person in. A planned path is in one when a folder of it, or
+its file before the first `.`, is named so, whole: `src/auth/token.ts`, `lib/billing.py` and `app/payments/**` are;
+`src/orders/authToken.ts`, `src/ui/SessionList.tsx` and `src/orders/price-label.ts` are not, and a test, fixture or doc
+path never is. The built-in names are `auth`, `login`, `password`, `permissions`, `billing`, `payment`, `payout`,
+`refund`, `invoice`, `subscription`, `checkout`, `kyc` and their close forms (`RISK_AREAS` in `contracts/rubric.cjs`).
+Your repository can name its own: `"risk": ["auth", "pricing"]` in `.decisionbook/config.json` stands in place of the
+built-in list, and `"risk": []` switches risk areas off; you edit it by hand, and an AI edit that takes an area out asks
+you first.
+
+The level line always says why: the signal and the path that holds it, or what keeps the level as proposed; an area your
+repository names is said as "named in this repository's `risk` list", and a built-in area your list leaves out is named
+on the line too. What READY needs at each level, from the rubric (`contracts/rubric.cjs`):
 - small fix (`micro`): the files it plans; every blocking question answered; nothing placed nowhere that a person decided; a
   decision for each danger path; your yes.
 - normal: those, and a success signal with the kind of work, one check, a command that runs it, the standards asked where a
@@ -231,8 +299,8 @@ is never lowered (`core/level.cjs`). What READY needs at each level, from the ru
 - critical: those, and 5 research records on files read, the feature it changes, 2 checks, a task per check, actors, 3 edges,
   the impact on shared consumers, 5 forks, a risk and a rollback.
 
-**Switches the product reads.** `DO_NOT_TRACK` set to any value but empty or `0` turns telemetry off, whatever else
-says; no variable turns it on. Handoff's
+**Switches the product reads.** `DO_NOT_TRACK` set to any value but empty or `0`, `ATLASBOUND_TELEMETRY=0` and `CI` turn
+telemetry off for the process they are set in, whatever else says; no variable turns it on. Handoff's
 one context notice comes when a session passes 55 % of its model's context window; it reads Claude Code's own
 `CLAUDE_CODE_MAX_CONTEXT_TOKENS` and `CLAUDE_CODE_DISABLE_1M_CONTEXT` to know that window.
 
@@ -250,7 +318,7 @@ without the checks.
 | doctor shows the hooks as not wired after an upgrade | run `atlasbound update` in that repository |
 | `AtlasBound needs Node 22 or newer` | install AtlasBound with Node 22 or newer; your project can keep its Node |
 | a decision refused as not yours | answer in a typed message: the words recorded as yours must be in a message you typed in that session; a choice picked in a question dialog is no typed message |
-| `config-invalid` | a settings file above does not read; doctor names it, and every command but a hook refuses until it is fixed |
+| `config-invalid` | a settings file above does not read; doctor names it, and every command but a hook, help, `doctor`, `debug doctor` and `debug trace` refuses until it is fixed |
 | your first message stopped with "this repository uses DecisionBook ... not set up on this machine" | your team committed the team notice: install and run `atlasbound setup`, or send the message again to go on without it for this session |
 | an AI edit goes through with no plan, and doctor's `gate answering` row says `not wired` | this clone is not set up on this machine: run `atlasbound setup`, then restart Claude Code |
 | `on PATH ... is <version>, this install is <version>` in doctor | two installs on one machine (another Node's, another prefix's): install `atlasbound` again with the Node you use |
@@ -292,7 +360,7 @@ the repository uses it. Their AI edits are not gated until they set it up.
 the session is not stopped. Not a chat log, a code map or an agent memory: it keeps plans and the decisions a person made,
 tied to files, not the conversation or a model of your code.
 
-**Does it commit or push for me?** No. `close` prints the `git commit` command for the plan's record; you run it.
+**Does it commit or push for me?** No. `close` prints the one `git commit` command for the work and the plan's record; you run it.
 
 **Does every edit need a plan?** Only an AI edit of a file you protect. A plan covers its files: an edit inside a READY
 plan goes through, and a protected file the plan does not name is asked first.
@@ -340,7 +408,7 @@ The same contract ships as data any language can read: `contracts/record.json` o
 | `research` (tool `run`) | `tool`, `command`, `observed`, `source?`, `settles?` | a command that was run and what it showed |
 | `pointer` | `tool`, `asked`, `answer`, `source?` | another tool's answer, kept beside the research, never counted as research |
 | `question` | `q`, `text`, `decides`, `whyNotCode`, `blocking?`, `proposal?`, `to?`, `source?`, `supersedes[]?` | a question for the person: the decision it unlocks, why the code cannot answer it, the proposed answer; `to` addresses someone else |
-| `decision` | `key`, `value`, `why`, `by`, `said?`, `saidBy?`, `answers?`, `effect[]?`, `supersedes[]?`, `keeps[]?`, `scope?`, `proposed?`, `files[]?`, `source?`, `head?`, `revises?` | `value`: what the AI understood was decided; `revises`: written by the product alone on a change of the plan's own decision, the `at` of the line it replaced; `said`: the person's own words; `by`: a person's name or `ai`, set by the product; `effect`: what it changed in the plan, as `kind:value` |
+| `decision` | `key`, `value`, `why`, `by`, `said?`, `saidBy?`, `answers?`, `effect[]?`, `supersedes[]?`, `keeps[]?`, `scope?`, `proposed?`, `files[]?`, `source?`, `head?`, `revises?` | `value`: what the AI understood was decided; `revises`: written by the product alone on a change of the plan's own decision, the `at` of the line it replaced; `said`: the words it holds, as typed in the session or read at `source`; `by`: who recorded it, set by the product: the person's name as kept on their machine (`atlasbound whoami`), or `ai`; `saidBy`: the teammate whose answer it is, with `source`: where it was said ("said in session", or the address the product read it at); the AI sends `whose` and `said`, never `by` or `saidBy`; `effect`: what it changed in the plan, as `kind:value` |
 | `assumption` | `text`, `why`, `q?` | what the AI took as given; never an answer, never a person's |
 | `confirm` | `by`, `said`, `amended[]?` | the person's yes to the plan, in their own words |
 | `check` | `id`, `text`, `how?`, `command?` | how the work is checked; `how`: unit, component, e2e, manual |
@@ -351,9 +419,10 @@ The same contract ships as data any language can read: `contracts/record.json` o
 | `waiver` | `reason`, `by`, `said?` | a lower level than a soft signal asks for, and who approved it |
 | `note` | `text`, `by?` | a free note |
 | `aside` | `by`, `said` | the person set this open plan aside, in their own words |
-| `unlink` | `rel`, `to`, `why`, `by` | the person removed a link the product wrote |
+| `later` | `answers`, `by`, `said` | the person put a question of the plan off ("as a todo", "not sure yet"), in their own typed words: it decides nothing, the question stays open, and every reader says who put it off |
+| `unlink` | `rel`, `to`, `why`, `by` | the person removed a link the product wrote: `built-on`, or the issue link (`for`) |
 | `ready` | `scope[]`, `level?`, `head?` | the plan became READY and froze: its planned paths |
-| `closed` | `own[]` (`sha`, `subject?`), `files[]`, `tests[]`, `other`, `unplanned?`, `head?`, `by?` | what shipped: the plan's commits, files and tests; `by`: who closed it, set by the product |
+| `closed` | `own[]` (`sha`, `subject?`), `files[]`, `tests[]`, `other`, `unplanned?`, `rides[]?`, `into?`, `head?`, `by?`, `subject?` | what shipped: the plan's commits, files and tests; `subject`: the closer's one line of what shipped, the commit's subject in place of the plan's title; `rides`: the files that go into one commit with this record (not committed yet at the close, or those of the commit `into` that takes the record in); `head`: the commit that work comes after; `by`: who closed it, set by the product |
 | `resume` | `why` | an older plan's note that a later session went on with it; read only |
 
 `plan`, `ready` and `closed` are written only by their own commands; every other type goes through
@@ -381,5 +450,5 @@ matches a secret pattern. A gap is one of `existing-data`, `invalid-input`, `con
 | `built-on` | plan | `used-by` | written by the product only, when a record uses an earlier plan the session read |
 | `contract` | file | `contract-of` | written by the product only |
 
-**`.decisionbook/config.json`:** `protect` (globs), `danger` (globs) and `answer` (`answer`, `door`, `at`), each
+**`.decisionbook/config.json`:** `protect` (globs), `danger` (globs), `risk` (names) and `answer` (`answer`, `door`, `at`), each
 optional.

@@ -29,7 +29,7 @@ const PLANNED = [...pinResearch(3), { t: 'item', kind: 'feature', text: 'status 
   { t: 'item', kind: 'non-goal', text: 'a per-account limit' },
   ...GAP_IDS.map((gap) => ({ t: 'item', kind: 'gap', gap, status: 'na', text: 'the pin limit adds nothing of this kind' }))];
 const askFork = (q, decides, text) => ({ t: 'question', q, text, decides, whyNotCode: 'a product trade-off: no file says which', blocking: true });
-const personDecides = (q, key, effect, over = {}) => ({ t: 'decision', key, value: 'yes', why: 'the instance asked', by: 'the developer', answers: q, effect,
+const personDecides = (q, key, effect, over = {}) => ({ t: 'decision', key, value: 'yes', why: 'the instance asked', whose: 'person', answers: q, effect,
   ...over });
 const settledBy = (key, line) => ({ t: 'research', tool: 'read', asked: `${key}?`, answer: 'the code decides it',
   source: `app/validators/pin_limit_validator.rb:${line}`, settles: key });
@@ -53,13 +53,13 @@ test('[I-19] filler earns nothing: one-word questions, a decision with no effect
   await added(io, id, askFork('Q2', 'pins.env', 'Read the variable once at boot or on every validation?'));
   await added(io, id, personDecides('Q2', 'pins.env', ['file:lib/elsewhere.rb'])); // not planned
   await added(io, id, { ...askFork('Q3', 'pins.zero', 'Does 0 mean no pins or no limit?'), blocking: false }); // open, so the questions row would say it
-  await added(io, id, personDecides('Q3', 'pins.zero', ['check:AC-1'], { by: 'ai' }));
+  await added(io, id, personDecides('Q3', 'pins.zero', ['check:AC-1'], { whose: 'assumed' }));
   await added(io, id, personDecides('Q3', 'pins.zero', ['check:AC-1'], { proposed: true }));
   const res = await verbs.ready(io, { rest: [id] });
   assert.deepEqual(res.out.unmet.map((u) => u.code), ['ready-answers']);
   assert.deepEqual(res.out.rows, { met: 11, asked: 12 });
-  const FORKS = 'forks counted: none \\(normal work needs at least 3: a floor, never the target; every behaviour still open is one more question\\)';
-  assert.match(res.text, new RegExp(`not READY as normal work: 11 of 12 rows met\\n {2}ready-answers: [^\\n]+\\n {2}what to ask about and research [^\\n]+\\n {2}${FORKS}$`, 'm'));
+  const FORKS = 'forks counted: none \\(normal work needs at least 3, or a no-fork item per planned file: ask only what a human must decide, never to reach the number\\)';
+  assert.match(res.text, new RegExp(`not READY as normal work: 11 of 12 rows met\\n {2}ready-answers: [^\\n]+\\n {2}what to research, and to ask only where a human must decide [^\\n]+\\n {2}${FORKS}$`, 'm'));
 });
 
 test('[I-19] a question that restates the task, or a fork a person already decided on the same files, is refused and names it', async () => {
@@ -68,7 +68,7 @@ test('[I-19] a question that restates the task, or a fork a person already decid
     personDecides('Q1', 'spec.verification', ['check:AC-1'])]);
   const again = await pinPlanned(io, [], { title: 'Pin limit, take two' });
   const [code, message] = await refusedWith(io, again, askFork('Q1', 'spec.verification', 'What verification is required?'));
-  assert.deepEqual([code, message.includes(`${first}/spec.verification = yes (by the person)`)], ['question-settled', true], message);
+  assert.deepEqual([code, message.includes(`${first}/spec.verification = yes (by Amy)`)], ['question-settled', true], message);
   // the same reply hands the way on: the question again, naming that decision as what it asks the person to replace
   assert.ok(message.includes(`or, to ask the person to replace it, add "supersedes":["${first}/spec.verification"] to this question and send`), message);
   const [restates, said] = await refusedWith(io, first, askFork('Q2', 'pins.configurable', 'Should the status pin limit be configurable?'));
@@ -132,5 +132,5 @@ test('[I-19] a settled question that names the decision, as the refusal says, is
   const supersedes = JSON.parse(/"supersedes":(\[.*?\])/.exec(message)[1]);
   assert.equal(await refusedWith(io, again, { ...askFork('Q1', 'spec.verification', 'What verification is required?'), supersedes }), null);
   const states = (await verbs.show(io, { rest: ['decision:spec.verification'] })).out.decisions.map((d) => [d.plan, d.by, d.state]);
-  assert.deepEqual(states, [[first, 'the person', 'active']], 'the person\'s decision stands until a person replaces it');
+  assert.deepEqual(states, [[first, 'Amy', 'active']], 'the person\'s decision stands until a person replaces it');
 });

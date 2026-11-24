@@ -1,8 +1,8 @@
 {
-  "$comment": "DecisionBook's namespace: plans, answers and gate decisions as counts, codes and ranges. A new metric, dimension, bucket set or count read raises policy; a new step or code word raises schema.",
+  "$comment": "DecisionBook's namespace: plans, answers, gate decisions and a plan's flow from opened to closed as counts, codes and ranges. A new metric, dimension, bucket set or count read raises policy; a new step or code word raises schema.",
   "namespace": "db",
-  "schema": 1, "policy": 1,
-  "lock": {"1": "18ace5620c4e373d30a949be060004a550afdbe15a96c0fc9f3446574498c127"},
+  "schema": 3, "policy": 2,
+  "lock": {"1": "18ace5620c4e373d30a949be060004a550afdbe15a96c0fc9f3446574498c127", "2": "d571accbd2f386e96916314d8e0911bb32cc404490aeae6584afea2123a0f225"},
   "says": "DecisionBook: plans, answers and gate decisions",
   "steps": {
     "decisionbook.plan": "measured", "decisionbook.create": "measured", "decisionbook.add": "measured", "decisionbook.ready": "measured",
@@ -11,12 +11,12 @@
     "decisionbook.notice": "measured", "decisionbook.gate": "measured", "decisionbook.trust": "measured",
     "decisionbook.session": "measured", "decisionbook.prompt": "measured", "decisionbook.recall": "measured",
     "decisionbook.shell": "measured", "decisionbook.start": "measured", "decisionbook.stop": "measured", "decisionbook.debug": "measured",
-    "plan.phase": "measured", "research.read": "measured", "research.pointer": "measured", "ready.research": "measured",
+    "plan.phase": "measured", "plan.flow": "measured", "research.read": "measured", "research.pointer": "measured", "ready.research": "measured",
     "decisionbook.inbox": "local-only", "decisionbook.why": "local-only", "decisionbook.pr": "local-only"
   },
   "codes": [
     "answer-bound", "aside-not-asked", "ask-no-one", "compared-theirs", "confirm-by-person", "confirm-not-asked", "contract-unpromised",
-    "conflict-unasked", "decision-no-effect", "decision-teammates", "decision-theirs", "decision-unnamed", "draft-shown", "gap-uncited", "gate-in-scope", "gate-not-protected", "gate-not-write-tool", "gate-off",
+    "conflict-unasked", "decision-no-effect", "decision-teammates", "decision-theirs", "decision-unnamed", "draft-shown", "flow-closed", "flow-ready", "gap-uncited", "gate-in-scope", "gate-not-protected", "gate-not-write-tool", "gate-off",
     "gate-question", "guarded-person", "level-micro-rejected", "level-raised", "level-waived", "link-unsourced", "no-fork-stated",
     "no-fork-unplanned", "no-fork-unsaid", "node-invalid", "phase-created", "phase-first-write", "phase-ready", "plan-args",
     "plan-close-empty", "plan-close-merged", "plan-close-off-branch", "plan-close-theirs", "plan-closed", "plan-continued", "plan-created",
@@ -31,7 +31,7 @@
     "recall-none", "recall-unkept", "record-invalid", "record-secret", "record-verb-only", "replace-unplaced", "placed-twice", "keep-other-value", "keep-own-key", "keep-theirs", "research-first",
     "research-met", "research-pointer", "research-short", "research-uncited", "said-not-theirs", "schema-major", "session-draft",
     "session-none", "session-ready", "session-unprotected", "shell-host-env", "shell-allowed", "shell-no-write", "shell-unplaced", "start-kept",
-    "start-unkept", "stop-clean", "stop-repeat", "stop-unrecorded", "supersede-theirs", "supersede-unknown",
+    "start-unkept", "stop-clean", "stop-repeat", "stop-unclosed", "stop-unrecorded", "supersede-theirs", "supersede-unknown",
     "trust-kept", "trust-none", "unlink-by-person"
   ],
   "metrics": {
@@ -40,6 +40,16 @@
     "phase_turns": {"step": "plan.phase", "n": "turns", "code": "phase-ready", "buckets": [0, 2, 5, 10, 20]},
     "create_records": {"step": "decisionbook.create", "n": "records", "buckets": [0, 1, 5, 10, 20]},
     "answers_bound": {"step": "decisionbook.add", "n": "bound"},
-    "stop_unrecorded": {"step": "decisionbook.stop", "n": "unrecorded", "buckets": [0, 1, 3, 6]}
+    "stop_unrecorded": {"step": "decisionbook.stop", "n": "unrecorded", "buckets": [0, 1, 3, 6]},
+    "flow_ready_seconds": {"step": "plan.flow", "n": "seconds", "code": "flow-ready", "buckets": [0, 300, 1800, 7200, 28800, 86400, 259200, 604800]},
+    "flow_research": {"step": "plan.flow", "n": "research", "code": "flow-ready", "buckets": [0, 1, 3, 6, 12]},
+    "flow_questions": {"step": "plan.flow", "n": "questions", "code": "flow-ready", "buckets": [0, 1, 3, 6, 12]},
+    "flow_answered": {"step": "plan.flow", "n": "answered", "code": "flow-ready", "buckets": [0, 1, 3, 6, 12]},
+    "flow_routed": {"step": "plan.flow", "n": "routed", "code": "flow-ready", "buckets": [0, 1, 3, 6]},
+    "flow_build_seconds": {"step": "plan.flow", "n": "seconds", "code": "flow-closed", "buckets": [0, 300, 1800, 7200, 28800, 86400, 259200, 604800]},
+    "flow_total_seconds": {"step": "plan.flow", "n": "total", "code": "flow-closed", "buckets": [0, 300, 1800, 7200, 28800, 86400, 259200, 604800]},
+    "flow_resumes": {"step": "plan.flow", "n": "resumes", "code": "flow-closed", "buckets": [0, 1, 3, 6]},
+    "stale_draft": {"step": "decisionbook.session", "n": "stale_draft", "buckets": [0, 1, 3, 6]},
+    "stale_ready": {"step": "decisionbook.session", "n": "stale_ready", "buckets": [0, 1, 3, 6]}
   }
 }

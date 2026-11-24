@@ -3,9 +3,10 @@
 // See LICENSE and NOTICE in the package root.
 'use strict';
 // The one reader and writer of the choice (~/.atlasbound/telemetry-consent.json, in the home from the password database: HOME cannot
-// redirect it, a link is not followed), and setup's question, notice or hint. What a record means is core/consent.
+// redirect it, a link is not followed), and what is said about it: setup's question, notice or hint, and the notice a session start
+// hands the host to show. What a record means is core/consent.
 const { errors: { fail, isFail }, text: { lines: { dayOf } } } = require('@atlasbound/kit');
-const { NONE, SWITCH_NAMES, switchOf, choiceRead, reportingState, unanswered, choiceAfter, noticeCovers } = require('../core/consent.cjs');
+const { NONE, SWITCH_NAMES, switchOf, choiceRead, reportingState, unanswered, choiceAfter, betaNotice } = require('../core/consent.cjs');
 const { PATHS, SCHEMA, WIRE, validate } = require('../contracts/shapes.cjs');
 const { TEXT, sentence, questionBlock } = require('../contracts/codes.cjs');
 const { writeRecord } = require('../contracts/helpers.cjs');
@@ -52,20 +53,21 @@ async function writeChoice({ act, names, yes, spaces }, io) {
 }
 
 // Under `unchosen: on`, the notice once per (core, namespace) policy pair of the beta's namespaces; it is said, and `noticed` written
-// with the pairs it covered, only here.
-async function noticeOnce(io, spaces, beta) {
+// with the pairs it covered, only here: where a person reads the line itself (their plain terminal, or the host's own message at a
+// session start), never where an AI session would have to pass it on.
+async function noticeOnce(io, { spaces, beta, host }) {
   await writeChoice({ act: 'notice', names: beta.map((space) => space.ns), spaces }, io);
-  return { out: { line: questionBlock(sentence('notice', { until: WIRE.betaUntil }), beta) }, n: { noticed: 1 }, codes: {} };
+  return { out: { line: questionBlock(sentence('notice', { until: WIRE.betaUntil, host }), beta) }, n: { noticed: 1 }, codes: {} };
 }
 
 // The question once per namespace without a choice under the current pair: Enter or y: on; n: off; anything else is asked once more,
 // then said as no choice (nothing written); no answer at all (no terminal to read) is silent.
 const YES = { '': true, y: true, yes: true, n: false, no: false };
-async function askOnce(io, { held, spaces, ask }) {
+async function askOnce(io, { held, spaces, ask, host }) {
   const open = spaces.filter((space) => unanswered(held.choice, { wire: WIRE, space }));
   if (!open.length) return NOTHING;
   const reply = async (text) => String(await ask(text) ?? 'unsaid').trim().toLowerCase();
-  const first = await reply(`${questionBlock(TEXT.question, open)}\n${TEXT.yes}`);
+  const first = await reply(`${questionBlock(sentence('question', { host }), open)}\n${TEXT.yes}`);
   const answer = Object.hasOwn(YES, first) || first === 'unsaid' ? first : await reply(TEXT.yesAgain);
   const yes = Object.hasOwn(YES, answer) ? YES[answer] : undefined;
   if (yes !== undefined) await writeChoice({ act: 'answer', names: open.map((space) => space.ns), yes, spaces }, io);
@@ -73,26 +75,32 @@ async function askOnce(io, { held, spaces, ask }) {
   return { out: { line }, n: { asked: open.length, yes: Number(yes === true) }, codes: {} };
 }
 
-// The hint, said at most once a day in a repository, while a namespace waits for a choice.
-function hintOnce(io, states) {
+// The line for a reader who is no person at a plain terminal, said at most once a day in a repository: while the beta's notice is still
+// to be shown, the words an AI session passes on to its person (nothing is turned on by them); else, while a namespace waits for a
+// choice, the hint.
+function hintOnce(io, states, relay) {
   const today = dayOf(io.clock.now());
-  const waiting = states.some((state) => state.code === 'telemetry-not-chosen');
+  const waiting = relay || states.some((state) => state.code === 'telemetry-not-chosen');
   if (!waiting || (io.fs.readText(PATHS.hinted) || '').trim() === today) return NOTHING;
   io.fs.writeAtomic(PATHS.hinted, `${today}\n`);
-  return { out: { line: TEXT.hint }, n: { hinted: 1 }, codes: { 'telemetry-hint': 1 } };
+  return { out: { line: relay ? TEXT.relay : TEXT.hint }, n: { hinted: 1 }, codes: { 'telemetry-hint': 1 } };
 }
 
 const silent = (held) => !WIRE.url || Boolean(held.killed || held.refused) || held.choice.all === 'off';
 const plainPerson = (io, ask) => Boolean(ask) && io.actor().who === 'terminal' && !io.actor().wrapped;
-/** setup's part, only where an address is set and no switch holds: for a person at a plain terminal (`ask` given, not wrapped) the notice
- * or the question; for anyone else, or doctor, at most the hint line once a day. */
-async function setupSays({ spaces, ask }, io) {
+/** What is said of the choice, only where an address is set and no switch holds. While the beta's default holds (`unchosen: on`, through
+ * betaUntil) and its notice is still to be shown: the notice, to a person at a plain terminal (setup: `ask` given, not wrapped) or as
+ * the line a session start hands the host (`host`); to anyone else the words to pass on. Else: setup's question to a person at a
+ * plain terminal, for anyone else, or doctor, the hint; a session start says nothing more. */
+async function choiceSaid({ spaces, ask = null, host = false }, io) {
   const held = consentHeld(io);
   if (silent(held)) return NOTHING;
-  if (!plainPerson(io, ask)) return hintOnce(io, namespaceStates(io, spaces, held));
-  const beta = WIRE.unchosen === 'on' ? spaces.filter((space) => WIRE.betaModules.includes(space.ns)) : [];
-  if (!beta.every((space) => noticeCovers(held.choice.noticed, { wire: WIRE, space }))) return noticeOnce(io, spaces, beta);
-  return askOnce(io, { held, spaces: spaces.filter((space) => !beta.includes(space)), ask });
+  const { beta, shown } = betaNotice(held.choice, { wire: WIRE, spaces, today: dayOf(io.clock.now()) });
+  const person = host || plainPerson(io, ask);
+  if (person && !shown) return noticeOnce(io, { spaces, beta, host: new URL(WIRE.url).host });
+  if (host) return NOTHING;
+  if (!person) return hintOnce(io, namespaceStates(io, spaces, held), !shown);
+  return askOnce(io, { held, spaces: spaces.filter((space) => !beta.includes(space)), ask, host: new URL(WIRE.url).host });
 }
 
-module.exports = { consentHeld, namespaceStates, read, writeChoice, setupSays };
+module.exports = { consentHeld, namespaceStates, read, writeChoice, choiceSaid };

@@ -98,7 +98,7 @@ test('handoff keep reads the reply from its draft and removes it once kept; a re
   assert.equal(fired('UserPromptSubmit', { prompt: 'Money math goes through lib/amount.js, never floats.' }).code, 0);
   const handoff = (...words) => run(world.bin, ['handoff', ...words, '--session', 's1'], { cwd: repo, env });
   const shown = handoff().out;
-  assert.match(shown, /^write this JSON with your Write tool to \.atlasbound\/drafts\/handoff\.json:\n\{"now": ""[^\n]*\nthen run: atlasbound handoff keep --session s1 --file \.atlasbound\/drafts\/handoff\.json$/m,
+  assert.match(shown, /^write this JSON with your Write tool \(it makes the folder; no shell write\) to \.atlasbound\/drafts\/handoff\.json:\n\{"now": ""[^\n]*\nthen run: atlasbound handoff keep --session s1 --file \.atlasbound\/drafts\/handoff\.json$/m,
     'the fill-in: the draft to write, then the call that reads it');
   draft(repo, 'handoff.json', { now: 'x', next: [], kept: ['Money math goes through lib/amount.js'] });
   const refused = handoff('keep', '--file', `${DRAFTS}/handoff.json`);

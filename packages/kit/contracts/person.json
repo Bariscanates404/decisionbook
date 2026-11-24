@@ -6,9 +6,11 @@
     "`wrappers`: programs that can type for a person when they stand above a terminal: terminal multiplexers, tools that open a pseudo-terminal, a script runner. Lower case, by the program's name with a trailing version left off. A grave act is refused under one. A program that opens a pseudo-terminal for one command needs no name here: such a terminal holds no shell a person types into, which the walk sees by itself, and it is no person's for any verb.",
     "`commandOption`: the option by which a shell is handed a command string instead of a person's typing.",
     "`windows.shells`: Windows keeps no terminal sessions, so there a terminal's side ends at the farthest of these above this process (above it stand the terminal's own program and the desktop). Which words hand a Windows shell a command instead of a person's typing is the shell owner's (text/shell.json `windows`).",
+    "`aiNames`: the names the AI's own records are signed with, in lower case: no person is recorded under one.",
     "`hostCall.judged`: the platforms on which a hook call is told from a forged one by who holds the other end of its standard output (measured there: the host keeps it, its shell tool hands a file); on any other the call is heard as before, which is said in the trace."
   ],
   "hostCall": { "judged": ["darwin"] },
+  "aiNames": ["ai", "the ai", "assistant"],
   "aiSessionEnv": ["CLAUDECODE", "AI_AGENT"],
   "aiHosts": { "names": ["claude", "claude-code"], "levels": 12 },
   "wrappers": ["tmux", "screen", "zellij", "dtach", "abduco", "script", "expect", "unbuffer", "socat", "osascript"],

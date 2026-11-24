@@ -27,7 +27,7 @@ const ASSUMED_SHOWN = 3;
  * what it lacks, whose each part is and the one call that shows it (the gate's own sentence); other work only on the person's answer. */
 function draftLines(view, branch) {
   const slots = { id: view.id, level: view.level.level, branch: shown.branch(branchWord(branch)), title: shown.title(view.title) };
-  return [filled(WORDS.draftOpen, slots), `not READY: ${draftWhy(view)}`, ...parkedLines(view), asideWay(view.id)];
+  return [filled(WORDS.draftOpen, slots), `not READY: ${draftWhy(view)}`, asideWay(view.id)];
 }
 
 /** Under the decisions: how a person replaces one, the open questions, the AI's last assumptions, the last note,
@@ -39,7 +39,7 @@ function tailLines(view, decided) {
   const assumptions = view.assumptions.slice(-ASSUMED_SHOWN).map(assumptionLine);
   const assumed = assumptions.length ? [WORDS.assumed, ...assumptions] : [];
   const note = view.notes.slice(-1).map((n) => `last note: ${shown.text(n.text)}`);
-  return [...replace, ...open, ...parkedLines(view), ...assumed, ...note, WORDS.more];
+  return [...replace, ...open, ...assumed, ...note, WORDS.more];
 }
 
 const LIST_MIN = 160; // a list with less room than this says nothing: its heading and "+n more" would be all of it
@@ -67,17 +67,21 @@ function readyPlanLines(view, branch, max) {
 // whose the branch's open plan is to a session (steps/open openFor) where it is said in one line: its words and the key it is said by
 const ONE_LINE = { teammate: { words: WORDS.draftTheirs, key: 'decisionbook.draft' }, earlier: { words: WORDS.draftLeft, key: 'decisionbook.draft' } };
 /** `open`: the branch's open plan as this machine's sessions meet it; `whose` it is to the session (a teammate's draft, or one an
- * earlier session here left: one line); `items`: the open items (steps/touch). What leads (text/open leadLines) stands first, and no
- * plan is asked for while it does; the plans that lost a conflict follow, in at most half the room, and the plan's lists give way. */
-function startText(open, branch, { max = START_BYTES, whose = 'mine', items = NONE } = {}) {
+ * earlier session here left: one line); `items`: the open items (steps/touch); `parked`: the questions that wait with someone on the
+ * team (steps/teammate parkedWaiting), said whatever the branch's plan is and whose. What leads (text/open leadLines) stands first, and
+ * no plan is asked for while it does; those questions and the plans that lost a conflict follow, each in at most a share of the room, and
+ * the plan's lists give way. */
+function startText(open, branch, { max = START_BYTES, whose = 'mine', items = NONE, parked = [], idle } = {}) {
   const merging = leadLines(items);
-  const lost = boundedLines({ head: [], list: openLines({ ...NONE, lost: items.lost }), tail: [], max: Math.floor(max / 2), more: jsonCall('inbox') });
-  const around = (lines) => [...merging, ...lines, ...lost].join('\n');
-  if (!open) return around(merging.length ? [] : [WORDS.none]);
+  const waiting = parkedLines(parked);
+  const after = [...boundedLines({ head: waiting.slice(0, 1), list: waiting.slice(1), tail: [], max: Math.floor(max / 3), more: jsonCall('inbox') }),
+    ...boundedLines({ head: [], list: openLines({ ...NONE, lost: items.lost }), tail: [], max: Math.floor(max / 2), more: jsonCall('inbox') })];
+  const around = (lines) => [...merging, ...lines, ...after].join('\n');
+  if (!open) return around(merging.length ? [] : idle); // `idle`: what a branch with no plan is told (steps/read)
   const slots = { id: open.id, branch: shown.branch(branchWord(branch)), title: shown.title(open.title),
     files: shown.openFiles(scopeOf(open).join(', ')) };
   if (ONE_LINE[whose]) return around([filled(ONE_LINE[whose].words, slots)]);
-  return around(open.state === 'draft' ? draftLines(open, branch) : readyPlanLines(open, branch, max - bytes([...merging, ...lost, ''])));
+  return around(open.state === 'draft' ? draftLines(open, branch) : readyPlanLines(open, branch, max - bytes([...merging, ...after, ''])));
 }
 
 /** The start's text as the one thing said of the branch's open plan in a context (the cli's rule by key: the same text again says

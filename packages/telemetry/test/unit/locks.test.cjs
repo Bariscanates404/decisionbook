@@ -43,7 +43,7 @@ test('the core\'s and each open namespace\'s collection key equals the digest pi
   }
 });
 
-test('a widened shape changes its key, a new word does not; the address, betaUntil and the default change the core\'s', () => {
+test('a widened shape changes its key, a new word does not; the address set or not, betaUntil, the default change the core\'s', () => {
   const pinned = keysOf(OPEN);
   const db = (over) => keysOf(swap('decisionbook', over)).spaces.db;
   assert.notEqual(db((one) => ({ metrics: { ...one.metrics, more: { step: 'decisionbook.add', n: 'records' } } })), pinned.spaces.db);
@@ -55,7 +55,7 @@ test('a widened shape changes its key, a new word does not; the address, betaUnt
   assert.notEqual(keysOf(swap('cli', (one) => ({ steps: { ...one.steps, setup: 'measured' } }))).spaces.cli, pinned.spaces.cli,
     'a step that asks a person becoming timed');
   assert.equal(db((one) => ({ codes: [...one.codes, 'a-new-code'], steps: { ...one.steps, 'decisionbook.new': 'measured' } })), pinned.spaces.db);
-  for (const over of [{ url: 'https://telemetry.example/v1/reports' }, { betaUntil: '2027-12-31' }, { unchosen: 'on' }]) {
+  for (const over of [{ url: '' }, { betaUntil: '2027-12-31' }, { unchosen: 'ask' }]) {
     assert.notEqual(keysOf(OPEN, { ...WIRE, ...over }).core, pinned.core, JSON.stringify(over));
   }
 });

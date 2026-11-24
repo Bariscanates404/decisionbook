@@ -24,12 +24,12 @@ test('why says a file git does not hold, a line not committed, and a commit no c
 
 test('inbox: a line that none waits, or the counts and a line per row as the step orders them; pulled ones by branch, author', () => {
   assert.equal(inboxText({ branch: 'main', here: [], pulled: [] }), 'Nothing waits for you on main.');
-  const here = [{ id: 'p2', waits: 'aside', title: 'Old', asideBy: 'Ayse', said: 'later' }, { id: 'p1', waits: 'question', q: 'Q1', text: 'CSV?', proposal: 'yes' }];
-  const pulled = [{ id: 'p3', waits: 'ready', title: 'Import', branch: 'feat/x', by: 'Mehmet' }];
+  const here = [{ id: 'p2', waits: 'aside', title: 'Old', asideBy: 'Mark', said: 'later' }, { id: 'p1', waits: 'question', q: 'Q1', text: 'CSV?', proposal: 'yes' }];
+  const pulled = [{ id: 'p3', waits: 'ready', title: 'Import', branch: 'feat/x', by: 'Lee' }];
   assert.deepEqual(inboxText({ branch: 'main', here, pulled }).split('\n'), [
-    'Waiting for you on main: open questions 1, READY plans not closed 0, set aside 1', '- p2 set aside: Old (Ayse: "later")',
-    '- p1 Q1: CSV? (proposed: yes)', 'Pulled from other branches: open questions 0, READY plans not closed 1, set aside 0',
-    '- p3 on feat/x by Mehmet READY, not closed: Import']);
+    'Waiting for you on main: open questions 1, questions parked with someone 0, READY plans not closed 0, set aside 1', '- p2 set aside: Old (Mark: "later")',
+    '- p1 Q1: CSV? (proposed: yes)', 'Pulled from other branches: open questions 0, questions parked with someone 0, READY plans not closed 1, set aside 0',
+    '- p3 on feat/x by Lee READY, not closed: Import']);
 });
 
 test('pr: no plan names the branch and the call; a plan with no commit it began on says its commits are not measured', () => {

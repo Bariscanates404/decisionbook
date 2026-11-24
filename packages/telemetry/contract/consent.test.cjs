@@ -14,7 +14,10 @@ const { PATHS, WIRE, SCHEMA } = internals;
 const URL_SET = 'https://telemetry.example/v1/reports';
 const typed = { ask: async () => true };
 const AT = '2026-11-18T10:00:00.000Z';
-const pair = (ns) => ({ cli: 1, db: 1, handoff: 1 })[ns];
+// each open namespace's policy as its descriptor has it now
+const PAIRS = Object.fromEntries(declaredDescriptors({ open: true }).map((row) => JSON.parse(row.text)).filter((one) => one.namespace)
+  .map((one) => [one.namespace, one.policy]));
+const pair = (ns) => PAIRS[ns];
 const entry = (on, ns, core = WIRE.policy) => ({ on, core, policy: pair(ns) ?? 1, at: AT });
 const v2 = (over) => JSON.stringify({ schema: SCHEMA.consent, at: AT, all: null, modules: {}, noticed: null, ...over });
 const homeOf = (text) => ({ [PATHS.consent]: text });
@@ -55,7 +58,7 @@ test('[I-3] order: a record that does not read beats any choice; your off beats 
   assert.equal((await codesByNs(telemetryWorld({ home: allOff }))).db, 'telemetry-off');
   addressFilled(URL_SET, '');
   await withWire({ unchosen: 'on' }, async () => {
-    const noticed = { core: WIRE.policy, at: AT, policies: { cli: 1, db: 1, handoff: 1 } };
+    const noticed = { core: WIRE.policy, at: AT, policies: PAIRS };
     const moduleOff = homeOf(v2({ noticed, modules: { db: entry(false, 'db') } }));
     assert.deepEqual(await codesByNs(telemetryWorld({ home: moduleOff })), { cli: 'telemetry-default', db: 'telemetry-off', handoff: 'telemetry-default' });
   });
@@ -68,7 +71,7 @@ test('[I-3] order: an on counts only under the current (core, namespace) pair; a
 });
 
 test('[I-3] order: nobody chose: on only as the beta default, with an address, after the notice, until betaUntil', async () => {
-  const noticed = homeOf(v2({ noticed: { core: WIRE.policy, at: AT, policies: { cli: 1, db: 1, handoff: 1 } } }));
+  const noticed = homeOf(v2({ noticed: { core: WIRE.policy, at: AT, policies: PAIRS } }));
   assert.equal((await codesByNs(telemetryWorld({ home: noticed }))).db, 'telemetry-not-chosen', 'unchosen ask: no default');
   await withWire({ unchosen: 'on' }, async () => {
     assert.equal((await codesByNs(telemetryWorld({ home: noticed }))).db, 'telemetry-not-chosen', 'no address: no default');
@@ -112,7 +115,7 @@ test('[I-3] transitions: 0.25.1\'s off reads as your off; then on db under the d
   assert.deepEqual(new Set(Object.values(await codesByNs(io))), new Set(['telemetry-off']));
   await withWire({ unchosen: 'on', url: URL_SET }, async () => {
     await telemetry.optIn(io, { rest: ['db'], ...typed });
-    io.home.store.set(PATHS.consent, v2({ ...storedChoice(io), noticed: { core: WIRE.policy, at: AT, policies: { cli: 1, db: 1, handoff: 1 } } })); // the notice seen: the default holds
+    io.home.store.set(PATHS.consent, v2({ ...storedChoice(io), noticed: { core: WIRE.policy, at: AT, policies: PAIRS } })); // the notice seen: the default holds
     assert.deepEqual(await codesByNs(io), { cli: 'telemetry-off', db: 'telemetry-on', handoff: 'telemetry-off' });
   });
   const on = telemetryWorld({ home: homeOf(JSON.stringify({ schema: SCHEMA.consentOld, on: true, at: AT })) });
@@ -129,7 +132,7 @@ test('[I-4] address set, a person at a plain terminal: Enter or y on; n off; ano
     assert.equal(asked.length, answers.length);
     if (answers.length > 1) assert.match(asked[1], /^Please answer y or n \[Y\/n\]/);
     assert.equal(/no choice was recorded/.test(JSON.stringify(said)), answers.length > 1 && code === 'telemetry-not-chosen', JSON.stringify(said));
-    assert.match(asked[0], /^Send a daily usage report during the beta\? It goes to telemetry\.atlasbound\.dev/);
+    assert.match(asked[0], /^Send a daily usage report during the beta\? It goes to telemetry\.example, run by AtlasBound/);
     assert.match(asked[0], /For: cli \(.*\), db \(.*\), handoff \(.*\)/);
     assert.match(asked[0], /\[Y\/n\] \(Enter = yes\) $/);
     assert.deepEqual(new Set(Object.values(await codesByNs(io))), new Set([code]), JSON.stringify(answers));
@@ -172,14 +175,41 @@ test('[I-4] unchosen on: the notice once per core policy to a person, then the d
   await withWire({ unchosen: 'on', url: URL_SET }, async () => {
     const io = telemetryWorld();
     const first = await telemetry.hint(io, { ask: async () => assert.fail('the notice asks nothing') });
-    assert.match(first.line, /^Telemetry is on during the beta \(until 2027-03-31\): a daily usage report goes to telemetry\.atlasbound\.dev/);
+    assert.match(first.line, /^AtlasBound telemetry is on during the beta \(until 2027-03-31\): a daily usage report goes to telemetry\.example, run by AtlasBound/);
     assert.deepEqual(storedChoice(io).noticed.core, WIRE.policy);
     assert.equal((await codesByNs(io)).db, 'telemetry-default');
     assert.equal((await telemetry.hint(io, { ask: async () => assert.fail('asked') })).line, null, 'once');
-    const ai = telemetryWorld({ actor: { who: 'ai' } });
-    assert.match((await telemetry.hint(ai, {})).line, /^Telemetry is not on\. A person can turn it on: atlasbound telemetry on/);
-    assert.equal((await telemetry.hint(ai, {})).line, null, 'once a day here');
   });
+});
+
+test('[I-4] unchosen on, an AI session: setup\'s words to pass on turn nothing on; a session start\'s notice, once, does', async () => {
+  await withWire({ unchosen: 'on', url: URL_SET }, async () => {
+    const ai = telemetryWorld({ actor: { who: 'ai' } });
+    assert.match((await telemetry.hint(ai, {})).line, /^Telemetry, for the person \(say this to them as it is\): .* turns on during the beta once its notice is shown to them/);
+    assert.equal((await telemetry.hint(ai, {})).line, null, 'once a day here');
+    assert.deepEqual([ai.home.store.get(PATHS.consent), (await codesByNs(ai)).db], [undefined, 'telemetry-not-chosen'], 'the words turn nothing on');
+    const shown = await telemetry.notice(ai, {});
+    assert.match(shown.line, /^AtlasBound telemetry is on during the beta \(until 2027-03-31\): a daily usage report goes to telemetry\.example/);
+    assert.match(shown.line, /Stop: atlasbound telemetry off/);
+    assert.deepEqual([storedChoice(ai).noticed.core, (await codesByNs(ai)).db], [WIRE.policy, 'telemetry-default']);
+    assert.deepEqual(await telemetry.notice(ai, {}), { line: null }, 'once');
+    ai.clock.set('2026-11-19T10:00:00.000Z');
+    assert.equal((await telemetry.hint(ai, {})).line, null, 'shown: nothing more to pass on');
+  });
+});
+
+test('[I-4] a session start says no notice under a switch, after your off, with no address, under ask or past the beta', async () => {
+  const quiet = async (world, wire) => withWire({ unchosen: 'on', url: URL_SET, ...wire }, async () => {
+    const io = telemetryWorld(world);
+    const before = io.home.store.get(PATHS.consent);
+    assert.deepEqual([await telemetry.notice(io, {}), io.home.store.get(PATHS.consent)], [{ line: null }, before], JSON.stringify([world, wire]));
+  });
+  for (const world of [{ env: { DO_NOT_TRACK: '1' } }, { env: { CI: 'true' } }, { env: { ATLASBOUND_TELEMETRY: '0' } }, { home: homeOf(v2({ all: 'off' })) }]) {
+    await quiet(world, {});
+  }
+  await quiet({}, { url: '' });
+  await quiet({}, { unchosen: 'ask' });
+  await quiet({ at: '2027-04-01T00:00:00.000Z' }, {});
 });
 
 test('[I-14] a linked record reads as off, not a crash; no home is off and on is refused by its code', async () => {
@@ -207,13 +237,13 @@ test('[I-16] on and off write only the home record; status writes nothing; each 
 
 test('[I-4] a raised module policy is not covered by an earlier notice: not chosen for it, and the notice is said again', async () => {
   const raised = declaredDescriptors({ open: true }).map((row) => (row.name === 'decisionbook'
-    ? { ...row, text: JSON.stringify({ ...JSON.parse(row.text), policy: 2 }) } : row));
+    ? { ...row, text: JSON.stringify({ ...JSON.parse(row.text), policy: PAIRS.db + 1 }) } : row));
   await withWire({ unchosen: 'on', url: URL_SET }, async () => {
     const io = telemetryWorld();
     await telemetry.hint(io, { ask: async () => assert.fail('the notice asks nothing') });
     const later = { ...io, packageData: (rel) => (rel === 'contracts/telemetry.json' ? raised : []) };
     assert.deepEqual(await codesByNs(later), { cli: 'telemetry-default', db: 'telemetry-not-chosen', handoff: 'telemetry-default' });
-    assert.match((await telemetry.hint(later, { ask: async () => assert.fail('asked') })).line, /^Telemetry is on during the beta/);
+    assert.match((await telemetry.hint(later, { ask: async () => assert.fail('asked') })).line, /^AtlasBound telemetry is on during the beta/);
     assert.equal((await codesByNs(later)).db, 'telemetry-default');
   });
 });

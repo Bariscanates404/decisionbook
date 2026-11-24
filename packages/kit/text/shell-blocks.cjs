@@ -24,15 +24,15 @@ const NEXT = {
   op: { member: 'op', group: 'op', op: 'operand' },
   load: { word: 'load', load: 'load', member: 'load', num: 'load', group: 'load', op: 'load' }, // import a.b as c, d / from x import y
 };
-const DEEPEST = 64;
-const PLAINEST = 1000; // blocks open at once: deeper code is not read; the longest statement (its literals one character) read in full
+const DEEPEST = 64; // blocks open at once: deeper code is not read
+const PLAINEST = 1000; // the longest statement (its literals one character) read in full
 
 const innermost = (s) => s.open.at(-1) || s.root;
 // The statement so far: each literal `0`, each comment nothing, each block seen `{}`; past PLAINEST it grows no more.
-const saidTo = (s, at) => (s.said.length > PLAINEST ? s.said : `${s.said}${s.code.slice(s.from, at)}`);
+const stmtTo = (s, at) => (s.stmt.length > PLAINEST ? s.stmt : `${s.stmt}${s.code.slice(s.from, at)}`);
 
 function quietAt(s, at, { 0: quiet, groups: { literal } }) {
-  s.said = `${saidTo(s, at)}${literal === undefined ? ' ' : '0'}`;
+  s.stmt = `${stmtTo(s, at)}${literal === undefined ? ' ' : '0'}`;
   s.from = at + quiet.length;
 }
 
@@ -61,9 +61,9 @@ function walked(text, at) {
   return state === 'op' || state === 'load' || (state === 'name' && ENDS.test(text.slice(at).trim()));
 }
 
-function readsInFull(said) {
-  if (said.length > PLAINEST || UNREAD.test(said)) return false;
-  const outer = /[([{]/.test(said) ? outerOf(said).trimEnd() : said.trimEnd();
+function readsInFull(stmt) {
+  if (stmt.length > PLAINEST || UNREAD.test(stmt)) return false;
+  const outer = /[([{]/.test(stmt) ? outerOf(stmt).trimEnd() : stmt.trimEnd();
   if (outer.endsWith('{}')) return true;
   START.lastIndex = 0;
   START.test(outer);
@@ -78,24 +78,24 @@ function emit(s, e) {
 
 // One not read in full (`pending`) and followed by another, not by a block, hid a body (`hidden`).
 function stopAt(s, at, after) {
-  const said = saidTo(s, at);
+  const stmt = stmtTo(s, at);
   const block = innermost(s);
-  s.said = '';
-  if (/\S/.test(said)) [block.hidden, block.pending] = [Boolean(block.hidden || block.pending), !readsInFull(said)];
+  s.stmt = '';
+  if (/\S/.test(stmt)) [block.hidden, block.pending] = [Boolean(block.hidden || block.pending), !readsInFull(stmt)];
   emit(s, { at, stop: true, after });
 }
 
 function openAt(s, block, at, after) {
   innermost(s).pending = false;
   s.open.push(block);
-  s.said = '';
+  s.stmt = '';
   emit(s, { at, open: block, after });
 }
 
 function endFrom(s, k, at, after) {
   while (k >= 0 && s.open.length > k) {
     const block = s.open.pop();
-    s.said = block.brace ? `${block.before}{}` : '';
+    s.stmt = block.brace ? `${block.before}{}` : '';
     emit(s, { at, close: block, after });
   }
 }
@@ -112,7 +112,7 @@ function lineStart(s, at, lead) {
 
 function braceAt(s, brace, at) {
   if (brace === '{') {
-    openAt(s, { brace: true, indent: s.last ? s.last.indent : 0, depth: s.depth, before: saidTo(s, at) }, at, at + 1);
+    openAt(s, { brace: true, indent: s.last ? s.last.indent : 0, depth: s.depth, before: stmtTo(s, at) }, at, at + 1);
     s.depth = 0;
     return;
   }
@@ -126,7 +126,7 @@ function braceAt(s, brace, at) {
 // Events { open } / { close } / { stop }; `after`: where the next statement may begin, `sure`: it runs whenever its block does. Null past
 // DEEPEST.
 function scanBlocks(code) {
-  const s = { out: [], open: [], depth: 0, last: null, code, from: 0, said: '', root: {} };
+  const s = { out: [], open: [], depth: 0, last: null, code, from: 0, stmt: '', root: {} };
   for (const m of `\n${code}`.matchAll(TOKENS)) {
     const at = m.index - 1;
     const { literal, note, brace, bracket, lead } = m.groups;

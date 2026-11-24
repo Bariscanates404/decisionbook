@@ -83,10 +83,10 @@ function release(io, key, mine) {
 function lockLine(io, key) {
   const held = holder(io, key);
   if (!held) return null;
-  if (held !== TORN && !gone(io, held)) return { stuck: false, says: `lock held by pid ${held.pid}` };
-  const says = held !== TORN && `lock of pid ${held.pid} is older than ${WAIT.ageMs / 1000} s: the next writer reclaims it`;
-  if (held !== TORN && io.proc.alive(held.pid)) return { stuck: true, says };
-  return { stuck: true, says: `${held === TORN ? 'torn' : 'dead'} lock (pid ${held.pid}): the next writer reclaims it` };
+  if (held === TORN) return { stuck: true, says: `torn lock (pid ${held.pid}): the next writer reclaims it` };
+  if (!gone(io, held)) return { stuck: false, says: `lock held by pid ${held.pid}` };
+  const says = `lock of pid ${held.pid} is older than ${WAIT.ageMs / 1000} s: the next writer reclaims it`;
+  return { stuck: true, says: io.proc.alive(held.pid) ? says : `dead lock (pid ${held.pid}): the next writer reclaims it` };
 }
 
 function stillMine(io, key, mine) {

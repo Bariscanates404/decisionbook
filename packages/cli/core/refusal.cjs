@@ -22,7 +22,7 @@ function unknownVerb(catalog, words, grouped = false) {
 
 /** The nearest verb to mistyped `words` (in their group, for a word after a group's: `debug frob`) and where the verbs are listed. */
 function nearVerbRoutes(catalog, words) {
-  const subs = words.length > 1 ? catalog.under(words.slice(0, 1)).filter((row) => row.words.length > 1 && !row.next) : [];
+  const subs = words.length > 1 ? catalog.under(words.slice(0, 1)).filter((row) => row.words.length > 1) : [];
   const near = subs.length ? closestVerb(words[1], subs.map((row) => row.words[1]))
     : (Object.hasOwn(W.meant, words[0]) && W.meant[words[0]]) // another word for a verb
       || closestVerb(words[0], catalog.verbs.map((row) => row.words[0]));

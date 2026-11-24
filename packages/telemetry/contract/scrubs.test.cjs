@@ -31,7 +31,9 @@ const HOSTILE = {
 };
 const needles = Object.values(HOSTILE);
 const carriers = [...needles, needles, { nested: needles[0] }, 3.5, -1, true, null];
-const GOOD = { id: 'a'.repeat(32), period: 'b'.repeat(32), verifier: 'c'.repeat(64), module: 'db', schema: 1, policy: 1, module_policy: 1,
+// db's schema and policies as the schema of this tree holds them
+const DB_NOW = { schema: Number(Object.keys(SCHEMA.modules.db).at(-1)), policy: SCHEMA.policy, module_policy: Object.values(SCHEMA.modules.db).at(-1).policy };
+const GOOD = { id: 'a'.repeat(32), period: 'b'.repeat(32), verifier: 'c'.repeat(64), module: 'db', ...DB_NOW,
   release: '0.25.2', node: 22, os: 'macos', day: '2026-11-17', consent: 'person',
   metrics: [{ m: 'step', d: { outcome: 'ok', step: 'decisionbook-add' }, n: 1 }] };
 const withRow = (over) => ({ ...GOOD, metrics: [{ ...GOOD.metrics[0], ...over }] });
@@ -42,7 +44,7 @@ test('[I-1] the shape that passes: every string a closed word, a version, a day 
 });
 
 test('[I-1] every metric, every dimension and a name the schema lacks: a hostile value in any of them refuses the report', () => {
-  for (const [name, spec] of Object.entries(SCHEMA.modules.db[1].metrics)) {
+  for (const [name, spec] of Object.entries(SCHEMA.modules.db[DB_NOW.schema].metrics)) {
     for (const dim of [...Object.keys({ ...spec.dims, ...spec.opt }), 'file', 'path', 'name', 'branch', 'text', 'message']) {
       for (const value of carriers) refusedReport(withRow({ m: name, d: { ...GOOD.metrics[0].d, [dim]: value } }), `${name}.${dim}`);
     }

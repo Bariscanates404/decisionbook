@@ -2,7 +2,7 @@
   "name": "@atlasbound/telemetry",
   "version": "0.0.0",
   "private": true,
-  "description": "A daily usage report per module a person chooses: counts, ranges and closed words, every byte shown first. The only package that may use the network; in this build it has no address.",
+  "description": "A daily usage report per module a person chooses: counts, ranges and closed words, every byte shown first. The only package that may use the network.",
   "license": "AGPL-3.0-only",
   "files": ["index.cjs", "adapters/", "contracts/", "core/", "debug/", "run/", "steps/"],
   "main": "./index.cjs",
@@ -34,6 +34,6 @@
         "help": {"line": "make one attempt now; the product attempts once a day on its own", "when": "seldom", "example": "atlasbound telemetry send", "changes": "the reports here leave this machine only when telemetry is on and this build has an address"} }
     ],
     "free": ["telemetry status"],
-    "provides": { "hint": "hint", "due": "due" }
+    "provides": { "hint": "hint", "due": "due", "startLine": "notice" }
   }
 }

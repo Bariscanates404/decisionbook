@@ -2,122 +2,119 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-// THE one owner of "the person's words", PURE: whole clauses of their own message (a sentence with a negation only whole), what words
-// are about and what settles a line; the words are data (said.json), by language. Named limit: polarity carried by something the lists
-// do not hold (a verb's ending, irony) is not seen.
+// THE one owner of "the person's words", PURE. A message is read as units, each a sentence: it ends at its full stop (. ! ?), a blank
+// line, and a line's end only where the next opens a list item, a chat line or a header; a list goes on from the sentence that opens it
+// (`lead`). A quote is found in the message (spacing, line breaks, `>` aside) and stands for the whole units it runs over. Whose a unit is:
+// the format alone, on the lines that carry it: a chat line `Emma: …`, the first line under a chat header (name and time) or a bare
+// `Emma:` (or a list's items there), the `>` lines under `Emma wrote:`. Never the prose.
 const RULES = require('./said.json');
-const { lowered, roleList, holdsAny, contentOf, among } = require('./said-words.cjs'); // what a word is
+const { lowered, roleList, holdsAny, contentOf, among, tokensOf } = require('./said-words.cjs');
 
-const [NEGATIONS, INTENT, JOINING] = ['negations', 'intent', 'joins'].map((role) => roleList(RULES.languages, role));
-const CLOSE = '["\'”’)\\]*_`]*'; // what may close a sentence after its mark: a quote, a bracket, Markdown's emphasis or code mark
-const FULL_STOP = new RegExp(`[.!?…。！？]${CLOSE}\\s*$`, 'u'); // a sentence's end
-// a sentence ends after its mark; a quote opened after a colon (`its answer: "…"`) is a sentence of its own
-const SENTENCES = new RegExp(`(?<=[.!?…]${CLOSE})\\s+|(?<=[。！？])|(?<=[:：])\\s*(?=["“«「])`, 'u');
-const ITEM = /^\s*(?:[-*•·‣–—]|\d+[.)])\s+/u; // a list item's mark
-const OPENS_LIST = /[:：]$/u; // a line whose list is of its own sentence
-const ASKED = /^[^"“«「]{0,40}(?:"[^\n]*?"|“[^\n]*?”|«[^\n]*?»|「[^\n]*?」)\s*[:：]\s+/u; // an item that opens by quoting what it answers
-const JOINS = JOINING.words.join('|');
-const CLAUSES = new RegExp(`[,;:]\\s+|[,;:]$|[、，；：]|\\s+[-–—]\\s+|\\s+(?:${JOINS}|&)\\s+`, 'iu');
-const LEAD = new RegExp(`^(?:${JOINS})\\s+`, 'iu'); // a joining word that opens a clause is no part of it
-const EDGES = /^[\s"'“”‘’«»`([]+|[\s"'“”‘’«»`)\].,;:!?…。、，；：！？]+$/gu;
-const NUMBERED = /(?<![^\s])(\d+)[.)]\s+(?=\S)/gu; // a numbered item's mark, at a line's start or after a space
-const clauseKey = (text) => text.replace(EDGES, '').replace(LEAD, '').replace(/\s+/g, ' ').trim();
-/** A text's lines, a numbered list written on one line ("1. … 2. … 3. …", from the line's start or after a colon, the numbers in
- * their order; of two marks of one number the one after a full stop) as a line per item, like the list written on several. Named
- * limit: "1. Use version 2. It is faster" reads as two items. */
-function itemLines(text) {
-  return String(text ?? '').split('\n').flatMap((line) => {
-    const marks = [...line.matchAll(NUMBERED)];
-    const stops = (mark) => /[.!?…;:：]\s*$/u.test(line.slice(0, mark.index));
-    const next = (run, mark, i) => { // the mark that goes on the run: the next number, a later mark of it after a stop first
-      const goes = !run.length || Number(mark[1]) === Number(run.at(-1)[1]) + 1;
-      const later = marks.slice(i + 1).some((one) => one[1] === mark[1] && stops(one) && !stops(mark));
-      return goes && !(run.length && later) ? [...run, mark] : run;
-    };
-    const from = marks.findIndex((mark) => /(?:^|[:：])\s*$/u.test(line.slice(0, mark.index)));
-    const cuts = marks.slice(from < 0 ? marks.length : from).reduce((run, mark) => next(run, mark, marks.indexOf(mark)), []);
-    const items = cuts.map((mark, i) => line.slice(mark.index, cuts[i + 1]?.index));
-    return cuts.length < 2 ? [line] : [line.slice(0, cuts[0].index), ...items].filter((part) => part.trim());
-  });
+const INTENT = roleList(RULES.languages, 'intent');
+const STOP = /(?:[.!?…]["'”’)\]*_`]*(?=\s|$)|[。！？]|["”](?=\s*$))/gu; // a sentence's end (a quotation closing a line too)
+const ITEM = /^(?:[-*•·‣–—]|\d+[.)])\s+/u; // a list item's mark
+const NAME = String.raw`\p{L}[\p{L}\p{N}'’.-]*(?:\s+\p{L}[\p{L}\p{N}'’.-]*){0,2}(?:\s*\([^()\n]{1,30}\))?`; // one to three words, a role
+const CLOCK = String.raw`\d{1,2}:\d{2}(?:\s*[AaPp]\.?[Mm]\.?)?`;
+const STAMP = String.raw`\[[^\]\n]*${CLOCK}[^\]\n]*\]`; // `[2:07 PM]`, `[11/23 2:07 PM]`
+const CHAT = new RegExp(`^(?:${STAMP}\\s*)?(${NAME})\\s*:(?:\\s+\\S|$)`, 'u'); // `Emma: …`, `Emma (BA):`, `[14:03] Olivia: …`
+const CAPS = String.raw`\p{Lu}[\p{L}'’-]*(?:\s+\p{Lu}[\p{L}'’-]*){0,2}(?:\s*[([][^()[\]\n]{1,30}[)\]])?`; // `Emma Stone (BA)`, `Emma [BA]`
+const HEADER = new RegExp(`^(?:#{1,6}\\s.*|(${NAME})\\s+${STAMP}|${STAMP}\\s+(${NAME})|(${CAPS})[\\s,–—-]+(?:\\p{L}+\\s+){0,2}${CLOCK})$`, 'u');
+const WROTE = new RegExp(`^(?:On [^\\n]*,\\s*)?(${NAME})(?:\\s+<[^>\\n]*>)?\\s+wrote:$`, 'u'); // a mail's quote header, an address aside
+const MARKS = /[*`"“”«»]+/gu; // emphasis, code and quote marks: the same words with or without them
+const EDGES = /^[\s'‘’([>,.;:!?…-]+|[\s'‘’)\],.;:!?…-]+$/gu;
+const EDGE = /[^\p{L}\p{N}]|[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u; // no letter or digit, or one of a script with no spaces
+const asWords = (text) => lowered(text).replace(MARKS, '').replace(/\s+/gu, ' ').trim();
+
+/** A message as its units, in order: { text, head: the speaker its format names, lead: the sentence its list goes on from }. */
+function sentencesOf(message) {
+  const at = { units: [], open: null, head: '', lead: '', last: '', quoted: false, mark: '' };
+  String(message ?? '').replace(/\r/gu, '').split('\n').forEach((raw) => readLine(at, lineAsRead(raw)));
+  closeUnit(at);
+  return at.units.map(({ text, head, lead }) => ({ text, head, lead }));
 }
 
-/** One line as the pieces its sentences are read by: an item of a list whose opening line holds a negation (`governed`) is a piece of
- * that sentence (`within`); any other item is its own sentences. A blank line and a list's edge end the sentence before (`ends`). */
-function piecesOf(line, governed) {
-  const item = ITEM.test(line);
-  const body = line.replace(ITEM, '').trim();
-  const within = item && governed;
-  const asked = item && !within ? (ASKED.exec(body) || [''])[0] : '';
-  const pieces = within ? [body] : body.slice(asked.length).split(SENTENCES);
-  return { item, body, within, asked, pieces, ends: !body || governed !== item };
+/** A line as read: its words (a `>` off), whether quoted, a header, an item, and the speaker a chat line or a header names. */
+function lineAsRead(raw) {
+  const line = raw.replace(/^[\s>]+/u, '').trimEnd();
+  const header = HEADER.exec(line);
+  const said = header ? header.slice(1).find(Boolean) ?? '' : CHAT.exec(line)?.[1];
+  return { line, quoted: /^\s*>/u.test(raw), header: Boolean(header), said, item: ITEM.test(line) };
+}
+const closeUnit = (at) => Object.assign(at, { units: at.open ? [...at.units, at.open] : at.units, open: null });
+
+/** One line into the units: a blank, header, chat or item line and a `>` quote's start or end open one; the speaker heads what carries it
+ * (above), a quote its `wrote:` line; any other line is no one's, the person's own line typed under a paste too. */
+function readLine(at, l) {
+  const turn = l.quoted !== at.quoted;
+  if (!l.line || l.header || l.said !== undefined || l.item || turn) opensUnit(at, l, speakerAt(at, l, turn));
+  if (!carried(at, l)) at.head = '';
+  piecesOf(at, l);
+  if (l.header) closeUnit(at); // a header is a unit of its own
+  Object.assign(at, { quoted: l.quoted, last: l.line && !l.quoted ? l.line : at.last, mark: markAfter(at, l) });
+}
+/** Whether a line keeps the speaker over it (a blank, quoted, header or chat line says its own), and what the next one may be: the first
+ * (after a header or a bare `Emma:`), an item of its list, or none. */
+const carried = (at, l) => !l.line || l.quoted || l.header || l.said !== undefined || at.mark === 'first' || (at.mark === 'item' && l.item);
+const markAfter = (at, l) => (l.header || (l.said !== undefined && /[:：]$/u.test(l.line)) ? 'first' : (l.item && at.head && 'item') || '');
+const speakerAt = (at, l, turn) => l.said ?? (!l.line ? (l.quoted ? undefined : '') : (turn || undefined) && ((l.quoted && WROTE.exec(at.last)?.[1]) || ''));
+
+/** A unit opened: a list item takes the one before, with no full stop, as its list's opening; a new `head` heads what follows. */
+function opensUnit(at, l, head) {
+  if (l.item && at.open && !at.open.item) at.lead = at.open.text;
+  closeUnit(at);
+  if (head !== undefined) Object.assign(at, { head, lead: '' });
 }
 
-/** Every clause of a text (no cut: what the person wrote is all read), each with its sentence and whether it holds a negation. A clause
- * of a list item also holds `item` (which item of the message, from 1) and, in the item's quoted opening (`About "<what it answers>":`,
- * the words of whoever asked, a sentence of their own), `lead`. -> [{ key, sentence, no, item?, lead? }] */
-function clausesOf(text) {
-  const out = [];
-  let sentence = 0;
-  let items = 0;
-  let governed = false;
-  for (const line of itemLines(lowered(text))) {
-    const { item, body, within, asked, pieces, ends } = piecesOf(line, governed);
-    const from = out.length;
-    sentence += Number(ends);
-    items += Number(item);
-    const add = (piece, lead) => piece.split(CLAUSES).map(clauseKey).filter(Boolean)
-      .forEach((key) => out.push({ key, sentence, no: holdsAny(NEGATIONS, key), ...(item && { item: items }), ...lead }));
-    if (asked) {
-      add(asked, { lead: true });
-      sentence += 1;
-    }
-    pieces.forEach((piece, i) => {
-      add(piece);
-      sentence += Number(!within && (FULL_STOP.test(piece) || (i < pieces.length - 1 && /[:：]$/u.test(piece)))); // or a quote follows
+/** A line's words into units: each piece up to a full stop ends its unit; the rest goes on into the next line. */
+function piecesOf(at, l) {
+  const body = l.line.replace(ITEM, '');
+  const ends = [...body.matchAll(STOP)].map((m) => m.index + m[0].length);
+  [...ends, body.length].map((end, i) => [body.slice(ends[i - 1] ?? 0, end).trim(), i < ends.length]).filter(([piece]) => piece)
+    .forEach(([piece, stops]) => {
+      if (!at.open && !l.item) at.lead = ''; // a sentence of its own ends the list before it
+      at.open ??= { text: '', head: at.head, lead: l.item ? at.lead : '', item: l.item };
+      if (at.open.head !== at.head) at.open.head = ''; // a sentence that runs on past its speaker's lines is no one's
+      at.open.text = `${at.open.text} ${piece}`.trim();
+      if (stops) closeUnit(at);
     });
-    governed = within || (OPENS_LIST.test(body) && out.slice(from).some((clause) => clause.no));
-  }
-  return out;
 }
 
-/** Where `words` stand in a message (`said`: its clauses) as a run of its whole clauses (a quoted opening of an item may be left out):
- * `run`, the first that takes every negated sentence whole, whole items first (null: none); `any`: there is a run. No window per place. */
-function standsAt(words, said, seal) {
-  const quoted = clausesOf(words).map((clause) => seal(clause.key));
-  const places = said.map((_, i) => i);
-  const at = (on) => on.flatMap((_, p) => (quoted.every((k, j) => said[on[p + j]]?.key === k) ? [on.slice(p, p + quoted.length)] : []));
-  const runs = quoted.length ? [places, places.filter((i) => !said[i].lead)].flatMap(at) : [];
-  const whole = (run) => {
-    const touched = new Set(run.map((i) => said[i].sentence));
-    const negated = new Set(said.filter((clause) => clause.no && touched.has(clause.sentence)).map((clause) => clause.sentence));
-    return said.every((clause, i) => !negated.has(clause.sentence) || run.includes(i));
-  };
-  const items = (run, held = new Set(run), of = new Set(run.map((i) => said[i].item))) => said
-    .every((clause, i) => !clause.item || !of.has(clause.item) || clause.lead || held.has(i));
-  const stand = runs.filter(whole);
-  return { run: stand.find((run) => items(run)) ?? stand[0] ?? null, any: runs.length > 0 };
+/** Whether `hay` holds a word edge at `i`: its start or end, or an edge character on either side. */
+const edgeAt = (hay, i) => i <= 0 || i >= hay.length || EDGE.test(hay[i - 1]) || EDGE.test(hay[i]);
+
+/** Every place `words` stand in a message's `units` (spacing, line breaks, `>` and list marks, quote marks and the last stop aside),
+ * each the first and last unit it runs over. -> [[from, to]] (none: they are not there) */
+function quotedAt(words, units) {
+  const sought = asWords(String(words ?? '').split('\n').map((line) => line.replace(/^[\s>]+/u, '').replace(ITEM, '')).join(' '))
+    .replace(EDGES, '');
+  const texts = units.map((unit) => ` ${asWords(unit.text)}`);
+  const hay = texts.join('');
+  const unitAt = (i) => texts.findIndex((_, k) => texts.slice(0, k + 1).join('').length > i);
+  const at = Array.from({ length: sought ? hay.length : 0 }, (_, i) => i)
+    .filter((i) => hay.startsWith(sought, i) && edgeAt(hay, i) && edgeAt(hay, i + sought.length));
+  return at.map((i) => [unitAt(i), unitAt(i + sought.length - 1)]);
 }
 
-/** Why `words` are not the person's own in a message of theirs (`said`: its clauses): null when they are, else `fragment` (no run of
- * its whole clauses) or `negation` (a sentence that holds a negation, quoted by a part). `seal`: how the store sealed a clause's key,
- * where it keeps no words. */
-function notTheirs(words, said, seal = (key) => key) {
-  const { run, any } = standsAt(words, said, seal);
-  return run ? null : (any ? 'negation' : 'fragment');
-}
+/** The whole sentences of `units` from `from` to `to`, each list's opening sentence once before its items. */
+const wholeOf = (units, [from, to]) => [...new Set(units.slice(from, to + 1).flatMap((unit) => [unit.lead, unit.text]).filter(Boolean))]
+  .join(' ');
 
-/** How many of `subject`'s content words `words` hold, two forms of one word as one. */
-const sharedWith = (words, subject, said = contentOf(words)) => contentOf(subject).filter((word) => among(word, said)).length;
+/** The words of a name, a role in brackets aside or kept (`role`), in one case. */
+const wordsOfName = (name, role = true) => tokensOf(lowered(role ? name : String(name ?? '').replace(/[([][^)\]]*[)\]]/gu, ' ')));
+/** Whether the speaker a format names (`said`) is `name`: every word of it, a role in brackets aside, is a word of that name or role. */
+const saidBy = (said, name, words = wordsOfName(said, 0)) => words.length > 0 && words.every((one) => wordsOfName(name).includes(one));
+/** Whether every unit from `from` to `to` is `name`'s: the speaker its format names is them. */
+const voicedBy = (units, [from, to], name) => units.slice(from, to + 1).every((unit) => saidBy(unit.head, name));
 
-/** Whether `words` are about `subject` (a text): they hold it, or share enough of its content words. */
+/** Whether `words` are about `subject` (a text): they hold it whole, or share enough of its content words (a word's two forms: one). */
 function isAbout(words, subject) {
   const meant = contentOf(subject);
-  const key = clauseKey(lowered(subject));
-  if (key !== '' && lowered(words).includes(key)) return true;
-  return meant.length > 0 && sharedWith(words, subject) >= Math.max(RULES.about.least, Math.ceil(RULES.about.share * meant.length));
+  const shared = meant.filter((word) => among(word, contentOf(words))).length;
+  return quotedAt(subject, [{ text: words }]).length > 0
+    || (meant.length > 0 && shared >= Math.max(RULES.about.least, Math.ceil(RULES.about.share * meant.length)));
 }
 
 /** Whether `words` hold a word of intent: done, dropped, cancelled, changed, set aside. */
 const intends = (words) => holdsAny(INTENT, lowered(words));
 
-module.exports = { clausesOf, notTheirs, isAbout, intends };
+module.exports = { sentencesOf, quotedAt, wholeOf, voicedBy, isAbout, intends };

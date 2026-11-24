@@ -66,8 +66,8 @@ function repoRel(root, hostFile, anyCase = false) {
   const file = hostForm(hostFile);
   if (base === null || file === null) return null;
   const prefix = `${base.replace(/\/+$/, '')}/`;
-  const under = anyCase && WIN_ROOT.test(prefix) ? winFolder(file.slice(0, prefix.length)) === winFolder(prefix) : file.startsWith(prefix);
-  return under ? (keyOf(file.slice(prefix.length)).key ?? null) : null;
+  const inside = anyCase && WIN_ROOT.test(prefix) ? winFolder(file.slice(0, prefix.length)) === winFolder(prefix) : file.startsWith(prefix);
+  return inside ? (keyOf(file.slice(prefix.length)).key ?? null) : null;
 }
 
 function join(dir, rel) {
@@ -94,12 +94,12 @@ function pathOutside(value, root, real = () => null) {
 // Not an empty PATH (searches the child's cwd), not an absent one (`/bin/sh`'s default holds `.`).
 const SYSTEM_PATH = ['/usr/bin', '/bin'].join(path.delimiter);
 
-// Windows starts a bare program word from the child's own folder before its PATH (CreateProcess's order, which node keeps), so a
-// repository would bring its own `git.exe`: there the word is looked up on the child's PATH alone, its absolute folders, as CreateProcess
-// tries it (a word with an ending as it is, then .com, then .exe). `exists(file)`: the disk's answer -> the file, or null: none has it.
 // THE folders of a Windows PATH a word is looked up in: its absolute ones (a drive root or a share), quotes and a final separator aside.
 const windowsFolders = (value) => String(value ?? '').split(';').map((dir) => dir.replace(/"/g, ''))
   .filter((dir) => /^(?:[A-Za-z]:[\\/]|\\\\)/.test(dir)).map((dir) => dir.replace(/[\\/]+$/, ''));
+// Windows starts a bare program word from the child's own folder before its PATH (CreateProcess's order, which node keeps), so a
+// repository would bring its own `git.exe`: there the word is looked up on the child's PATH alone, its absolute folders, as CreateProcess
+// tries it (a word with an ending as it is, then .com, then .exe). `exists(file)`: the disk's answer -> the file, or null: none has it.
 function windowsProgram(cmd, env, exists) {
   if (/[\\/]/.test(cmd)) return cmd;
   const key = Object.keys(env ?? {}).find((name) => name.toUpperCase() === 'PATH');
@@ -145,11 +145,11 @@ function upward(dir) {
 }
 
 const OWN_STORE = '.atlasbound/'; // THE product's own store, in a repository and in a person's home (run/store seals it; the port asks there)
-// THE home resolver: a package's folder for this repository in the person's home. A person's words live there, never in a repository.
 /** Whether a key lies in the store; the store's own folder does. */
 const inStore = (key) => `${key}/`.startsWith(OWN_STORE);
+// THE home resolver: a package's folder for this repository in the person's home. A person's words live there, never in a repository.
 const hereKey = (root, pkg, ...names) => [`${OWN_STORE}${pkg}-here`, sha256(root).slice(0, 16), ...names].join('/');
 
 module.exports = { hostPath,
-  pathKey, foldedKey, isKey, under, dirOf, speller, repoRel, join, childEnv, parentDir, nameOf, programOf, resolveFrom,
+  pathKey, keyOf, foldedKey, isKey, under, dirOf, speller, repoRel, join, childEnv, parentDir, nameOf, programOf, resolveFrom,
   folderAfter, upward, hereKey, OWN_STORE, inStore, commandNames, windowsProgram, winFolder, windowsFolders };

@@ -20,17 +20,17 @@ const assumedOf = (views) => views.flatMap((v) => v.assumptions.filter((a) => !a
   .map((a) => ({ ...a, id: v.id })))
   .sort((a, b) => byTime(b, a));
 
-/** The level the gate's own rule gives a plan of these files and these words (proposed as small, the lowest a plan may ask) and a blank
- * plan's fill-in there, from the same rubric rows (core/skeleton): core/level and core/ready, never a second rule. Words alone cannot say
- * a task is small, so a prompt naming no file is laid out as normal work, with the small form beside it. */
-function levelNeeds({ words, files, danger }) {
+/** The level the gate's own rule gives a plan of these files (proposed as small, the lowest a plan may ask) and a blank plan's fill-in
+ * there, from the same rubric rows (core/skeleton): core/level and core/ready, never a second rule. The level comes from the planned
+ * paths, so a prompt naming no file is laid out as normal work, with the small form beside it. */
+function levelNeeds({ files, danger, risk }) {
   const links = files.map((file) => ({ t: 'link', rel: 'plans', to: refOf('file', file) }));
-  const judged = planLevel(foldPlan([{ id: 'pack', title: words, level: 'micro' }, ...links]), danger);
-  const unnamed = !files.length && judged.level === 'micro';
+  const judged = planLevel(foldPlan([{ id: 'pack', level: 'micro' }, ...links]), danger, risk);
+  const unnamed = !files.length;
   const level = unnamed ? 'normal' : judged.level;
   const blankAt = (at) => skeletonOf(foldPlan([{ id: 'pack', level: at }]), at, { files, danger });
   const [fill, small] = (unnamed ? [level, 'micro'] : [level]).map(blankAt);
-  return { level, signals: judged.signals, named: files.length > 0, unnamed, fill, small: small || null };
+  return { level, signals: judged.signals, named: !unnamed, fill, small: small || null };
 }
 
 /** Each key with the count of lists holding it, most first; a tie keeps the first seen. */
@@ -49,14 +49,14 @@ function listsOf({ views, first, checks, files, absent }, cut) {
 
 /** The pack: `views` the area's earlier plans, each with `built` (the files it built; none: a first task here, the level line and the
  * calls only) and `picked` (why the walk took it), `seeds` the work's files (the first names where the rest are), `named` the prompt's
- * files and `words` it, what its `new` is judged on, `first` where another package sends the research first (none: ''), `absent` what
+ * files, what its `new` is judged on, `first` where another package sends the research first (none: ''), `absent` what
  * was not found (text/recall's lines), `open` the open items' lines (the lists give way to them), `session` whose drafts its calls name
  * -> { text, refs, ids } (refs: `<id>/<key>`). */
-function packOf({ views, seeds = [], named = [], words, danger = [], first, absent = [], open = [], session }) {
+function packOf({ views, seeds = [], named = [], danger = [], risk = null, first, absent = [], open = [], session }) {
   const commands = views.map((v) => v.checks.map((c) => c.command).filter(Boolean));
   const paths = views.map((v) => [...scopeOf(v), ...v.built]);
   const [checks, files] = [[commands, PACK.checks], [paths, PACK.files]].map(([lists, most]) => heldCounts(lists).slice(0, most));
-  const tail = [...levelLines(levelNeeds({ words, files: named, danger }), first, session), ...open];
+  const tail = [...levelLines(levelNeeds({ files: named, danger, risk }), first, session), ...open];
   const fit = (cut) => {
     const { lines, refs } = listsOf({ views, first: seeds[0], checks, files, absent }, cut);
     const text = [...lines, ...tail].join('\n');

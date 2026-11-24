@@ -15,7 +15,7 @@ const DEPTH = 4; // a command string in a command string in ...: deeper is unpla
 const SHELLS = Object.fromEntries(Object.entries(TABLE.shells).map(([name, source]) => [name, new RegExp(source)]));
 const CODE = new RegExp(TABLE.code.option);
 const DEVICES = new RegExp(TABLE.devices);
-const WIN_DEVICES = new RegExp(win.WIN.devices, 'i');
+const WIN_DEVICES = new RegExp(TABLE.windows.devices, 'i');
 const ITEM = { word: 'item', literal: false, subs: [], why: 'shell-handed' }; // a file a row hands the command it runs (its `item` words): no one can place it
 const TAKES = ['takes', 'out', 'chdir', 'into']; // a row's fields whose option takes an argument
 const EVERY = '*'; // every variable: an emptied environment
@@ -220,7 +220,7 @@ function shellRun(c) {
   return typeof text === 'string' ? mergeRead(c, commandWrites(text, deeper(c.at, 'sh'))) : markUnplaced(c.found, 'shell-writes-unnamed', script.word);
 }
 
-const ROWS = [ // a name's rows, every one that holds
+const READERS = [ // a name's rows, every one that holds
   [movesFolder, (c) => cdTo(c.at, c.args)],
   [(name) => Object.hasOwn(SHELLS, name), shellRun],
   [(name) => TABLE.evals.includes(name), (c) => {
@@ -242,7 +242,7 @@ function byCmdlet(c, row) {
 const KINDS = { text: (c, k) => textRun(c, k.text, k.lang), cmdlet: (c, k) => byCmdlet(c, k.row), cmd: (c, k) => byRow(c, k.row, k.args) };
 const readersOf = (c, head) => {
   const kind = win.rowKind(c, head.word);
-  return kind ? [(x) => KINDS[kind.kind](x, kind)] : ROWS.filter(([fits]) => fits(c.name, c.at.lang)).map(([, read]) => read);
+  return kind ? [(x) => KINDS[kind.kind](x, kind)] : READERS.filter(([fits]) => fits(c.name, c.at.lang)).map(([, read]) => read);
 };
 
 const isDup = (r) => r.op === '>&' && /^(?:\d+-?|-)$/.test(r.target.word); // 2>&1: a descriptor, not a file

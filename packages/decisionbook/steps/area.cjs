@@ -4,12 +4,13 @@
 'use strict';
 // The work's area (files a text names, files the branch changed, one import step of each) and core/recall's cards cut to the hook's bound.
 const { errors: { isFail }, paths: { repoRel, join } } = require('@atlasbound/kit');
-const { DIR } = require('../contracts/shapes.cjs');
+const { isBookFile } = require('../contracts/shapes.cjs');
 const { byTime, promptWords } = require('../base/text.cjs');
 const { relatedOf } = require('../core/recall.cjs');
 const { sinceHead, builtOf } = require('../core/close.cjs');
 const { recallSay, RECALL_CARDS, RELATED_CARDS } = require('../core/text/recall.cjs');
 const { sessionRead, sessionRows } = require('./here.cjs');
+const { closeAsShipped } = require('./close.cjs');
 
 const SEEDS = 200; // the files of the work one walk starts from: the named and the touched first
 const IMPORT_SEEDS = 20; // the files whose import step is read
@@ -23,7 +24,7 @@ async function branchFiles(io, web, branch) {
   const [first] = web.views.filter((v) => v.branch === branch && v.head).sort(byTime);
   // a head this clone does not hold: the uncommitted only
   const committed = first ? ((await io.git.commits(first.head)) ?? []).flatMap((c) => c.files) : [];
-  return [...(await io.git.statusZ()).map((row) => row.key), ...committed].filter((key) => key && !key.startsWith(`${DIR}/`));
+  return [...(await io.git.statusZ()).map((row) => row.key), ...committed].filter((key) => key && !isBookFile(key));
 }
 
 /** The files a prompt's work starts from: the ones it names, the session touched (newest first), the branch changed. */
@@ -49,7 +50,7 @@ async function importStep(io, files) {
   }
 }
 
-// what each shown card built: a closeout as recorded; HEAD's branch's unclosed one read as close reads it; another branch's: no read
+// what each shown card built: a closeout as its readers take it; HEAD's branch's unclosed one as close reads it; another branch's: no read
 async function withBuilt(io, web, { cards, room, branch }) {
   const reads = new Map();
   const own = async (head) => ((await io.git.shared(head, branch))?.length === 0 ? io.git.commits(head, { firstParent: true }) : null);
@@ -57,7 +58,8 @@ async function withBuilt(io, web, { cards, room, branch }) {
   const built = await Promise.all(cards.slice(0, room).map(async (card) => {
     const view = web.views.find((v) => v.id === card.id);
     const commits = view.closed ? [] : view.branch === branch && sinceHead(view) && (await after(sinceHead(view)));
-    return commits ? { ...card, built: builtOf(web, view, commits) } : card;
+    const shipped = view.closed ? { ...view, closed: await closeAsShipped(io, view) } : view;
+    return commits ? { ...card, built: builtOf(web, shipped, commits) } : card;
   }));
   return [...built, ...cards.slice(room)];
 }

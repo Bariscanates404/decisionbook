@@ -87,7 +87,7 @@
     ],
     [
       "forget-none",
-      "this build sent nothing, so there is nothing to delete on a server"
+      "nothing was sent under your id, so there is nothing to delete on the server"
     ],
     [
       "forget-unreachable",
@@ -135,10 +135,10 @@
     ]
   ],
   "texts": {
-    "question": "Send a daily usage report during the beta? It goes to telemetry.atlasbound.dev, run by AtlasBound, to find the product's faults and slow steps.",
-    "notice": "Telemetry is on during the beta (until {until}): a daily usage report goes to telemetry.atlasbound.dev, run by AtlasBound, to find the product's faults and slow steps.",
+    "question": "Send a daily usage report during the beta? It goes to {host}, run by AtlasBound, to find the product's faults and slow steps.",
+    "notice": "AtlasBound telemetry is on during the beta (until {until}): a daily usage report goes to {host}, run by AtlasBound, to find the product's faults and slow steps.",
     "sent": [
-      "  Sent: which AtlasBound steps ran, how often, how long (in ranges) and their outcome codes; sizes in ranges (decisions and open points per plan, time and turns until a plan is READY, lines and messages of a handoff note, answers not recorded at stop);",
+      "  Sent: which AtlasBound steps ran, how often, how long (in ranges) and their outcome codes; sizes in ranges (decisions and open points per plan, a plan's time, turns, questions, answers and research until it is READY and its time until it is closed, open plans older than 7 days, lines and messages of a handoff note, answers not recorded at stop);",
       "        the version, Node major and OS family; a random id that changes every 30 days.",
       "  Never sent: your code, prompts, answers, file or repository names, paths, error texts."
     ],
@@ -147,6 +147,7 @@
     "yesAgain": "Please answer y or n [Y/n] (Enter = yes) ",
     "unchosen": "Telemetry: no choice was recorded (the answer was neither y nor n). A person chooses later: atlasbound telemetry on | off",
     "hint": "Telemetry is not on. A person can turn it on: atlasbound telemetry on · what it is: atlasbound telemetry status",
+    "relay": "Telemetry, for the person (say this to them as it is): AtlasBound's daily usage report turns on during the beta once its notice is shown to them at the next session start. It holds step counts, time ranges and outcome codes, the version, Node major and OS family; never code, prompts, names or paths. Every byte: atlasbound telemetry next · Stop: atlasbound telemetry off",
     "goes": "goes to: {url}, once a day, from a command you or your AI session runs; never from a hook",
     "noAddress": "this build has no address: nothing is sent, whatever is chosen. Reports you turn on are made and kept here only (atlasbound telemetry next | history); a release that can send tells you at setup before anything leaves.",
     "onEmpty": "This build has no address to send to. Turning it on makes the daily reports here so you can read them; nothing leaves.",

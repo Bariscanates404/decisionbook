@@ -10,7 +10,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
-const { testing: { trash, countSpawn } } = require('@atlasbound/kit');
+const { testing: { trash, countSpawn }, paths: { hereKey } } = require('@atlasbound/kit');
 
 const made = [];
 const shared = new Map();
@@ -35,10 +35,20 @@ const emptyHome = () => {
   if (!home || fs.readdirSync(home).length > 0) home = tmp('cli-home-');
   return home;
 };
+/** one home per repository a test made, for every run that names it (`--target`, or the folder it runs in): what setup keeps there (who
+ * the person is) is there for the repository's next run, and no other repository's run sees it. A run that names none gets an empty one. */
+const homes = new Map();
+function repoHome(args, cwd) {
+  const repo = args.includes('--target') ? args[args.indexOf('--target') + 1] : cwd;
+  if (repo && !homes.has(repo)) homes.set(repo, tmp('cli-home-'));
+  return repo ? { HOME: homes.get(repo) } : {};
+}
 // the env a world-env.cjs beside this file adds to every world, where there is one
 const WORLD_ENV = fs.existsSync(path.join(__dirname, 'world-env.cjs')) ? require('./world-env.cjs') : {};
+// telemetry is closed in every world by its own switch, so no run of these suites says its notice or dials the service (the report
+// suite, contract/telemetry.test.cjs, builds its own env and its own address)
 const cleanEnv = (extra = {}) => ({ PATH: process.env.PATH, ...(extra.HOME ? {} : { HOME: emptyHome() }), NODE_OPTIONS: NO_TABLE,
-  ...WORLD_ENV, ...extra });
+  ATLASBOUND_TELEMETRY: '0', ...WORLD_ENV, ...extra });
 /** A person at a plain terminal answering the one question a verb puts (tty-preload: the bin sees a terminal on the piped stdin): yes to
  * a yes question; run() types the phrase instead where the verb is a grave act that asks for one. */
 const YES = 'yes\n';
@@ -165,8 +175,9 @@ function makeWorld({ own = false, ...spec } = {}) {
   return shared.get(key);
 }
 
+const PERSON = 'Ada'; // git's author in the worlds
 function git(cwd, ...args) {
-  const res = spawnSync('git', ['-c', 'user.email=a@b.c', '-c', 'user.name=a', ...args], { cwd, env: cleanEnv(), encoding: 'utf8' });
+  const res = spawnSync('git', ['-c', 'user.email=a@b.c', '-c', `user.name=${PERSON}`, ...args], { cwd, env: cleanEnv(), encoding: 'utf8' });
   if (res.status !== 0) throw new Error(`git ${args[0]}: ${res.stderr}`);
   return res.stdout;
 }
@@ -191,6 +202,8 @@ const templateRepo = (() => {
     if (template) return template;
     template = tmp('cli-template-');
     git(template, 'init', '-q', '--template=');
+    git(template, 'config', 'user.name', PERSON); // who works in every world's clone: the person's records carry this name
+    git(template, 'config', 'user.email', 'a@b.c');
     writeFiles(template, { 'lib/z.cjs': 'x\n', 'README.md': 'hi\n' });
     git(template, 'add', '.');
     git(template, 'commit', '-qm', 'first');
@@ -204,9 +217,19 @@ const protect = (repo, globs = ['lib/**'], danger = []) => writeFiles(repo, { '.
   ...(danger.length ? { danger } : {}), answer: { answer: 'chosen', door: 'protect-command', at: '2026-11-04T00:00:00.000Z' } }) });
 
 /** A customer repository with two tracked files; nothing is protected until `protect`; `files` join its one commit. */
+/** The person of a test's repository as setup keeps them in `home` (the repository's own unless a test runs in another): their name on
+ * this machine (`name`: the world's person unless a test names another), which every record of theirs carries. */
+function knownIn(repo, home = repoHome([], repo).HOME, name = PERSON) {
+  const file = path.join(home, hereKey(fs.realpathSync(repo), 'cli', 'person.json'));
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${JSON.stringify({ name, from: 'git', at: '2026-11-02T06:00:00.000Z' })}\n`);
+  return home;
+}
+
 function makeRepo(files = {}) {
   const dir = tmp('cli-repo-');
   fs.cpSync(templateRepo(), dir, { recursive: true });
+  knownIn(dir);
   if (Object.keys(files).length === 0) return dir;
   writeFiles(dir, files);
   git(dir, 'add', '.');
@@ -251,7 +274,7 @@ function typedInput(bin, args, { input, ai }) {
 /** Who a test's run stands for. A verb only a person may run is sent as the person sends it, from their terminal (tty-preload), the one
  * caller the product lets through; `ai: true` sends it as an AI's shell does, for the tests of the refusal. Every other verb runs as
  * before: no terminal, unless the test's own env brings one. */
-const callerEnv = (bin, args, { env, ai }) => cleanEnv(!ai && personsVerb(bin, args) ? typedYes(env).env : env);
+const callerEnv = (bin, args, { env, ai, cwd }) => cleanEnv({ ...repoHome(args, cwd), ...(!ai && personsVerb(bin, args) ? typedYes(env).env : env) });
 
 // A hook call that carries the person's words is heard only from the AI host (the port asks who holds its output's other end), so
 // a test sends one through the stand-in host; `ai: true` sends it as an AI's shell would, for the tests of the refusal.
@@ -282,13 +305,13 @@ function chosenArgs(bin, args, plain) {
   return there.length ? [...args, '--with', there.join(',')] : args;
 }
 
-function run(bin, sent, { cwd, input, env, ai = false, plain = false } = {}) {
+function run(bin, sent, { cwd, input, env, ai = false, plain = false, lost = false } = {}) {
   countSpawn();
   const args = chosenArgs(bin, sent, plain);
   const [program, words] = asHost(process.execPath, [bin, ...args], ai);
   const res = spawnSync(program, words, { cwd: cwd || os.tmpdir(), input: typedInput(bin, args, { input, ai }),
-    env: hostEnv(callerEnv(bin, args, { env, ai }), viaHost(process.execPath, [bin, ...args], ai)), encoding: 'utf8', timeout: STUCK_MS });
-  return { code: res.status, signal: res.signal, out: res.stdout, err: res.stderr };
+    env: hostEnv(callerEnv(bin, args, { env, ai, cwd }), viaHost(process.execPath, [bin, ...args], ai)), encoding: 'utf8', timeout: STUCK_MS });
+  return heard({ code: res.status, signal: res.signal, out: res.stdout, err: res.stderr }, lost || sent[0] !== 'hook');
 }
 /** What a failed exit assertion says: the code, the signal that ended a stuck run, and both streams (a verb writes its rows to stdout). */
 const exitSaid = (res, words) => `${words}: code ${res.code}${res.signal ? `, ended by ${res.signal}` : ''}\n--- out\n${res.out}--- err\n${res.err}`;
@@ -298,7 +321,7 @@ function startedRun(bin, { args: sent, cwd, input, env, ai = false, plain = fals
   countSpawn();
   const args = chosenArgs(bin, sent, plain);
   return new Promise((resolve) => {
-    const caller = hostEnv(callerEnv(bin, args, { env, ai }), viaHost(process.execPath, [bin, ...args], ai));
+    const caller = hostEnv(callerEnv(bin, args, { env, ai, cwd }), viaHost(process.execPath, [bin, ...args], ai));
     const child = spawn(...asHost(process.execPath, [bin, ...args], ai), { cwd: cwd || os.tmpdir(), env: caller, timeout: STUCK_MS });
     const said = { out: '', err: '' };
     child.stdout.on('data', (chunk) => { said.out += chunk; });
@@ -360,11 +383,17 @@ const commandsFor = (settings, event, value) => (settings.hooks[event] || []).fi
   value)).flatMap((row) => row.hooks.map((h) => h.command));
 
 /** Fire one command the way the host does: a shell string, the settings' env, the project dir, the payload on stdin. */
-function fire(repo, command, payload, env = {}, { ai = false } = {}) {
+function fire(repo, command, payload, env = {}, { ai = false, lost = false } = {}) {
   const settings = readSettings(repo);
   const res = spawnSync(...asHost('/bin/sh', ['-c', command], ai), { cwd: repo, input: JSON.stringify(payload), encoding: 'utf8', timeout: STUCK_MS,
-    env: hostEnv(cleanEnv({ ...settings.env, CLAUDE_PROJECT_DIR: repo, ...env }), viaHost('/bin/sh', ['-c', command], ai)) });
-  return { code: res.status, out: res.stdout, err: res.stderr };
+    env: hostEnv(cleanEnv({ ...repoHome([], repo), ...settings.env, CLAUDE_PROJECT_DIR: repo, ...env }), viaHost('/bin/sh', ['-c', command], ai)) });
+  return heard({ code: res.status, out: res.stdout, err: res.stderr }, lost);
+}
+/** A hook's reply as a test takes it: one in which a handler gave what the port's shapes refuse (a say item with no key, a verdict
+ * that is none) fails the test that fired it, whatever that test went on to read, unless it fired the hook to see exactly that (`lost`). */
+function heard(res, lost) {
+  if (!lost && /no verdict formed by [^"]*\(shape-invalid\)/.test(res.out)) throw new Error(`a handler's answer is no shape the port takes: ${res.out.trim()}`);
+  return res;
 }
 
 /** The one port row setup wrote for an event and a matcher value, and a hook's reply as JSON ({} for silence). */
@@ -387,6 +416,6 @@ const editOf = (repo, file) => ({ session_id: 's1', cwd: repo, hook_event_name: 
 
 const fileJson = (repo, key) => JSON.parse(fs.readFileSync(path.join(repo, key), 'utf8'));
 
-module.exports = { fileJson, REPO, QUIET, SETTINGS, PASSWD, realTable, typedYes, writeFiles, recordingClaude, tmp, cleanEnv, makeWorld, writeFake,
+module.exports = { fileJson, knownIn, REPO, QUIET, SETTINGS, PASSWD, realTable, typedYes, writeFiles, recordingClaude, tmp, cleanEnv, makeWorld, writeFake,
   makeRepo, protect, git, run, exitSaid, runAll, snapshot, traceRows, traceRow, planted, readSettings, fires, commandsFor, portRow, replyJson, hookContextOf, hookDecisionOf, setupRepo,
     fire, editOf };

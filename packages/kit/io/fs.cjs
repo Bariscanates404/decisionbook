@@ -18,8 +18,8 @@ const READ = O_RDONLY | O_NONBLOCK;
 const APPEND = O_WRONLY | O_APPEND | O_CREAT | O_NOFOLLOW;
 // Half of V8's longest string, so a read never ends in ERR_STRING_TOO_LONG after paying for it.
 const READ_CAP = 256 * 1024 * 1024;
-const OPEN = { dir: 0o777, file: 0o666, tight: false };
-const PRIVATE = { dir: 0o700, file: 0o600, tight: true }; // OPEN: the umask decides
+const OPEN = { dir: 0o777, file: 0o666, tight: false }; // the umask decides
+const PRIVATE = { dir: 0o700, file: 0o600, tight: true };
 let temps = 0;
 
 function unless(errno, op) {

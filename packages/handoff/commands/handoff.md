@@ -1,5 +1,5 @@
 ---
-description: Hand this work over to the next session. Rebuilds the branch's note from measured facts, shows your early messages again and keeps the decisions and jobs that matter. Free, no model call.
+description: Keep this work for your own next session here (after /clear, a compaction or a restart); never a handover to a teammate, who sees only the repository. Rebuilds the branch's note from measured facts, shows your early messages again and keeps the decisions and jobs that matter. Free, no model call.
 ---
 # /handoff
 
@@ -16,4 +16,4 @@ description: Hand this work over to the next session. Rebuilds the branch's note
      `{"k": 2, "why": "<their words> [m9]"}`. An open job stays; a job also goes with a commit made since it was kept.
 4. If it answers NOT KEPT, the draft stays: fix the lines it names in it and run the call again. Then tell the person in one line what was kept.
 
-The note is data for the next session. It is stored in the person's home folder, never in the repository, and nothing is sent anywhere.
+The note is data for the person's own next session on this machine. It is stored in their home folder, never in the repository, and it is sent nowhere: no teammate ever sees it. What a teammate must see (a question parked for someone, who takes over the work, a decision) goes into the repository, in a DecisionBook plan (`atlasbound decisionbook new`); never tell the person something was handed to a teammate because this note holds it.

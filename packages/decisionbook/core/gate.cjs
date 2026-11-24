@@ -25,8 +25,8 @@ const isGuarded = ({ protect, danger = [] }, file) => !inStore(String(file))
   && [...protect, ...danger].some((glob) => globCovers(glob, file));
 
 // the level the plan would run at over what the person's yes covers with `file` in it, said in the ask where it is higher
-const levelWith = (active, file, danger) => planLevel({ ...seenView(active, [{ rel: 'plans', to: refOf('file', file) }]),
-  level: active.level.proposed }, danger).level;
+const levelWith = (active, file, danger, risk) => planLevel({ ...seenView(active, [{ rel: 'plans', to: refOf('file', file) }]),
+  level: active.level.proposed }, danger, risk).level;
 // grown past its READY level by the person's yes (a danger path the AI linked is asked apart, core/ready levelAt)
 const outgrown = (active, unseen) => !unseen.length && Boolean(active.confirm) && seenLinks(active).length > active.confirm.after
   && higher(active.level.level, active.ready.level) && active.unmet.length > 0;
@@ -41,7 +41,7 @@ function answerHolds(active) {
 // order: what holds the plan until the person answers (a conflict of their decisions, a keep of theirs newer than their yes), the plan's
 // own deny (no yes opens it), a plan grown past its level, the untrusted-plan ask, then inside, a danger path outside, any other outside;
 // a danger path that joined the plan after the person's yes is not inside it until they say yes again
-function underPlan({ danger, file, active, trusted }) {
+function underPlan({ danger, risk, file, active, trusted }) {
   const held = answerHolds(active);
   if (held) return held;
   const unseen = active.confirm ? dangerSince(active, danger) : [];
@@ -51,7 +51,7 @@ function underPlan({ danger, file, active, trusted }) {
   if (outgrown(active, unseen)) return ['deny', 'plan-outgrown', active.id, outgrownWhy(active)];
   if (!trusted(active)) return ['ask', 'plan-not-here', active.id];
   if (inside) return ['allow', 'gate-in-scope', active.id];
-  return hard ? ['ask', 'plan-out-of-scope', active.id] : ['ask', 'plan-outside', active.id, outsideWhy(active, levelWith(active, file, danger))];
+  return hard ? ['ask', 'plan-out-of-scope', active.id] : ['ask', 'plan-outside', active.id, outsideWhy(active, levelWith(active, file, danger, risk))];
 }
 
 // the plan a write is judged under: the READY plan where it covers the file in a session that works on it, else the newest draft that
@@ -72,7 +72,7 @@ function ladderOf({ protect, danger, file, person, ...asked }) {
   return merging ? ['deny', merging.code, null, merging.why] : planLadder({ danger, file, ...asked });
 }
 
-function planLadder({ danger, file, branch, web, trusted, ours, items }) {
+function planLadder({ danger, risk, file, branch, web, trusted, ours, items }) {
   const { ready, draft } = heldUnder({ web, branch, file, ours });
   if (draft) return ['deny', 'plan-draft-here', draft.id, draftWhy(draft)];
   // its decision lost a conflict after it edited: no new edit of the files it names under it. A teammate's lost plan (`author`,
@@ -80,7 +80,7 @@ function planLadder({ danger, file, branch, web, trusted, ours, items }) {
   const gone = ready && items.lost.find((l) => l.plan === ready.id && !l.author && l.files.some((glob) => globCovers(glob, file)));
   if (gone) return ['deny', 'plan-lost', ready.id, lostLine(gone)];
   if (ready && !ours(ready)) return ['deny', 'plan-other-task', ready.id, otherTaskWhy(ready)];
-  if (ready) return underPlan({ danger, file, active: ready, trusted });
+  if (ready) return underPlan({ danger, risk, file, active: ready, trusted });
   const other = web.views.filter((v) => v.state === 'draft' && v.branch === branch).at(-1); // named, so it is not planned twice
   return ['deny', 'plan-none', null, [...(other ? [elsewhereWhy(other)] : []), ...unreadLines(items.unread)].join('; ')]; // a file not read may hold its plan
 }

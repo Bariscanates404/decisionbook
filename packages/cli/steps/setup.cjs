@@ -11,6 +11,8 @@ const { adviceOf, hintOf, ignoredProbe } = require('./probes.cjs');
 const { askProtect, noticeOf } = require('./protect.cjs');
 const { saidFailure } = require('./failure.cjs');
 const { typedOrRefused } = require('./person.cjs');
+const { personAtSetup } = require('./whoami.cjs');
+const { personStore } = require('../core/whoami.cjs');
 const { teamFilesOf } = require('../core/host.cjs');
 const { leftoversLine } = require('../core/leftovers.cjs');
 
@@ -101,7 +103,8 @@ async function setup(args, io) {
   const { manifests, problems } = io.packages.declared(args.on);
   const plan = io.host.plan(manifests, io.packages, args.on, Boolean(args.flags['team-notice']));
   const { linked, retired, restored, placed, notice: team } = io.host.write(plan, clone); // a file of the person's there: nothing written
-  const hint = await hintOf(io, args.flags, args.words[0] === 'setup'); // before protect's question, which closes the terminal
+  const person = await personAtSetup(io); // who the person is here, kept before any work
+  const hint = await hintOf(io, args.flags, args.words[0] === 'setup'); // both before protect's question, which closes the terminal
   const asked = await protectRows(io);
   const notice = asked.length ? null : await noticeOf(io);
   const committed = await committedRows(io, Object.keys(plan.desired.servers)).catch((err) => [saidFailure(io, 'setup', 'committed-unread', err)]);
@@ -113,7 +116,8 @@ async function setup(args, io) {
     problems };
   const servers = out.servers.length
     ? filled(W.wiredServers, { servers: counted(out.servers.length, W.mcpServer), names: out.servers.join(', ') }) : '';
-  const text = lines([filled(W.head, { verb, root: io.root }), modulesLine(io, args.on), ...namedOnly(io, args.on),
+  const text = lines([filled(W.head, { verb, root: io.root }), person, modulesLine(io, args.on),
+    ...namedOnly(io, args.on),
     filled(W.wired, { rows: out.rows, servers, files: out.files + placed.length, commands: out.files, placed: placed.join(', ') }),
     filled(W.allowed, { n: plan.desired.allow.length, mcp: out.servers.length ? W.allowedMcp : '', drafts: DRAFTS, file: placed.at(-1) }),
     loose.state === 'failed' ? filled(W.looseFailed, { says: loose.says }) : outOfGit(placed.includes(io.host.mcpFile), placed.includes(io.host.ownFiles.ignore)),
@@ -140,8 +144,8 @@ async function storesOf(io) {
       })));
   const keptElsewhere = (name, key) => all.some((one) => one.name !== name && Object.keys(one.kept).some((path) => key === path || key.startsWith(`${path}/`)));
   return { free: all.flatMap((one) => one.free.filter((key) => !keptElsewhere(one.name, key))),
-    absent: io.packages.names.filter((name) => !io.packages.has(name)), notes, home: all.flatMap((one) => one.home),
-    kept: Object.assign({}, ...all.map((one) => one.kept)) };
+    absent: io.packages.names.filter((name) => !io.packages.has(name)), notes,
+    home: [...all.flatMap((one) => one.home), personStore(io.root)], kept: Object.assign({}, ...all.map((one) => one.kept)) };
 }
 
 /** The history a team commits (DecisionBook's), by the store each installed manifest names as `teamStore`, its module on or off: git

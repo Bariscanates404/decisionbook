@@ -2,6 +2,171 @@
 
 What changed in each release of the npm package `atlasbound`, newest first.
 
+## 0.25.4
+
+### Telemetry is on by default during the beta
+
+- This release sends. Until now the package had no address and sent nothing; from 0.25.4 on, during the beta (until
+  2027-03-31), a daily usage report goes to api.atlasbound.dev for the command line, DecisionBook and Handoff: step counts,
+  time ranges and outcome codes, the version, Node's major version, the OS family and a random id that changes every 30
+  days. Never your code, prompts, answers, names or paths. Every field is in PRIVACY.md.
+- It starts only after its notice has been shown to you: by `atlasbound setup` at your plain terminal, or by Claude Code at
+  a session start, as a message of its own. No day before the notice is reported. An AI session that runs setup gets a line
+  to pass on to you; that line turns nothing on.
+- `atlasbound telemetry next` prints the exact request before it leaves, `atlasbound telemetry history` what left.
+  `atlasbound telemetry off` turns it off, `atlasbound telemetry reset --forget` has the server's copy deleted, and
+  `DO_NOT_TRACK`, `ATLASBOUND_TELEMETRY=0` and `CI` close it for the process they are set in.
+- New in the DecisionBook report: a plan's flow as ranges, with no id of the plan. When a plan first becomes READY: the time
+  since it was opened, its research records, its questions, those answered and those routed to someone else. When it is
+  closed: the time since READY and since it was opened, and the sessions that went on with it. At a session start: how many
+  open plans are older than 7 days. A choice made under an earlier release does not cover this: the notice is shown again.
+
+### Who decided, by name
+
+- A decision recorded as yours carries your name in place of `the person`. The name is kept on your machine at setup: git's name
+  is the suggestion, setup run in your own terminal asks you to keep it or type another, and `atlasbound whoami` shows it. Only you
+  change it (`atlasbound whoami --name "<name>"`, your own terminal); a git name changed later changes no record. With no name kept,
+  a record of yours is refused (`person-unnamed`) and `doctor` says so. Plan files written before this release keep the word
+  they hold.
+- Whose words an answer holds is one field, and the only way in: a decision sent without `whose` is refused (`decision-whose`),
+  and a `by` or `saidBy` the sender writes is not read. Your AI states `whose` (`person`, a teammate's name, or `assumed`) and `said` (the
+  exact words); the product writes who recorded it (`by`), whose answer it is (`saidBy`) and where it was said (`source`). An
+  answer you relay in a format that names her (a pasted chat line, a quote under "Emma wrote:") is your record of her answer, "said in
+  session"; a relay in your own words with no format proof is credited to her only on your Allow, otherwise it is recorded as
+  your words (below). One your AI copies from an
+  issue, a comment or a committed line is recorded as theirs, with its address, only after the product read that address itself, through
+  your own `gh`, and found the words there (`said-unproven` otherwise, with what was not found where). It was stored as `by: ai`
+  with no name and no source.
+- One rule is said to your AI with every message of yours that can carry a decision (the task message, any message while
+  the plan is a draft, your answers), with six examples: credit a teammate only for words that are theirs; everything else
+  is yours or assumed. So "Emma wants it capped at 500" in the task message is recorded as yours unless you choose Allow on the
+  prompt that lists it. A
+  plan made READY lists who decided what ("Emma (BA) said: …", "you decided: …", "assumed: …") for you to correct before
+  the build.
+- A question you put off ("as a todo", "not sure yet", "ask me later") is recorded as put off, in your words (a `later`
+  record): it decides nothing, the question stays open, your AI's proposal is not your decision, and `show` says who put
+  it off. No word list decides this: "add a TODO comment and cap it at 100" is a decision like any other.
+- A conflict two branches left ends with your answer to the question that names its lines, at once, also while the plan
+  that holds the answer still waits for something else. It ends only the lines that question named; a plan set aside
+  before it was ever READY binds nothing.
+- Your AI points at your words; the product keeps the whole sentence they stand in, never a part. A sentence ends at a
+  full stop, `!`, `?` or a blank line, and at a line's end only where the next line opens a list item, a chat line
+  (`Emma: …`) or a header (a chat's name and time, a heading); a wrapped line goes on with it. A list item is kept with the
+  sentence that opens its list. A mail's `>` marks and line breaks are no part of the words. Words that are not in your
+  message are refused, as before.
+- Words in your message are yours. They are a teammate's only where the format names the speaker, on the lines that carry
+  it: a chat line `Emma: …`, the first line under a chat header of a name and a time (or under a bare `Emma:`, and a list's
+  items there), the `>` lines under `Emma wrote:` or `On …, Emma wrote:`, or a comment the product reads where Emma wrote it.
+  A line you type right under a paste is yours. The product never reads the speaker from prose ("Emma says …", "I told
+  Emma …"): when your AI records such sentences as hers, Claude Code asks you once, with its own permission prompt, listing
+  them ("Record as Emma's words: 1) … 2) …"). Allow credits them to her, and the record keeps that list and its time (`show`
+  says it). Deny, or a mode where no one can be asked (`bypassPermissions`, `dontAsk`, `-p` without a prompt tool), records
+  them as your own words, the whole sentence, and the plan goes on. No reply of yours is read for it.
+- A Handoff kept line is the whole sentence its words stand in, as DecisionBook keeps a quote: "delete tests" is never kept
+  from "do not delete tests". A list's item is kept with the sentence that opens it, so a list of jobs stays a line each.
+- `close` refuses a plan that never became READY (`plan-not-ready`): nothing of it shipped.
+- DecisionBook keeps your sentences in your home folder 30 days at most, and lets a session's go when the plan it worked on
+  closes.
+- Parking a question for a colleague ("that is Emma's call, leave it for her") records it in a plan in the repository,
+  opening one where the branch has none; a handoff note is yours alone and never a handover to a teammate.
+- An answer sent with no value to a question that proposed nothing is refused by name (`answer-no-value`).
+- A question parked with a colleague stays in every teammate's `inbox` and session start until someone answers it, also
+  after its plan is closed (a plan set aside drops it).
+- `close` takes `--subject "<what shipped>"`: the one commit it prints uses that line in place of the plan's title. Where
+  a question of the plan is still unanswered the title may name a part that was left out, so `close` asks for the line
+  (`plan-close-subject`).
+- A blanket answer ("the rest as you suggested") settles the open questions and never replaces a decision someone else
+  made (`replace-blanket`). Such a decision is replaced by words of yours that name it (what it is about, its key or its
+  a value, word by word: never a short value inside another word or sentence), or by your answer to a question that showed it
+  to you: your AI asks you about it by name. One message may answer that question and the others together.
+- A question parked with a colleague is answered by their words or by your own decision.
+- `show`, `related`, the plan pack, cards, `pr` and the write's reply say whose a decision is in one form: the name; of a relayed
+  or copied answer who said it, who relayed it or that the AI wrote it down, and the source. `show` now prints a decision's
+  `source`.
+
+### Questions that wait for a teammate
+
+- A question parked with someone (`to`) is named at every session start and in `atlasbound decisionbook inbox` in every clone
+  that holds its plan, not only where it was asked: with the plan, the one it waits for (marked where that is you) and the
+  teammate who asked. `inbox` counts them ("questions parked with someone") and `--json` rows carry `waits: "parked"`, `to`,
+  `mine` and `author`. Before, a teammate who pulled the plan saw nothing: the session start called it a teammate's draft and
+  `inbox` said nothing waits.
+- `show` and `pr` print `its question proposed:` only where the answer's value is another one; a value that repeats the
+  proposal in other case or punctuation no longer gets the line.
+
+### Work that starts from an issue
+
+- A new plan is linked to the issue your task message names as the work ("issue #12", "fix #12", `GH-12`, or the address
+  of an issue of this repository), else the one the branch names after `issue` or `gh` (`issue-12`, `fix/gh-12-export`):
+  `for issue:#12`, written by the product with where it was named. Nothing is guessed: a pull request, "step #3", a colour,
+  a bare number in a branch (`fix/404-page`, `feat/12-export`), another repository's issue, or several issues link nothing.
+  An issue a message only mentions ("how issue #3 did it") is not the work where a message names one as the task ("fix #12"),
+  before it or after. A `for` link sent with the plan stands alone.
+- You can remove a wrong issue link: an `unlink` record with `rel` `for`, recorded as yours; the right issue is linked
+  after it.
+
+### Questions
+
+- The texts your AI is handed now say what a question is: only what the code cannot answer and a human must decide (a business
+  or product rule; what a user or an operator sees, pays or loses; a trade-off). An implementation choice (a signature, where a
+  type or a file lives, a name, how an error is raised) is the AI's: it states it as an `assumption` and shows the list with the
+  plan. No question is asked to reach a level's number: a task with fewer decisions of a human's says so with its `no-fork` items.
+- A question goes to someone else (`to`) only with a `source` that names them as the one who answers it (`question-unsourced`
+  otherwise); with no such source it is yours.
+
+### Your yes
+
+- One rule, said in the README and by the product in the same words: your typed answers to every blocking question are your
+  yes. A yes in words is asked only where that cannot be, and the reply now says which: the plan asks no blocking question, or
+  one of your answers keeps a decision the plan was to replace, so the plan no longer stands as you saw it.
+- A standing decision the change leaves as it is, is stated in a `non-goal` item; the texts no longer lead your AI to ask
+  whether it stays, which made a keep of every such answer and a second yes after it.
+- Where you only point at the place someone answered ("see her comment"), your AI reads it there and records that person's own
+  words with the address. It settles the question; your yes is still your own words.
+
+### Levels
+
+- The level is read from what the plan touches, never from the words of its title, why or success, so the same file gives
+  the same level in every plan. A risk area is a folder or a file named for money or for who gets in, whole
+  (`src/auth/token.ts`, `lib/billing.py`); a word inside a name (`authToken.ts`, `SessionList.tsx`, `price-label.ts`), a
+  test, a fixture or a doc is none. The built-in list is short (auth, login, password, permissions, billing, payment,
+  payout, refund, invoice, subscription, checkout, kyc); sessions, pricing, webhooks, cron, deploy and CI paths are no
+  longer on it. The words that had no path form (backfill, "schema change", "scheduled job", "email template") raise nothing.
+- A repository names its own risk areas: `"risk": [...]` in `.decisionbook/config.json` stands in place of the built-in
+  list (`[]`: none). You edit it by hand; an AI edit that takes an area out asks you first. The level line says when your
+  list decided: the area it names, or the built-in area it leaves out.
+- The level line always says why, also when the level runs as proposed.
+
+### Closing
+
+- `close` may run before the commit: it records the planned files and tests the work tree changed, and prints one `git add` and
+  one `git commit` that carry the work and the plan file together. `why`, `pr` and the cards find that commit as the plan's own.
+- Your AI is brought to close without being asked in the product's words. A turn that ends on work of the READY plan that
+  no close records is held once per state of the work tree (`stop-unclosed`): finished, it closes and hands you the one commit;
+  not finished, it tells you what is left. Each message you send is told the commit that waits, or to close first.
+- Until a commit holds the close record the plan stays open: an edit inside it goes through, a close again takes the earlier
+  record's place (one `closed` record, never two), and `inbox` lists the plan as closed with its record in no commit yet.
+- Run after you committed, `close` prints `git commit --amend --no-edit` for the plan's file where that commit was made in this
+  checkout and no other branch, remote or tag holds it: still one commit. A shared commit is never rewritten; close then says
+  the record is one more commit.
+- The work is the plan's own however it was committed: `why`, `pr` and the cards read the commit that holds the record, else the
+  first commit after the close to change each of its files (`git commit -am` that left the plan's file out, split commits).
+- A `closed` record's `by` is your name when you close in your terminal or your AI closes in a session you prompted since the
+  plan began; a session no person prompted closes as the AI.
+- A commit that carries the plan's own file no longer counts it as "files outside the plan".
+
+### Known limits
+
+- A source is read only where the product can read it: an issue or a comment through `gh`, a committed line of the repository.
+  What was said in a chat, a call or a document elsewhere reaches a record only through your own typed words.
+- Whose words a sentence holds is read from its format, else from your Allow on Claude Code's permission prompt. A PM's
+  change you relay in your own prose is often recorded under your name instead (your AI does not ask); the READY list shows who decided
+  what, so you can correct it.
+- When a teammate's words are mixed into your own sentence, or you choose Deny, they are recorded as your words. Separate them on an `Emma:` line to credit Emma.
+- The plan pack a task prompt is handed grew by about 520 characters (what a question is, whose an answer is, whose a question
+  is).
+- Shared consumers still count the `consumer` items the plan holds, so that signal can differ between two plans of one file.
+
 ## 0.25.3
 
 ### Teams and git
@@ -77,8 +242,8 @@ What changed in each release of the npm package `atlasbound`, newest first.
 - A value your message sets ("the fee is 100", "make it 200") is your decision at every level, a small fix too: the plan
   pack, `/decisionbook`, `/decide` and the session start say so, and a plan made READY with no decision of yours says so once
   (a note, never a refusal). A small fix recorded only your yes, so a later plan had nothing to compare with. The plan pack
-  is 355 characters longer for that line and 63 for the line of how a decision is replaced; its budget rose from 5,000 to
-  5,418, so the area's earlier decisions keep their room. `/decisionbook` and `/decide` also say that a value your AI
+  is 355 characters longer for that line and 63 for the line of how a decision is replaced.
+  `/decisionbook` and `/decide` also say that a value your AI
   proposed in chat and you settled with a word ("ok", "keep it") is recorded as your decision (an instruction to the AI:
   the product reads no meaning, so nothing refuses a session that leaves it out).
 - Two refusals that shared the code `replace-unplaced` have codes of their own: `placed-twice` (a decision named in both
@@ -98,8 +263,7 @@ What changed in each release of the npm package `atlasbound`, newest first.
   plan, naming the line that holds now exactly as the item prints it, clears it. Its `why` says in short what the AI saw in the
   code; its `said` is your answer to the item, in your own words from a message you typed in that session after the line it
   names was written (the check every answer of yours passes: their owner and time, not their meaning); without either the record is refused (`link-unsourced`,
-  `said-not-theirs`) and nothing is written. At your own terminal your words stand as typed. A `compared` record written by a
-  0.25.3 candidate without `said` clears nothing: record it again with your answer (no migration: 0.25.2 had no `compared`). The plan whose value
+  `said-not-theirs`) and nothing is written. At your own terminal your words stand as typed. The plan whose value
   the person took is not flagged, whichever plan the answer was written in, and one answer that replaces several plans'
   decisions where no conflict stood is no lost conflict. When the person writes the winning decision again, the item follows:
   it names the line that holds now, and a `compared` naming an earlier line clears nothing.
@@ -334,6 +498,10 @@ The first Windows test of 0.25.0 found most of the gaps below; this release clos
 
 - GUIDE.md, a sixth root document: getting started, teams and git, privacy, settings, troubleshooting, FAQ, why, and the
   plan file's record format. The README's first screen says what the tools do and do not do, and what they need.
+- README: what an AI session may do with the protect question (add protection after your answer; only taking it away is
+  yours), a Windows section, and "Free, and the Team version".
+- This changelog, shipped in the package.
+- The package lists keywords for npm search.
 
 ### Upgrading from 0.25.0
 
@@ -350,11 +518,6 @@ After upgrading, run `atlasbound update` in each repository you set up. The hook
 - A protected file outside a READY plan is no longer added to it in silence: the edit is asked, and the person's yes adds the
   file. If the plan grows past the level it was confirmed at, it covers no edit until it holds that level's rows.
 - A draft plan holds back only the files it names; a READY plan that does not cover a file says to open a new plan for it.
-- "Go with your suggestions" counts for the questions the AI showed, also when it put them in its own words; "your
-  proposals, except Q3" leaves Q3 open. A relayed answer ("I asked Ayşe: …") is the person's, with who they asked.
-- Only a yes to the proposals takes them ("go with your suggestions", "yes, all of them", "as you propose"). A refusal, a
-  question, "let me think about your suggestions" or "your proposals are terrible" decides nothing: no decision is
-  recorded as yours and the plan stays a draft. Before, any reply that named the suggestions counted as a yes to all.
 - You replace a decision a teammate recorded in one answer: the AI asks you in a question that names that decision, and
   your yes to it replaces it; the old one then shows as superseded, with who replaced it and their sentence.
 - On a shared branch a teammate's open draft no longer stops your work: a new session names it in one line and asks you
@@ -366,61 +529,8 @@ After upgrading, run `atlasbound update` in each repository you set up. The hook
   them; plans that share a file, and a key that names its area (`auth.session-ttl`), still do.
 - `atlasbound decisionbook show decision:<key>` and `show <id> decisions` say a decision's state (`superseded by …`) before
   the person's own sentence, so a long sentence no longer hides that the decision was replaced.
-- A yes that goes on to say yes to that change is still a yes ("Yes, Jupiter too, I am changing the old decision.", "Evet,
-  Jüpiter eklensin." (Turkish: "Yes, add Jupiter.")); "yes, but don't", "Yes, the earlier decision.", "Evet, kararı Elif değiştirsin." ("Yes, let Elif change the decision.") and a negation after
-  "replace it:" are asked again. An answer that only agrees with the proposal shown ("Yes.", "5. As you suggest.") is recorded as yours with that proposal as its
-  value: a bare "Yes." is never the whole decision.
-- Your yes that opens an answer to a question replacing your decision ("1. Evet, eski kararı değiştiriyorum: …", "1. Yes, I am changing the old decision: …") records the
-  proposal the AI showed as your decision, your sentence beside it; "Aynen kalsın." ("Keep it as it is.") to a proposal that also changes something
-  stays your own words.
-- "Yes, keep the old one." ("Evet, eski karar kalsın.") to a question that asks to replace your decision replaces nothing: your
-  decision stays, and the AI asks you again. Before, it counted as your yes and showed your decision as replaced.
-- When your words in a plan change a decision you made earlier ("eski kararı değiştiriyorum", "I am changing the old decision"; "no longer show it") and the AI
-  did not ask about that decision, the plan is not READY and its files stay closed until you answer a question that names it:
-  your yes replaces it, your no keeps it. Before, your answer could be recorded beside the old decision, which stayed in force.
-- "Öneriler olduğu gibi." ("the proposals as they are") and "Üçüne de evet." ("yes to all three") take every proposal the AI
-  showed, like "as you propose", and "Olduğu gibi kalsın." ("Leave it as it is.") takes the one it showed. Before, the AI asked you again.
-- Your "yes" to the AI's question whether a plan is set aside now sets it aside when the AI wrote the question in bold with a
-  sentence after it. Before, the question went unseen and every yes was refused, as was the record the product itself showed.
-- A question the product hands back to ask again names each decision it would replace once; before, one already named came twice.
-- Your yes to a proposal records the proposal the AI showed you, even when the AI writes the question again with other words
-  for it afterwards; a proposal that is itself only a yes ("Evet, karar yukarıdaki haliyle güncellensin.", "Yes, update the decision as written above.") never becomes the
-  decision that replaces yours: your own sentence does. Before, such AI text was recorded as your decision.
-- When the AI shows several proposals and tells you one "yes" takes them all, your "evet" / "yes" takes every one of them;
-  "Evet, ikisi de." ("Yes, both.") takes both, and "öneri uygun" ("the proposal is fine") counts like "Önerin olsun." ("Let it be as you
-  propose."). Before, the yes took the first question only, as
-  the bare word "evet", and the AI asked the others again.
 - While a plan is still a draft, `show decision:<key>` shows its decision that replaces yours on your yes as
   `replaces … (pending until READY)`, no longer as a CONFLICT with yours.
-- "Drop it." or "Forget it." to a question that asks to replace a teammate's decision replaces nothing; only an answer that
-  opens with a yes does. Before, those words counted as a yes and showed the teammate's decision as replaced.
-- A word of one language that is a plain word of another no longer counts: "Use the git defaults." takes none of the AI's
-  proposals (Turkish "git" was read as "go with"), and Turkish "ne" ("Ne olursa olsun …") is no French negation.
-- The reading of a person's answers was rewritten as one owner in DecisionBook, its words kept by language; the replies it
-  reads are pinned by tests. A reply to the proposals it cannot read as your answer ("Use the git
-  defaults.", one unrelated word) records nothing, and the AI asks you again in your words; a count takes the proposals when it
-  is as many as were shown ("Dördüne de evet.", "Yes to all four."); "Docker said: no" names no one you asked; `atlasbound debug said "<words>"` shows
-  how a reply is read.
-- "OK, forget it.", "Fine, leave it.", "Tamam, vazgeç." or "Tamam, kalsın." (the same two in Turkish) to a question that asks to replace a teammate's
-  decision replaces nothing: a later part that keeps or drops takes the opening "OK" back, unless your answer also says to change
-  it. The decision stays and the AI asks you again. Before, these counted as your yes and showed the decision as replaced.
-- "Yes to all but Q3." and "Take all but the third." take every proposal the AI showed except the one you name, which waits for
-  your own answer; "Go with your suggestions, but make Q2 every occurrence." leaves Q2 to your own words. Before, only the
-  proposal you left out was recorded as yours.
-- A quoted "OK" in the AI's message, a button's label or a test's output, no longer makes your bare "Yes." a yes to every
-  proposal: only a sentence that asks you to write that reply for the proposals ('write "yes"', '"evet" demen yeterli') does; 'Write "ok" to
-  stdout' does not. Before, every
-  proposal was recorded as yours and the plan became READY.
-- Your reply is read with the answer words of its own language only: Spanish "todo" (all) in "OK, todo." takes no proposal. Where
-  two languages hold as many of its words and read it differently, nothing is recorded and the AI asks you again.
-- An answer binds only what it says clearly; anything unclear is asked again: each part of your reply must name the questions it
-  leaves out ("Yes to all but Q3.") or be a plain yes, a "go on" ("Hepsi olur, devam et.", "Yes to all, start.") or a no to
-  something no question is about ("All recommendations OK, no checkpoints"), else nothing of it is recorded ("As suggested,
-  but also for env.", "OK, I changed my mind." to a replacing question). Before, such replies were recorded as your yes.
-- Your whole reply is never recorded as the answer to a question it leaves out, takes as a group or does not answer: "Yes to all
-  but Q3." sent as Q3's answer, "I reject your suggestions." as Q1's, or "Yes to all." cut from "Yes to all. Wait, no." The
-  product no longer tells the AI to record your sentence instead of asking you. `atlasbound debug said "<words>" "<question>"`
-  shows how a reply to a question that replaces a decision is read.
 - `related` and `show` no longer list a link an earlier version stored between two plans that only share a short key
   (`layout ← layout`) about different files.
 - `atlasbound protect` takes several paths at once, read from the folder you are in; a quoted glob stays one glob.
@@ -452,6 +562,26 @@ After upgrading, run `atlasbound update` in each repository you set up. The hook
   usage line; with `--json` every refusal is a JSON object on standard output.
 - The help has a USAGE line per command and no line past 100 columns; a JSON word that does not read says where it broke.
 - In your own terminal, `show` prints in full even when the environment carries an AI session's id.
+- The gate also reads package scripts (`npm run`, `npm test`, yarn, pnpm) from `package.json` before they run; a script it
+  cannot place asks you.
+- `atlasbound --version` and `atlasbound version` say the installed version; a mistyped command suggests the closest one.
+- `atlasbound --help` and each command's `--help` say what the command does, when to use it, one example, and whether only a
+  person may run it.
+- `setup` ends by naming the next step, `atlasbound doctor`.
+- `setup` no longer adds `.mcp.json` to `.gitignore`, so a repository can keep its own MCP settings in git.
+- `atlasbound update` leaves a `.gitignore` block as it is when the block lacks no line: a block your team committed with
+  an earlier version stays byte for byte (its `.mcp.json` line goes only where the repository has its own `.mcp.json`), so
+  the update leaves git no change that would refuse a branch switch. When it does change `.gitignore`, it says to commit it.
+- `atlasbound leftovers` no longer says nothing is left above a process or a folder it then names: it says nothing is left
+  to take out and that what it names is left alone.
+- The automatic suggestion of what to protect (`atlasbound protect --source`) also counts folders of HTML pages and a single
+  entry file such as `index.html`.
+- `atlasbound doctor` names what an earlier product version left wired in your home folder, `atlasbound leftovers` lists it,
+  and `atlasbound leftovers remove`, typed by you at your own terminal, removes it after a copy of each file (see below).
+  Both also name, with its process id, each MCP server of the earlier version that is still running, and the earlier
+  version's folder `~/.mcp-observatory/`; while such a server runs, or when the system's process list does not answer,
+  `leftovers remove` takes nothing and says what to close first. It never ends a process itself.
+- When the product holds a session from finishing, Claude Code shows a line saying it is a deliberate check, not a crash.
 
 ### Windows
 
@@ -476,41 +606,11 @@ After upgrading, run `atlasbound update` in each repository you set up. The hook
 - The README says what Windows needs (Claude Code running its hooks through Git Bash) and what to know there: line
   ends, a slash command typed from Git Bash, links and junctions.
 
-### Command line
-
-- The gate also reads package scripts (`npm run`, `npm test`, yarn, pnpm) from `package.json` before they run; a script it
-  cannot place asks you.
-- `atlasbound --version` and `atlasbound version` say the installed version; a mistyped command suggests the closest one.
-- `atlasbound --help` and each command's `--help` say what the command does, when to use it, one example, and whether only a
-  person may run it.
-- `setup` ends by naming the next step, `atlasbound doctor`.
-- `setup` no longer adds `.mcp.json` to `.gitignore`, so a repository can keep its own MCP settings in git.
-- `atlasbound update` leaves a `.gitignore` block as it is when the block lacks no line: a block your team committed with
-  an earlier version stays byte for byte (its `.mcp.json` line goes only where the repository has its own `.mcp.json`), so
-  the update leaves git no change that would refuse a branch switch. When it does change `.gitignore`, it says to commit it.
-- `atlasbound leftovers` no longer says nothing is left above a process or a folder it then names: it says nothing is left
-  to take out and that what it names is left alone.
-- The automatic suggestion of what to protect (`atlasbound protect --source`) also counts folders of HTML pages and a single
-  entry file such as `index.html`.
-- `atlasbound doctor` names what an earlier product version left wired in your home folder, `atlasbound leftovers` lists it,
-  and `atlasbound leftovers remove`, typed by you at your own terminal, removes it after a copy of each file (see below).
-  Both also name, with its process id, each MCP server of the earlier version that is still running, and the earlier
-  version's folder `~/.mcp-observatory/`; while such a server runs, or when the system's process list does not answer,
-  `leftovers remove` takes nothing and says what to close first. It never ends a process itself.
-- When the product holds a session from finishing, Claude Code shows a line saying it is a deliberate check, not a crash.
-
 ### Handoff and DecisionBook
 
 - A handoff note shows its reader that session's own messages first, and leaves out the messages of a session running beside
   it. A message that is only a path or a bare slash command is not kept.
 - `/decide` stores the person's decision with their own sentence; the AI no longer writes the person's name for them.
-
-### Documents
-
-- README: what an AI session may do with the protect question (add protection after your answer; only taking it away is
-  yours), a Windows section, and "Free, and the Team version".
-- This changelog, shipped in the package.
-- The package lists keywords for npm search.
 
 ### Versions before 0.25: telemetry, and what they left behind
 
@@ -519,7 +619,7 @@ product sent usage telemetry to an endpoint of its own, and it did so by default
 fields its own allowlist let through, never your source code. An opt-in debug level, off by default, could also send scrubbed
 development traces. It also had a sign-in to its own service.
 
-0.25 and later are a different, open product. They send nothing (see PRIVACY.md). Installing 0.25 over the earlier product
+0.25 and later are a different, open product. 0.25.0 to 0.25.3 send nothing; from 0.25.4 see PRIVACY.md. Installing 0.25 over the earlier product
 replaced its files, but **a Claude Code session that was open before the upgrade keeps the earlier product's MCP server
 running in memory**, with the old code: that server goes on sending its telemetry, and writes its files back after you delete
 them, for as long as the session stays open (days, if you leave it open). **After upgrading, close every Claude Code session

@@ -11,6 +11,8 @@ const { errors: { fail } } = require('@atlasbound/kit');
 const telemetry = require('@atlasbound/telemetry');
 const { internals, declaredDescriptors, descriptorRow, telemetryWorld, kitTraceRow, traceLines, spyPort, addressFilled, turnedOnWorld } = require('./world.cjs');
 
+const DB_POLICY = JSON.parse(declaredDescriptors({ open: true }).find((row) => row.name === 'decisionbook').text).policy;
+
 const { PATHS, WIRE, SCHEMA } = internals;
 const DAY = '2026-11-17';
 const NEXT_DAY = '2026-11-18T10:00:00.000Z';
@@ -174,7 +176,7 @@ test('[I-7] the bounds: an unsent report older than 14 days goes; over 1 MiB the
   await telemetry.next(io, {});
   const period = JSON.parse(io.home.store.get(PATHS.period)).id;
   const fake = (day, pad) => [`${PATHS.reports}/${day}-db.json`,
-    `${JSON.stringify({ id: 'f'.repeat(32), period, policy: WIRE.policy, module_policy: 1, pad: 'x'.repeat(pad) })}\n{"state":"prepared","attempts":0,"at":"${NEXT_DAY}"}\n`];
+    `${JSON.stringify({ id: 'f'.repeat(32), period, policy: WIRE.policy, module_policy: DB_POLICY, pad: 'x'.repeat(pad) })}\n{"state":"prepared","attempts":0,"at":"${NEXT_DAY}"}\n`];
   io.fs.writeAtomic(...fake('2026-11-01', 10));
   for (let i = 10; i <= 16; i += 1) io.fs.writeAtomic(...fake(`2026-11-${i}`, 200000));
   await telemetry.next(io, {});

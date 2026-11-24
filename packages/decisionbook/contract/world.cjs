@@ -3,10 +3,13 @@
 // See LICENSE and NOTICE in the package root.
 'use strict';
 // The contract suite's world: kit's in-memory fs, a clock a millisecond later per record, a scripted git, the trace bound to decisionbook's vocabulary.
+const assert = require('node:assert/strict');
 const kit = require('@atlasbound/kit');
 const decisionbook = require('@atlasbound/decisionbook');
 
 const ROOT = '/fake';
+const LEVEL_KEPT = 'level: normal work (as proposed: no danger, schema or risk-area path, fewer than 3 shared consumers)'; // what keeps it there
+const PERSON = 'Amy'; // who works in the world's clone, as its git names them: every record of the person's carries this name
 
 /** the composition root's one import step of a file both ways, in the shape the root hands it, from `graph` (file -> the files it imports);
  * null: no import graph is handed. */
@@ -17,10 +20,11 @@ const GUARD = { dir: '.atlasbound/labels', what: 'label', why: 'a label decides 
 /** bookWorld({ files, branch, head, commits }) -> the io the composition root hands the package. `commits` answer git's commits read. `guarded`: the
  * folder a package declares the person's (GUARD: a toy guarded folder), null where none does; `guardedWay`, how a person makes a file there (null: none);
  * `research`, the root's answer where a plan's research goes first (null: none).
- * `changed`, the files git's status names (uncommitted); `graph`, the import graph the root hands (null: none). */
+ * `changed`, the files git's status names (uncommitted); `graph`, the import graph the root hands (null: none); `comments`, what the
+ * root's tracker port reads at an address ({ text, author } each; any other address is one it cannot read). */
 function bookWorld({ files = {}, branch = 'feat/export', head = 'h0', commits = [], tracked = Object.keys(files), authors = {},
   home = kit.testing.memoryFs(), guarded = () => GUARD, changed = [], graph = null, heard = null, journalOff = false, person = true,
-  begun = 's1', guardedWay = null, research = null } = {}) {
+  begun = 's1', guardedWay = null, research = null, comments = {}, origin = null } = {}) {
   const fs = kit.testing.memoryFs(files);
   // `begun`, the AI session whose start row the home holds from the world's first instant (its SessionStart came before the test); null: none
   if (begun && home) home.writeAtomic(kit.paths.hereKey(ROOT, 'decisionbook', `start-${kit.hash.sha256(begun).slice(0, 16)}.json`), `${JSON.stringify({ head, dirty: [], at: '2026-11-02T06:00:00.000Z' })}\n`);
@@ -28,13 +32,14 @@ function bookWorld({ files = {}, branch = 'feat/export', head = 'h0', commits = 
   const clock = { ...kit.testing.fixedClock(), now: () => `2026-11-02T06:00:00.${String((tick += 1) % 1000).padStart(3, '0')}Z` };
   const tracer = kit.io.createTrace({ fs, clock });
   const state = { branch, head, commits, tracked, changed };
-  const git = { branch: async () => state.branch, head: async () => state.head,
+  const git = { branch: async () => state.branch, head: async () => state.head, origin: async () => origin,
     commits: async (base) => state.commits.filter((c) => !base || c.after === base), shared: async () => [], // no other branch
+    under: async () => true, filesOf: async (sha) => state.commits.find((c) => c.sha === sha)?.files ?? [], amendable: async () => state.amendable === true, // a HEAD another ref holds, unless a test says no
     lsFiles: async () => state.tracked.map((key) => ({ key, disk: key })),
       tracked: async (keys) => state.tracked.filter((key) => keys.some((k) => key.startsWith(k))),
     author: async (key) => authors[key] || null, statusZ: async () => state.changed.map((key) => ({ xy: ' M', key, disk: key })),
     // whose a line is (steps/open): each author of `authors` commits under a mail of their own, never the one this clone commits as
-    me: async () => 'me@world.invalid',
+    me: async () => ({ name: PERSON, mail: 'me@world.invalid' }),
     blame: async (key) => (authors[key] ? fs.readText(key).split('\n').map(() => ({ sha: 'c0', subject: null, author: authors[key],
       mail: `${authors[key]}@world.invalid` })) : []) };
   // `actor`, the root's answer to who acts (kit's own, over a faked process): in a session no terminal, outside one the world's `terminal`
@@ -42,7 +47,7 @@ function bookWorld({ files = {}, branch = 'feat/export', head = 'h0', commits = 
   // `heard`, the person's journaled prompts the root hands from handoff ({ id, at, text }); null: none handed; `absent`, why an answer
   // is null as the root says it (off by choice when `journalOff`, else not installed)
   return { fs, home, clock, root: ROOT, run: 'r1', hostEnv: ['CLAUDE_PROJECT_DIR', 'CLAUDE_CODE_SESSION_ID', 'CLAUDE_PID'], trace: tracer.forPackage('decisionbook', decisionbook.vocabulary), git, state, guarded, imports: importsFrom(graph),
-    terminal: person, above: [], heard: () => heard, guardedWay: () => guardedWay, research: () => research,
+    identity: async () => ({ name: PERSON, from: 'git' }), tracker: { read: async (address) => comments[address] ?? null }, terminal: person, above: [], heard: () => heard, guardedWay: () => guardedWay, research: () => research,
     actor(prompts) {
       const walk = () => this.above && { chain: [['-zsh'], ...this.above], leader: 0 }; // under a login shell that leads the terminal
       const seat = { env: { get: () => null }, input: { isTTY: !this.session && this.terminal }, proc: { ancestry: walk } };
@@ -60,6 +65,7 @@ const added = (io, id, record) => verbs.add(io, { rest: [id, wire(record)] }); /
 const refusedWith = (io, id, record) => added(io, id, record).then(() => null, (err) => [err.code, err.message]); // null: written
 const logFile = (id) => `.decisionbook/${id}.jsonl`;
 const planRecords = (io, id) => io.fs.readText(logFile(id)).trim().split('\n').map((line) => JSON.parse(line)); // a plan's records as written
+const writtenDecisions = (io, id) => planRecords(io, id).filter((r) => r.t === 'decision'); // its decisions as written
 /** One no-fork item per planned path among `records` (plans links): what a plan with fewer forks than its level states. */
 const noForks = (records) => records.filter((r) => r.t === 'link' && r.rel === 'plans').map((r) => ({ t: 'item', kind: 'no-fork',
   file: r.to.slice('file:'.length), text: 'Read whole: the task settles what this file does, nothing in it is open.' }));
@@ -69,7 +75,7 @@ const researchRows = (n) => Array.from({ length: n }, (_, i) => ({ t: 'research'
 // each a fork, a person's decision with its effect on the plan; `tag` keeps one plan's forks apart from another's (the same key is settled)
 const answeredPairs = (n, tag) => Array.from({ length: n }, (_, i) => [{ t: 'question', q: `Q${i + 1}`, text: `rule ${i + 1}?`,
   decides: `report.export${tag}.rule${i + 1}`,
-  whyNotCode: 'a product rule', blocking: true }, { t: 'decision', key: `report.export${tag}.rule${i + 1}`, value: `v${i + 1}`, why: 'support', by: 'Ayse',
+  whyNotCode: 'a product rule', blocking: true }, { t: 'decision', key: `report.export${tag}.rule${i + 1}`, value: `v${i + 1}`, why: 'support', whose: 'person',
     answers: `Q${i + 1}`, effect: ['check:AC-1'] }]).flat();
 // the gap list, frozen (contract/gaps.test.cjs pins it): renaming, dropping or reordering a gap fails until this line changes with it
 const GAP_IDS = ['existing-data', 'invalid-input', 'config-docs', 'compat-rollout', 'failure-visibility', 'scope-surfaces', 'tests-proof'];
@@ -87,7 +93,7 @@ const recordsFor = (level, plans, tag = '') => [...researchRows({ micro: 1, norm
   ...['empty report', 'a cancelled export', 'a 1 GB report'].slice(0, level === 'critical' ? 3 : 2).map((text) => ({ t: 'item', kind: 'edge', text })),
   { t: 'item', kind: 'impact', text: 'the scheduler reads the same rows: unchanged' }, ...answeredPairs(level === 'critical' ? 5 : 3, tag),
   ...(level === 'critical' ? [{ t: 'item', kind: 'risk', text: 'memory on huge exports' }, { t: 'item', kind: 'rollback', text: 'revert the commit' }] : []),
-  { t: 'confirm', by: 'Ayse', said: 'yes, go ahead' }]; // the person's yes to this plan, last
+  { t: 'confirm', by: 'Amy', said: 'yes, go ahead' }]; // the person's yes to this plan, last
 /** An AI session (`session`) reads `files` with the Read tool and shows plan `id`: the read receipts the plan's research may
  * cite (its sessions are the ones that name it). */
 async function readFor(io, id, files, session = 's1') {
@@ -136,21 +142,27 @@ const ruling = (said) => [said.verdict, said.code]; // a gate's answer as [verdi
 
 /** the whole text a handler gives, its context then its say items, as the hook port joins them before its one context rule holds what a context was
  * told. */
-const textOf = (out) => [out.context, ...(out.say || []).map((s) => s.text)].filter(Boolean).join('\n');
+function textOf(out) {
+  // what the port's shape asks of each say item (a key naming its kind, a text): a handler that gives another is refused whole there
+  (out.say || []).forEach((s) => assert.ok(/^\S+$/.test(s.key ?? '') && typeof s.text === 'string', `a say item with no key or text: ${JSON.stringify(s).slice(0, 120)}`));
+  return [out.context, ...(out.say || []).map((s) => s.text)].filter(Boolean).join('\n');
+}
 /** the JSON a text hands with the call `atlasbound decisionbook <words>`, as a draft (in the acting session's drafts folder, or the folder
  * itself with no session): the line between the draft's head and the call. */
 function sentBy(text, words) {
   const lines = String(text).split('\n');
   const name = words.split(' ').at(-1);
-  const at = lines.findIndex((line) => new RegExp(`^write this JSON with your Write tool to \\.atlasbound/drafts/([0-9a-f]{12}/)?${name}\\.json:$`).test(line));
-  const draft = at >= 0 && lines[at].slice('write this JSON with your Write tool to '.length, -1);
+  const at = lines.findIndex((line) => new RegExp(`^write this JSON with your Write tool \\(it makes the folder; no shell write\\) to \\.atlasbound/drafts/([0-9a-f]{12}/)?${name}\\.json:$`).test(line));
+  const draft = at >= 0 && lines[at].slice('write this JSON with your Write tool (it makes the folder; no shell write) to '.length, -1);
   return at >= 0 && lines[at + 2] === `then run: atlasbound decisionbook ${words} --file ${draft}` ? JSON.parse(lines[at + 1]) : null;
 }
 
 /** A person's answer to question `q` as an AI sends it: signed for them, `value` its reading, `said` their words; the product decides whose it is. */
-const theirAnswer = (q, key, value, said) => ({ t: 'decision', key, value, why: 'the developer\'s answer', by: 'the developer', said, answers: q, effect: ['check:AC-1'] });
+/** What is stored for words quoted from an item of an answer list: the item whole, after the sentence that opens the list. */
+const storedOf = (reply, said) => `${reply.split('\n')[0]} ${reply.split('\n').find((line) => line.includes(said)).replace(/^- /u, '')}`;
+const theirAnswer = (q, key, value, said) => ({ t: 'decision', key, value, why: 'the developer\'s answer', whose: 'person', said, answers: q, effect: ['check:AC-1'] });
 /** The state a write left: READY, or the codes of the rows the plan still lacks. */
 const stateOf = (res) => (res.out.state.ready ? 'READY' : res.out.state.unmet.map((u) => u.code).join(','));
 
-module.exports = { ROOT, waitsForAnswer, readFor, theirAnswer, stateOf, bookWorld, begin, added, refusedWith, logFile, planRecords, onDay, GAP_IDS, recordsFor, readyOne, leavesOthers, unmetOf, editEvent, testWrite, readOf,
-  asMode, starting, writeConfig, tracedSteps, lastN, stepRows, ruling, wire, textOf, sentBy, noForks };
+module.exports = { ROOT, PERSON, LEVEL_KEPT, waitsForAnswer, readFor, theirAnswer, stateOf, bookWorld, begin, added, refusedWith, logFile, planRecords, writtenDecisions, onDay, GAP_IDS, recordsFor, readyOne, leavesOthers, unmetOf, editEvent, testWrite, readOf,
+  asMode, starting, writeConfig, tracedSteps, lastN, stepRows, ruling, wire, textOf, sentBy, noForks, storedOf };

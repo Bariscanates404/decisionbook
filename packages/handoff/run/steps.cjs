@@ -5,7 +5,7 @@
 // Every hook handler and every verb is ONE traced step of its own name. A failure rethrows after its trace record: the cli's hook port
 // isolates it (a hook never blocks), the cli's verb port prints it.
 const { traced } = require('@atlasbound/kit');
-const { stepResult: said } = require('../contracts/shapes.cjs');
+const { stepResult: result } = require('../contracts/shapes.cjs');
 const { shortOf } = require('../contracts/codes.cjs');
 const { isSessionId } = require('../steps/store.cjs');
 const { startStep, messageStep, touchedStep, compactStep, stopStep } = require('../steps/session.cjs');
@@ -14,9 +14,9 @@ const { handoffStep, keepStep, showStep, dropStep } = require('../steps/verbs.cj
 const HOOKS = { start: startStep, prompt: messageStep, touched: touchedStep, compact: compactStep, stop: stopStep };
 const VERBS = { handoff: handoffStep, keep: keepStep, show: showStep, drop: dropStep };
 // the store is the person's home: without one nothing is kept and nothing is said
-const homeless = async () => said('handoff-no-home', { text: `handoff: ${shortOf('handoff-no-home')}\n` });
+const homeless = async () => result('handoff-no-home', { text: `handoff: ${shortOf('handoff-no-home')}\n` });
 // a hook answers its code alone: an event with no usable session id is nobody's, and no home is nowhere to keep
-const codeOnly = (code) => async () => said(code);
+const codeOnly = (code) => async () => result(code);
 
 const handlers = Object.freeze(Object.fromEntries(Object.entries(HOOKS).map(([step, fn]) => [step, async (event, io) => {
   const known = isSessionId(event.session_id);

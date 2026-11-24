@@ -9,7 +9,7 @@ const { WORDS, shortOf, SHOWN: { recall: shown } } = require('../../contracts/co
 const { bytes, boundedLines } = require('./budget.cjs');
 const { jsonCall } = require('./calls.cjs');
 const { cardText } = require('./card.cjs');
-const { unreadLines } = require('./open.cjs');
+const { firstFive, unreadLines } = require('./open.cjs');
 
 const RECALL_BYTES = 2048;
 const RECALL_CARDS = 3;
@@ -18,8 +18,7 @@ const RELATED_CARDS = 10;
 // what was not found, three ways apart: no record here (`found` 0 and no file of the work that no plan touched says more), records unread
 // ([{ file, code }]), the work's files no plan touched (none in a repository with no plan); each line names five files and how many more
 const absentLines = ({ found, unread = [], untouched = [] }) => [...(found === 0 && !untouched.length ? [`${WORDS.absent.none}: ${shortOf('recall-none')}`] : []),
-  ...unreadLines(unread), ...(untouched.length ? [filled(WORDS.absent.untouched,
-    { files: shown.files(`${untouched.slice(0, 5).join(', ')}${untouched.length > 5 ? ` (+${untouched.length - 5} more)` : ''}`) })] : [])];
+  ...unreadLines(unread), ...(untouched.length ? [filled(WORDS.absent.untouched, { files: shown.files(firstFive(untouched)) })] : [])];
 
 /** What a hook says of `cards`: the first whole cards that fit in `max` bytes (once one does not fit, none after it
  * is given), each with the short line that stands for it when the context already holds it, then the line that says

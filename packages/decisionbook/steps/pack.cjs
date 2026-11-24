@@ -16,9 +16,8 @@ const { markTeammates } = require('./teammate.cjs');
 const store = require('./store.cjs');
 const { openItems } = require('./touch.cjs');
 
-/** The earlier plans of the work `text` names (its files and its words) and the files the session touched and the branch changed, the
- * best RELATED_CARDS as the walk ranks them, each with what it built and why it was picked; `named`: its files; `absent`: what was not
- * found. */
+/** The earlier plans of the work `text` names (its files and its words) and the files the session touched and the branch changed, the best
+ * RELATED_CARDS as the walk ranks them, each with what it built and why it was picked; `named`: its files; `absent`: what was not found. */
 async function areaFor(io, text, session) {
   const web = store.readWeb(io);
   const branch = await io.git.branch();
@@ -44,7 +43,7 @@ async function packFor(io, { text, session, door }) {
   }
   const first = await researchWhere(io, text);
   const { views, files: seeds, named, absent, open } = area;
-  const pack = packOf({ views, seeds, named, words: text, danger: store.dangerOf(io), first, absent, open, session });
+  const pack = packOf({ views, seeds, named, ...store.zonesOf(io), first, absent, open, session });
   sessionRead(io, session, pack.ids, door);
   if (pack.refs.length) sessionAdd(io, session, { t: 'packed', refs: pack.refs }); // a file card of this session does not say them again
   return { pack, n: { ...area.n, packed: 1, packChars: pack.text.length } };

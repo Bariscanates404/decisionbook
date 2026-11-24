@@ -71,8 +71,9 @@ async function turnOff(io, ctx, args) {
   return { ...view, here: storeSummary(io) };
 }
 
-// What a forget answers: the server asked now (done or pending), or with no address: an id that sent waits, else nothing was ever sent.
-const forgetCode = (asked, waiting) => (asked ? (asked.pending && 'forget-pending') || 'forget-done'
+// What a forget answers: the server asked now (done or pending; nothing asked: no id here ever sent), or with no address: an id that
+// sent waits, else nothing was ever sent.
+const forgetCode = (asked, waiting) => (asked ? (asked.pending && 'forget-pending') || (asked.done && 'forget-done') || 'forget-none'
   : (waiting && 'forget-unreachable') || 'forget-none');
 
 // reset: the period ends, the waiting reports of its id are deleted; with forget, the ids that sent wait for deletion, asked of the server
@@ -99,6 +100,7 @@ async function lookOnly(io, ctx) {
   return { ...view, body: nextRequest(io, view.states, false).body };
 }
 
-const hintSaid = (io, ctx, args) => tracedOut(io, 'hint', consent.setupSays)({ spaces: spacesIn(io).spaces, ask: args.ask ?? null }, ctx);
+const hintSaid = (io, ctx, args) => tracedOut(io, 'hint', consent.choiceSaid)({ spaces: spacesIn(io).spaces, ask: args.ask ?? null }, ctx);
+const noticeSaid = (io, ctx) => tracedOut(io, 'notice', consent.choiceSaid)({ spaces: spacesIn(io).spaces, host: true }, ctx);
 
-module.exports = { consentStatus, nextShown, sendNow, dueNow, turnOn, turnOff, resetNow, historyKept, lookOnly, hintSaid };
+module.exports = { consentStatus, nextShown, sendNow, dueNow, turnOn, turnOff, resetNow, historyKept, lookOnly, hintSaid, noticeSaid };

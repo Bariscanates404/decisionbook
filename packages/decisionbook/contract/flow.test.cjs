@@ -7,7 +7,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const decisionbook = require('@atlasbound/decisionbook');
-const { bookWorld, writeConfig, wire, planRecords, recordsFor, editEvent, ruling, lastN, theirAnswer, stateOf } = require('./world.cjs');
+const { bookWorld, writeConfig, wire, planRecords, recordsFor, editEvent, ruling, lastN, theirAnswer, stateOf, storedOf } = require('./world.cjs');
 
 const { verbs, handlers } = decisionbook;
 const ISSUE = 'Add a way to mark an option as deprecated: when the program is run with a deprecated option, the library writes a warning';
@@ -64,7 +64,7 @@ test('[I-31] the AI records the answers in one add with its own values, their wo
   const res = await w.add(id, [theirAnswer('Q1', 'deprecatedWarningFormat', 'warning: option \'<flag>\' is deprecated[: <message>]', FIRST_SAID.Q1),
     theirAnswer('Q2', 'deprecatedWarnFrequency', 'once per parse', FIRST_SAID.Q2), theirAnswer('Q3', 'deprecatedEnvSource', 'cli only', FIRST_SAID.Q3)]);
   const decisions = planRecords(w.io, id).filter((r) => r.t === 'decision');
-  assert.deepEqual(decisions.map((r) => [r.answers, r.by, r.said]), ['Q1', 'Q2', 'Q3'].map((q) => [q, 'the person', FIRST_SAID[q]]));
+  assert.deepEqual(decisions.map((r) => [r.answers, r.by, r.said]), ['Q1', 'Q2', 'Q3'].map((q) => [q, 'Amy', storedOf(FIRST_REPLY, FIRST_SAID[q])]));
   assert.deepEqual(decisions.map((r) => r.value), ['warning: option \'<flag>\' is deprecated[: <message>]', 'once per parse', 'cli only'], 'the AI\'s reading');
   assert.equal(planRecords(w.io, id).filter((r) => r.t === 'confirm').length, 1, 'the yes their answers give is recorded by the product');
   assert.equal(stateOf(res), 'READY');
@@ -92,7 +92,7 @@ test('an item of an answer list is theirs though another item holds a negation; 
   const id = await w.create([...BODY, ...SECOND_QUESTIONS]);
   await w.say(SECOND_REPLY);
   const res = await w.add(id, SECOND_RECORDS);
-  assert.deepEqual(w.deciders(id), { Q1: 'the person', Q2: 'the person', Q3: 'the person' });
+  assert.deepEqual(w.deciders(id), { Q1: 'Amy', Q2: 'Amy', Q3: 'Amy' });
   assert.equal(stateOf(res), 'READY');
   assert.deepEqual(await w.edit('lib/command.js'), ['allow', 'gate-in-scope']);
 });
@@ -109,7 +109,7 @@ test('an answer typed in a session that died is not quoted from the next one: th
   assert.deepEqual(w.deciders(id), {}, 'nothing written');
   await w.say(SECOND_REPLY);
   assert.equal(stateOf(await w.add(id, SECOND_RECORDS)), 'READY');
-  assert.deepEqual(w.deciders(id), { Q1: 'the person', Q2: 'the person', Q3: 'the person' });
+  assert.deepEqual(w.deciders(id), { Q1: 'Amy', Q2: 'Amy', Q3: 'Amy' });
 });
 
 // a plan that runs as normal work, no question blocking: READY needs three forks settled by the person's answers and their yes
@@ -124,7 +124,7 @@ test('the answers settle the forks normal work needs; the full "About" line is a
     theirAnswer('Q3', 'envsource', 'only on the command line; env, default, preset give no warning', line(3)),
     theirAnswer('Q1', 'warningtext', 'any clear wording that names the option and includes the message', line(1)),
     { t: 'confirm', by: 'the developer', said: 'Yes, go ahead.' }]);
-  assert.deepEqual(w.deciders(id), { Q1: 'the person', Q2: 'the person', Q3: 'the person' });
+  assert.deepEqual(w.deciders(id), { Q1: 'Amy', Q2: 'Amy', Q3: 'Amy' });
   assert.equal(stateOf(res), 'READY');
 });
 
@@ -136,11 +136,11 @@ test('terse answers count when they answer the one question shown: a few words, 
     const id = await w.create([...BODY, planQuestion('Q1', 'Warn once (proposed) or on every occurrence?', 'warn.frequency', true)]);
     await w.say(said);
     const res = await w.add(id, [theirAnswer('Q1', 'warn.frequency', value, said)]);
-    assert.deepEqual([w.deciders(id).Q1, stateOf(res)], ['the person', 'READY'], said);
+    assert.deepEqual([w.deciders(id).Q1, stateOf(res)], ['Amy', 'READY'], said);
   }
 });
 
-test('[I-31] the AI cannot quote words the person did not type: a piece of a clause, half a negated sentence, the question', async () => {
+test('[I-31] the AI cannot quote words the person did not type: a word cut short, the question; a part is kept whole', async () => {
   const q1 = planQuestion('Q1', 'Warn once per process (proposed) or on every occurrence?', 'warn.frequency', true);
   const quoted = async (typed, said) => {
     const w = await answerWorld();
@@ -151,9 +151,9 @@ test('[I-31] the AI cannot quote words the person did not type: a piece of a cla
   };
   const ANSWER = 'About "warn once per process or on every occurrence?": every occurrence.';
   const NEVER = 'warn on every occurrence, never once';
-  assert.deepEqual([await quoted(ANSWER, 'occurrence'), await quoted(NEVER, 'warn on every occurrence'), await quoted('what time is it in Tokyo?', q1.text)],
+  assert.deepEqual([await quoted(ANSWER, 'occurr'), await quoted(NEVER, 'warn on every occurrence, once'), await quoted('what time is it in Tokyo?', q1.text)],
     ['said-not-theirs', 'said-not-theirs', 'said-not-theirs']);
-  assert.deepEqual([await quoted(ANSWER, 'every occurrence'), await quoted(NEVER, NEVER)], ['the person', 'the person'], 'a whole clause, a whole negated sentence');
+  assert.deepEqual([await quoted(ANSWER, 'every occurrence'), await quoted(NEVER, 'warn on every occurrence')], ['Amy', 'Amy'], 'a part of a sentence is theirs');
 });
 
 // READY is the freeze. The open READY plan is the work in progress whatever a new session's

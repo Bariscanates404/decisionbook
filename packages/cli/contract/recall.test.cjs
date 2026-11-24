@@ -94,13 +94,13 @@ test('[I-19] through the real bin each item handed says its source, day, why pic
   writeFiles(repo, { ...PLANS, '.decisionbook/PLAN-20261005-torn.jsonl': '{"this is": not a record\n',
     '.decisionbook/PLAN-20261006-lockout.jsonl': fromBranch('PLAN-20261006-lockout', 'Lockout', [{ t: 'link', rel: 'plans', to: `file:${SESSIONS}`,
       why: 'the code' }, { t: 'decision', key: 'auth.lockout', value: '5 tries', why: 'abuse', by: 'ai', files: [SESSIONS] },
-    { t: 'decision', key: 'auth.lockout-asked', value: 'keep it', why: 'asked again', by: 'Ayse', said: 'keep five tries', files: [SESSIONS],
+    { t: 'decision', key: 'auth.lockout-asked', value: 'keep it', why: 'asked again', by: 'Amy', said: 'keep five tries', files: [SESSIONS],
       keeps: ['PLAN-20261006-lockout/auth.lockout'], at: '2026-10-07T09:00:00.000Z' }, { t: 'ready', scope: [SESSIONS], level: 'normal' }]) });
   [LOGIN, JOB].forEach((file) => fs.appendFileSync(path.join(repo, file), '# changed\n')); // the branch's work; no plan touched either
   const related = run(WORLD.bin, ['decisionbook', 'related', LOGIN, '--target', repo]);
   assert.equal(related.code, 0, related.err);
   assert.match(related.out, /^- PLAN-20261001-session-expiry draft \(2026-10-01\): Session expiry$/m, 'the card says its date');
-  assert.match(related.out, /^ {2}decisions: auth\.lockout = 5 tries \(by the AI, kept by Ayse 2026-10-07\)/m, 'a decision says who kept it, when');
+  assert.match(related.out, /^ {2}decisions: auth\.lockout = 5 tries \(by the AI, kept by Amy 2026-10-07\)/m, 'a decision says who kept it, when');
   assert.match(related.out, /^a record could not be read: \.decisionbook\/PLAN-20261005-torn\.jsonl \(record-invalid\); /m, 'a torn record is named');
   assert.match(related.out, /^not researched: no plan touched app\/controllers\/login_controller\.rb; /m, 'the work\'s file no plan touched');
   assert.match(related.out, /no proof it holds today: check the code/, 'history found is not proof');
@@ -110,7 +110,7 @@ test('[I-19] through the real bin each item handed says its source, day, why pic
   const pack = run(WORLD.bin, ['decisionbook', 'plan', LOGIN, JOB, '--target', repo]);
   assert.equal(pack.code, 0, pack.err);
   assert.match(pack.out, new RegExp(/^from PLAN-20261006-lockout [(]2026-10-01; here by folder app\/controllers; whole: atlasbound decisionbook show /.source +
-    /PLAN-20261006-lockout decisions\):\n- auth\.lockout = 5 tries \(the AI, kept by Ayse 2026-10-07\)$/.source, 'm'), 'the pack says each source');
+    /PLAN-20261006-lockout decisions\):\n- auth\.lockout = 5 tries \(the AI, kept by Amy 2026-10-07\)$/.source, 'm'), 'the pack says each source');
   assert.match(pack.out, /^from PLAN-20261003-remember-me [(]2026-10-01; here by key area auth; /m, 'picked by its key');
   assert.match(pack.out, /^not researched: no plan touched app\/controllers\/login_controller\.rb, app\/jobs\/cleanup_job\.rb, /m, 'the work\'s files');
   assert.match(pack.out, /^a record could not be read: \.decisionbook\/PLAN-20261005-torn\.jsonl/m);

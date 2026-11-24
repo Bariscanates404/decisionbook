@@ -7,7 +7,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const decisionbook = require('@atlasbound/decisionbook');
-const { bookWorld: world, recordsFor, logFile, planRecords, added, wire } = require('./world.cjs');
+const { PERSON, bookWorld: world, recordsFor, logFile, planRecords, added, wire } = require('./world.cjs');
 
 const { verbs } = decisionbook;
 const HEAD = { title: 'Report export is slow', why: 'large exports time out', success: 'a 10,000 row export finishes in 5 s', kind: 'feature', level: 'normal' };
@@ -38,7 +38,10 @@ test('without the person yes the same call leaves a draft and names the missing 
   assert.deepEqual([yes.out.state.ready, planRecords(io, id).at(-1).t], [true, 'ready'], 'the second and last call: the yes makes it READY');
   // normal work with fewer than 3 research records on files read in its sessions gets one note at READY, never a refusal
   const note = decisionbook.codes.WORDS.researchNote.replace('{read}', '0').replace('{needs}', '3');
-  assert.equal(yes.text, `${id}: confirm recorded\n${id} READY as normal work. ${decisionbook.codes.WORDS.frozen}\n${note}\n`, 'READY says the freeze');
+  const { frozen, whoDecided } = decisionbook.codes.WORDS;
+  const decided = [1, 2, 3].map((n) => `  you (${PERSON}) decided: report.export.rule${n} = v${n}`).join('\n');
+  assert.equal(yes.text, `${id}: confirm recorded\n${id} READY as normal work. ${frozen}\n${whoDecided}\n${decided}\n${note}\n`,
+    'READY says the freeze, and who decided what for the person to see');
   const again = await added(io, id, { t: 'note', text: 'more' });
   assert.deepEqual([again.out.state.ready, planRecords(io, id).filter((r) => r.t === 'ready').length], [true, 1], 'a later write tells READY, stores no second one');
 });

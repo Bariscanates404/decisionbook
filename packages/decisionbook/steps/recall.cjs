@@ -13,6 +13,7 @@ const { SEEDS, namedFiles, workFiles, cardsFor } = require('./area.cjs');
 const { untouchedOf } = require('../core/recall.cjs');
 const { packFor } = require('./pack.cjs');
 const { planPrompt } = require('./read.cjs');
+const { closeStanding } = require('./closing.cjs');
 const { contractSay, promptContract } = require('./promise.cjs');
 const store = require('./store.cjs');
 const { openItems } = require('./touch.cjs');
@@ -23,12 +24,14 @@ const PACKED = ['prompt-nudge']; // where a task prompt is told to plan, the pla
 const HELD = ['prompt-resume', 'prompt-earlier'];
 
 // a coded failure of the walk keeps today's answer, counted in n (recallUnread), so the nudge and the pack never go; a statement the
-// prompt holds is kept and its contract said in this same answer
+// prompt holds is kept and its contract said in this same answer; the rule of whose words a decision holds comes last, after the
+// cards or the pack, and takes none of their room
 async function recallPrompt(event, io) {
-  const contract = await promptContract(event, io);
-  const asked = await planPrompt(event, io);
-  const say = [...contract.say, ...(asked.out.say || [])];
-  const said = { ...asked, out: { ...asked.out, ...(say.length && { say }) }, n: { ...asked.n, ...contract.n } };
+  const { rule = [], ...said } = await promptSaid(event, io);
+  const told = await recalled(said, event, io);
+  return rule.length ? { ...told, out: { ...told.out, say: [...(told.out.say || []), ...rule] } } : told;
+}
+async function recalled(said, event, io) {
   const text = String(event.prompt || '').trim();
   if (HELD.includes(said.code) || !isTaskPrompt(text)) return said;
   const session = event.session_id ?? null;
@@ -40,6 +43,15 @@ async function recallPrompt(event, io) {
     return { ...said, n: { ...said.n, recallUnread: 1 } };
   }
 }
+/** What every prompt is told before any card or pack: a contract its statement made, the plan's line, and as its context (said each
+ * time: the person's own ask) the close the session's plan waits for, or the commit its close left. */
+async function promptSaid(event, io) {
+  const contract = await promptContract(event, io);
+  const asked = await planPrompt(event, io);
+  const say = [...contract.say, ...(asked.out.say || [])];
+  const context = [asked.out.context, (await closeStanding(io, event.session_id)).told].filter(Boolean).join('\n');
+  return { ...asked, out: { ...asked.out, ...(say.length && { say }), ...(context && { context }) }, n: { ...asked.n, ...contract.n } };
+}
 
 async function promptCards(said, text, session, io) {
   const web = store.readWeb(io);
@@ -49,7 +61,8 @@ async function promptCards(said, text, session, io) {
   const room = RECALL_BYTES - Buffer.byteLength(nudge.map((s) => s.text).join(''));
   const { say, n } = await cardsFor(io, web, { files, text, branch, session, said: saidByPack(io, session) }, room);
   if (!n.cards) return { ...said, n: { ...said.n, ...n } };
-  return { out: { code: 'prompt-recall', say: [...say, ...nudge] }, code: 'prompt-recall', n: { ...said.n, ...n, nudged: nudge.length } };
+  const out = { code: 'prompt-recall', say: [...say, ...nudge], ...(said.out.context && { context: said.out.context }) };
+  return { out, code: 'prompt-recall', n: { ...said.n, ...n, nudged: nudge.length } };
 }
 
 // the pack is said once per context by the cli's one rule, a later different one as its short line; a record that uses one of its plans

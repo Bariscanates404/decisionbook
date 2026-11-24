@@ -8,7 +8,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { makeWorld, makeRepo, git, run, runAll, typedYes, cleanEnv, tmp } = require('./support.cjs');
+const { makeWorld, makeRepo, knownIn, git, run, runAll, typedYes, cleanEnv, tmp } = require('./support.cjs');
 
 test('the short word db stands for the first word decisionbook, and a word the table does not hold is no verb', () => {
   const world = makeWorld();
@@ -32,10 +32,10 @@ test('[I-5] the decisionbook group reaches the package: new, add, ready after th
     text: 'export' },
     { t: 'link', rel: 'plans', to: 'file:src/report/export.rb', why: 'the rounding' }, { t: 'check', id: 'AC-1', text: 'totals match', command: 'rake test' },
     { t: 'item', kind: 'task', text: 'round once', covers: ['AC-1'] }, { t: 'decision', key: 'report.rounding', value: 'half-even', why: 'audit',
-      by: 'developer' }]) {
+      whose: 'person' }]) {
     assert.equal(ab('decisionbook', 'add', id, JSON.stringify(record)).code, 0);
   }
-  assert.match(ab('decisionbook', 'ready', id).out, /not READY as small fix: 4 of 5 rows met\n {2}ready-no-confirm: show the person the plan/,
+  assert.match(ab('decisionbook', 'ready', id).out, /not READY as small fix: 4 of 5 rows met\n {2}ready-no-confirm: the one rule of the yes/,
     'the person\'s yes comes before READY');
   for (const record of [{ t: 'confirm', by: 'developer', said: 'yes' }]) {
     assert.equal(ab('decisionbook', 'add', id, JSON.stringify(record)).code, 0);
@@ -66,7 +66,8 @@ test('[I-5] the decisionbook group reaches the package: new, add, ready after th
     `atlasbound: plan-close-merged: ${id}: backup holds HEAD too: own commits unknown, nothing recorded\n${routes.map((r) => `  ${r}\n`).join('')}`]);
   git(repo, 'branch', '-D', 'backup');
   const closed = JSON.parse(ab('decisionbook', 'close', id, '--json').out);
-  assert.deepEqual([closed.own.length, closed.files], [1, ['src/report/export.rb']]);
+  assert.deepEqual([closed.own.length, closed.files, closed.rides, closed.into], [0, ['src/report/export.rb'], ['src/report/export.rb'],
+    git(repo, 'rev-parse', 'HEAD').trim()], 'the work was committed first, made here and held by no other ref: the record goes into that commit');
   assert.match(ab('decisionbook').out, /^Plan before code: one `atlasbound decisionbook new`/, 'the bare group is the plan line');
   assert.ok(fs.existsSync(path.join(repo, '.decisionbook', `${id}.jsonl`)), 'the history is a plain file in the repository');
 });
@@ -96,7 +97,7 @@ const gap = (id, status, over) => ({ t: 'item', kind: 'gap', gap: id, status, ..
 const SWEEP = [{ t: 'question', q: 'Q1',
   text: 'Polls that already have more options than a lowered limit: keep them and their votes, or refuse their edit? Default: keep.',
   decides: 'gap.existing-data', whyNotCode: 'a product rule: no file says which', blocking: true },
-{ t: 'decision', key: 'poll.existing-options', value: 'keep', why: 'no vote is lost', by: 'developer', answers: 'Q1', effect: ['check:AC-2'] },
+{ t: 'decision', key: 'poll.existing-options', value: 'keep', why: 'no vote is lost', whose: 'person', answers: 'Q1', effect: ['check:AC-2'] },
 gap('existing-data', 'asked', { q: 'Q1', text: 'existing polls above a lowered limit' }), gap('invalid-input', 'evidence', { run: PROBE,
   text: 'a bad value gives nil: fall back to 4' }),
 gap('config-docs', 'evidence', { source: 'src/poll/limit.rb:1', text: 'the limit is defined here only' }),
@@ -174,7 +175,7 @@ test('new and add take their JSON from standard input when the JSON word is not 
 test('a question a person settled is refused until it names that decision; the person\'s answer naming it then replaces it', () => {
   const world = makeWorld();
   const repo = makeRepo({ 'lib/errors.js': 'module.exports = {};\n' });
-  const home = tmp('cli-home-');
+  const home = knownIn(repo, tmp('cli-home-'));
   const person = (...args) => run(world.bin, [...args, '--target', repo], { env: { ...typedYes().env, HOME: home } });
   const ai = (args, input) => run(world.bin, [...args, '--target', repo], { input, env: { HOME: home, CLAUDE_CODE_SESSION_ID: 'a1' } });
   const prompted = (text) => run(world.bin, ['hook', 'UserPromptSubmit'], { cwd: repo, env: { HOME: home, CLAUDE_PROJECT_DIR: repo },
@@ -185,7 +186,7 @@ test('a question a person settled is refused until it names that decision; the p
   const head = { why: 'callers need to tell errors apart', success: 'the type is thrown', kind: 'feature', level: 'micro' };
   // an earlier task: a person decided the error type on this file, at their terminal
   const first = person('decisionbook', 'new', JSON.stringify({ ...head, title: 'Error type', records: [...records,
-    { t: 'decision', key: 'errortype', value: 'a plain Error with a code', why: 'small', by: 'developer', files: ['lib/errors.js'] },
+    { t: 'decision', key: 'errortype', value: 'a plain Error with a code', why: 'small', whose: 'person', files: ['lib/errors.js'] },
     { t: 'confirm', by: 'developer', said: 'yes' }] }));
   assert.equal(first.code, 0, first.err);
   const old = first.out.split(' ')[0];
@@ -193,7 +194,7 @@ test('a question a person settled is refused until it names that decision; the p
   const asked = { t: 'question', q: 'Q1', text: 'should a class replace the plain Error here?', decides: 'errortype', whyNotCode: 'a team rule' };
   const refused = ai(['decisionbook', 'new'], JSON.stringify({ ...head, title: 'Error class', records: [...records, asked] }));
   assert.equal(refused.code, 1);
-  assert.ok(refused.err.startsWith(`atlasbound: question-settled: nothing written: record 6 of 6: Q1: ${old}/errortype = a plain Error with a code (by the person)`)
+  assert.ok(refused.err.startsWith(`atlasbound: question-settled: nothing written: record 6 of 6: Q1: ${old}/errortype = a plain Error with a code (by Ada)`)
     && refused.err.endsWith(`Their answer then says which: "supersedes":["${old}/errortype"] on their decision replaces it, "keeps":["${old}/errortype"] keeps it\n`),
   refused.err);
   // ONE further call: the same new, its question naming the decision as the refusal says
@@ -204,22 +205,22 @@ test('a question a person settled is refused until it names that decision; the p
   assert.match(made.out, new RegExp(`^${id} not READY as small fix: 3 of 5 rows met$`, 'm'));
   assert.deepEqual(made.out.split('\n').filter((line) => /^ {2}ready-/.test(line)).map((line) => line.trim().split(':')[0]),
     ['ready-open-question', 'ready-no-confirm'], 'the plan waits for the person and for nothing else');
-  assert.match(ai(['decisionbook', 'show', 'decision:errortype']).out, /= a plain Error with a code \(small; by the person\) active/, 'a question binds nothing');
+  assert.match(ai(['decisionbook', 'show', 'decision:errortype']).out, /= a plain Error with a code \(small; by Ada\) active/, 'a question binds nothing');
   const ANSWER = 'yes, use the class instead of the plain error'; // their answer, naming what it replaces: the new decision and their yes
-  const theirs = { t: 'decision', key: 'errortype', value: 'a class', why: 'callers switch on it', by: 'developer', said: ANSWER, answers: 'Q1',
+  const theirs = { t: 'decision', key: 'errortype', value: 'a class', why: 'callers switch on it', whose: 'person', said: ANSWER, answers: 'Q1',
     effect: ['check:AC-1'], supersedes: naming.supersedes };
   const early = ai(['decisionbook', 'add', id], JSON.stringify([theirs])); // before any message of theirs: refused, nothing written
   assert.match(early.err, /^atlasbound: said-not-theirs: nothing written: /, early.out);
-  assert.match(ai(['decisionbook', 'show', 'decision:errortype']).out, /= a plain Error with a code \(small; by the person\) active/);
+  assert.match(ai(['decisionbook', 'show', 'decision:errortype']).out, /= a plain Error with a code \(small; by Ada\) active/);
   assert.equal(prompted(ANSWER).code, 0);
   const done = ai(['decisionbook', 'add', id], JSON.stringify([theirs]));
-  assert.match(done.out, new RegExp(`^recorded as the person's: errortype: "${ANSWER}", replaces ${old}/errortype$`, 'm'), done.out);
+  assert.match(done.out, new RegExp(`^recorded, by Ada: errortype: "${ANSWER}", replaces ${old}/errortype$`, 'm'), done.out);
   assert.match(done.out, new RegExp(`^${id} READY as small fix; parked: ${old}\\. Frozen: `, 'm'), done.err);
   const rows = fs.readFileSync(path.join(repo, '.decisionbook', `${id}.jsonl`), 'utf8').trim().split('\n').map((line) => JSON.parse(line));
-  assert.deepEqual(rows.filter((row) => row.t === 'decision').map((row) => [row.by, row.value, row.supersedes]), [['the person', 'a class', naming.supersedes]],
+  assert.deepEqual(rows.filter((row) => row.t === 'decision').map((row) => [row.by, row.value, row.supersedes]), [['Ada', 'a class', naming.supersedes]],
     'the AI\'s reading of their answer, with what it replaces, as theirs');
   assert.match(ai(['decisionbook', 'show', 'decision:errortype']).out,
-    new RegExp(`a plain Error with a code \\(small; by the person\\) superseded by ${id}/errortype \\(the person, \\d{4}-\\d\\d-\\d\\d: "${ANSWER}"\\)`));
+    new RegExp(`a plain Error with a code \\(small; by Ada\\) superseded by ${id}/errortype \\(Ada, \\d{4}-\\d\\d-\\d\\d: "${ANSWER}"\\)`));
 });
 
 test('many `new` at once, each its own process: each keeps its own plan file and rows; 20 `add` at once to one file all land', async () => {

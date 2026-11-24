@@ -11,7 +11,7 @@ const { isShown } = require('../../base/text.cjs');
 const { boundedLines } = require('./budget.cjs');
 const { jsonCall } = require('./calls.cjs');
 const { decisionLine, stepLine, gapLine, linkLine, confirmLines, assumptionLine, shippedCounts, planContractLine,
-  levelLine, deciderOf } = require('./records.cjs');
+  levelLine, deciderOf, putOffSaid } = require('./records.cjs');
 
 const SHOW_BYTES = 6144;
 const FOUND_SHOWN = 20;
@@ -28,10 +28,10 @@ function planItemLine(i) {
   const covers = i.covers.length ? ` (covers ${shown.covers(i.covers.join(', '))})` : '';
   return `${i.kind}: ${shown.text(i.text)}${covers}`;
 }
-const questionLine = (q) => `- ${shown.q(q.q)} ${q.answered ? 'answered' : 'OPEN'}: ${shown.text(q.text)}`;
+const questionLine = (q) => `- ${shown.q(q.q)} ${q.answered ? 'answered' : 'OPEN'}: ${shown.text(q.text)}${putOffSaid(q.later)}`;
 // an older record names no one who closed it
-const closedLine = (closed) => filled(WORDS.closedCounts, { by: closed.by ? ` by ${deciderOf(closed.by)}` : '', counts: shippedCounts(closed),
-  other: closed.other });
+const closedLine = (closed) => `${filled(WORDS.closedCounts, { by: closed.by ? ` by ${deciderOf(closed.by)}` : '', counts: shippedCounts(closed),
+  other: closed.other })}${closed.waits ? WORDS.closedWaits : ''}`;
 const plansFirst = (a, b) => refIs('plan', b.to) - refIs('plan', a.to);
 
 // the lines of each node `show` may hold, in the order they are said

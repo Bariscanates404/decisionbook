@@ -79,7 +79,7 @@ test('modules off handoff: its rows, command and rules go, its home data stays; 
   assert.equal(made.code, 0, made.err);
   const id = made.out.split(' ')[0];
   assert.equal(said('s1', 'UserPromptSubmit', { prompt: 'Four options at most. Yes, go ahead.' }).code, 0);
-  const answer = { t: 'decision', key: 'poll.max', value: '4', why: 'their limit', by: 'the person', said: 'Four options at most.', answers: 'Q1',
+  const answer = { t: 'decision', key: 'poll.max', value: '4', why: 'their limit', whose: 'person', said: 'Four options at most.', answers: 'Q1',
     effect: [`file:${FILE}`] };
   const added = ai('s1', 'decisionbook', 'add', id, JSON.stringify([answer, { t: 'confirm', by: 'the person', said: 'Yes, go ahead.' }]));
   assert.equal(added.code, 0, added.err);

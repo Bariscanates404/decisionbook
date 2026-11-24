@@ -3,24 +3,31 @@
 // See LICENSE and NOTICE in the package root.
 'use strict';
 // `inbox`: what waits for the person, read from the plans the repository holds and written nowhere: the open items (steps/touch), each
-// conflict once, a draft's open questions (one parked with someone else waits for them), a READY plan not closed, a plan set aside; on
-// this branch, then those pulled from other branches, each with who committed it.
-const { isAnswered, conflictsIn, lineIn } = require('../base/text.cjs');
+// conflict once, a draft's open questions, the questions parked with someone on the team (steps/teammate parkedWaiting: whoever asked,
+// so the one who talks to that person brings the answer), a READY plan not closed (or closed with its record in no commit yet), a plan
+// set aside; on this branch, then those pulled from other branches, each with who committed it.
+const { isAnswered, putOff, conflictsIn, lineIn } = require('../base/text.cjs');
 const { openLines } = require('../core/text/open.cjs');
 const { planHeldBy } = require('../core/gate.cjs');
+const { parkedWaiting } = require('./teammate.cjs');
+const { reopened } = require('./closing.cjs');
 const store = require('./store.cjs');
 const { openItems } = require('./touch.cjs');
 
-const WAITS = ['merge', 'unread', 'lost', 'question', 'ready', 'aside']; // the order the rows are said in
+const WAITS = ['merge', 'unread', 'lost', 'question', 'parked', 'ready', 'aside']; // the order the rows are said in
 
 /** A plan's rows that wait for a person, each { id, branch, title, waits } and what it waits on. */
 function waitingOf(v) {
   const row = { id: v.id, branch: v.branch, title: v.title };
   if (v.state === 'draft') {
-    return v.questions.filter((q) => !q.to && !isAnswered(v, q)).map((q) => ({ ...row, waits: 'question', q: q.q, text: q.text, proposal: q.proposal }));
+    return v.questions.filter((q) => !q.to && !isAnswered(v, q)).map((q) => ({ ...row, waits: 'question', q: q.q, text: q.text, proposal: q.proposal,
+      later: putOff(v, q) }));
   }
   // parked: an older READY of its branch; held: it covers no edit, and by what (core/gate planHeldBy: the gate's code)
-  if (['ready', 'parked'].includes(v.state)) return [{ ...row, waits: 'ready', held: Boolean(planHeldBy(v)), heldBy: planHeldBy(v) }];
+  // `unsealed`: closed with no commit holding the record yet (steps/closing reopened): it waits for its one commit
+  if (['ready', 'parked'].includes(v.state)) {
+    return [{ ...row, waits: 'ready', held: Boolean(planHeldBy(v)), heldBy: planHeldBy(v), unsealed: v.stage === 'closed' }];
+  }
   return v.state === 'aside' ? [{ ...row, waits: 'aside', said: v.aside.said, asideBy: v.aside.by }] : [];
 }
 
@@ -46,12 +53,13 @@ function itemRows(web, items, branch) {
 }
 
 async function inbox(_args, io) {
-  const web = store.readWeb(io);
   const branch = await io.git.branch();
+  const web = await reopened(io, store.readWeb(io), branch);
   const items = await openItems(io, web);
   // a lost plan: its item's row stands for it, and where the person set it aside that row too (aside clears no item)
   const seen = web.views.filter((v) => v.state === 'aside' || !items.lost.some((l) => l.plan === v.id));
-  const all = [...itemRows(web, items, branch), ...conflictRows(seen, branch), ...seen.flatMap(waitingOf)];
+  const parked = (await parkedWaiting(io, seen)).map((row) => ({ ...row, waits: 'parked' }));
+  const all = [...itemRows(web, items, branch), ...conflictRows(seen, branch), ...seen.flatMap(waitingOf), ...parked];
   const rows = WAITS.flatMap((waits) => all.filter((r) => r.waits === waits));
   const others = rows.filter((r) => r.branch !== branch);
   const ids = [...new Set(others.map((r) => r.id))];

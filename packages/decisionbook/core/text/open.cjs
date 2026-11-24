@@ -9,8 +9,9 @@ const { WORDS, SHOWN: { open: shown } } = require('../../contracts/codes.cjs');
 
 const NONE = { merge: [], unread: [], lost: [] };
 /** The one line for the records not read ([{ file, code }]): five files and how many more; none: no line. */
-const unreadLines = (unread, files = unread.map((r) => `${r.file} (${r.code})`)) => (files.length ? [filled(WORDS.absent.unread,
-  { files: shown.files(`${files.slice(0, 5).join(', ')}${files.length > 5 ? ` (+${files.length - 5} more)` : ''}`) })] : []);
+const firstFive = (files) => `${files.slice(0, 5).join(', ')}${files.length > 5 ? ` (+${files.length - 5} more)` : ''}`;
+const unreadLines = (unread, files = unread.map((r) => `${r.file} (${r.code})`)) => (files.length
+  ? [filled(WORDS.absent.unread, { files: shown.files(firstFive(files)) })] : []);
 // a teammate's plan's item (`author`: steps/touch) says who clears it, never the record to write here
 const lostLine = (l) => filled(`${WORDS.lostAfter} ${l.author ? WORDS.lostTheirs : WORDS.lostMine}`, { ...l, files: shown.files(l.files.join(', ')),
   value: shown.value(String(l.value)), now: shown.value(String(l.now)), author: shown.author(l.author ?? '') });
@@ -23,4 +24,4 @@ const openLines = ({ merge, unread, lost }, ids = null) => [...merge.map((m) => 
 const leadLines = ({ merge, unread }) => [...(merge.length ? [WORDS.mergeFirst, ...merge.map((m) => m.why)] : []),
   ...(unread.length ? [WORDS.unreadFirst, ...unreadLines(unread)] : [])];
 
-module.exports = { NONE, lostLine, unreadLines, openLines, leadLines };
+module.exports = { NONE, lostLine, firstFive, unreadLines, openLines, leadLines };

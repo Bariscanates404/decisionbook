@@ -13,7 +13,7 @@ const { bookWorld, begin, added, refusedWith, logFile, lastN, readOf, textOf } =
 const { verbs, handlers } = decisionbook;
 const STATUS = 'app/models/status.rb';
 const REPLY = 'app/models/reply.rb';
-const SCOPE = { t: 'decision', key: 'policy.scope', value: 'the top post decides at any depth', why: 'the team asked', by: 'ai', files: [STATUS] };
+const SCOPE = { t: 'decision', key: 'policy.scope', value: 'the top post decides at any depth', why: 'the team asked', whose: 'assumed', files: [STATUS] };
 const ASKED = 'Who decides at any depth';
 const linksIn = (io, id) => io.fs.readText(logFile(id)).trim().split('\n').map((line) => JSON.parse(line))
   .filter((r) => r.t === 'link' && r.rel === 'built-on');
@@ -80,7 +80,7 @@ test('[I-4] a recall card given and a decided key reused link too, and the link 
   const { io, older, newer } = await chain();
   assert.equal((await handlers.recall(readOf(STATUS, 's1'), io)).code, 'recall-given', 'the earlier plan\'s card');
   await added(io, newer, { t: 'decision', key: 'policy.scope', scope: 'reply requests', value: 'the top post author decides on requests',
-    why: 'it follows the reply policy', by: 'ai', files: [REPLY] });
+    why: 'it follows the reply policy', whose: 'assumed', files: [REPLY] });
   const why = 'decision policy.scope ← decision policy.scope';
   assert.deepEqual(linksIn(io, newer).map((l) => [l.to, l.why, l.source]), [[`plan:${older}`, why, 'read: card']]);
   assert.deepEqual(await showLinks(io, newer), [[`plan:${newer}`, 'built-on', `plan:${older}`, why]]);
@@ -106,10 +106,10 @@ test('[I-4] decisionbook related only reads; a link the person removes is gone f
   const before = await states(io);
   const unlink = { t: 'unlink', rel: 'built-on', to: `plan:${older}`, why: 'the gap was closed from the code, not from it' };
   assert.equal((await refusedWith(io, newer, { ...unlink, by: 'ai' }))[0], 'unlink-by-person');
-  assert.equal((await refusedWith(io, newer, { ...unlink, by: 'Ayse' }))[0], 'unlink-by-person', 'a name is no person: no message of theirs');
+  assert.equal((await refusedWith(io, newer, { ...unlink, by: 'Amy' }))[0], 'unlink-by-person', 'a name is no person: no message of theirs');
   const prompt = { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt: 'that link is wrong, remove it' };
   await decisionbook.handlers.prompt(prompt, io);
-  await added(io, newer, { ...unlink, by: 'Ayse' });
+  await added(io, newer, { ...unlink, by: 'Amy' });
   assert.deepEqual([await showLinks(io, newer), await showLinks(io, older)], [[], []]);
   const again = await added(io, newer, { t: 'note', text: `see ${older}` });
   assert.deepEqual([again.out.linked, linksIn(io, newer).length], [[], 1], 'the person\'s removal holds');
@@ -122,7 +122,7 @@ test('[I-4] decisionbook related only reads; a link the person removes is gone f
 // with the older one and was linked to it as built on it.
 test('[I-3] one bare key in two plans of other files is no conflict and no link; a shared file or a key that names its area is', async () => {
   const { io, older, newer } = await chain();
-  const layout = (value) => ({ t: 'decision', key: 'layout', value, why: 'the page', by: 'ai' });
+  const layout = (value) => ({ t: 'decision', key: 'layout', value, why: 'the page', whose: 'assumed' });
   await added(io, older, layout('right of the title'));
   assert.equal((await handlers.recall(readOf(STATUS, 's1'), io)).code, 'recall-given', 'the earlier plan\'s card was read');
   await added(io, newer, layout('a new fourth tab'));
@@ -140,7 +140,7 @@ test('[I-3] one bare key in two plans of other files is no conflict and no link;
 // with the rule a write links by: it is no link until the two plans meet.
 test('[I-3] a stored link of one bare key between plans that do not meet is not shown; once they share a file it is', async () => {
   const { io, older, newer } = await chain();
-  const layout = (value) => ({ t: 'decision', key: 'layout', value, why: 'the page', by: 'ai' });
+  const layout = (value) => ({ t: 'decision', key: 'layout', value, why: 'the page', whose: 'assumed' });
   await added(io, older, layout('right of the title'));
   await added(io, newer, layout('a new fourth tab'));
   const stored = { t: 'link', rel: 'built-on', to: `plan:${older}`, why: 'decision layout ← decision layout', source: 'read: card', at: '2026-11-02T06:00:00.900Z' };

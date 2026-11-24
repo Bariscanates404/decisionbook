@@ -14,7 +14,7 @@ const { bookWorld, writeConfig, begin, added, logFile, planRecords, waitsForAnsw
 const FILE = 'src/store.js';
 const KEY = 'history.limit';
 const limitAsk = (q, decides, text) => ({ t: 'question', q, text, decides, whyNotCode: 'a product choice', proposal: '100', blocking: true });
-const limit = (value, more = {}) => ({ t: 'decision', key: KEY, value, why: 'theirs', by: 'the person', said: `Keep ${value}.`,
+const limit = (value, more = {}) => ({ t: 'decision', key: KEY, value, why: 'theirs', whose: 'person', said: `Keep ${value}.`,
   answers: 'Q1', effect: [`file:${FILE}`], ...more });
 const CONFLICT = 'CONFLICT (2 person decisions in this plan, none replacing another; none holds until the person says which)';
 
@@ -55,7 +55,7 @@ test('two documented changes of one line from two branches: every reader names t
   const first = planRecords(io, id).find((r) => r.value === '100').at;
   assert.deepEqual(stamps, [undefined, [first], [first]]);
   for (const [reader, text] of await readers(io, id)) {
-    for (const part of [CONFLICT, 'by the person: "Keep 50."', 'by the person: "Keep 200."']) assert.ok(text.includes(part), `${reader}:\n${text}`);
+    for (const part of [CONFLICT, 'by Amy: "Keep 50."', 'by Amy: "Keep 200."']) assert.ok(text.includes(part), `${reader}:\n${text}`);
     assert.doesNotMatch(text, /history\.limit = (50|200) /, `${reader} names no holder:\n${text}`); // 100 shows only as history
   }
   assert.ok(await waitsForAnswer(io, id));
@@ -67,7 +67,7 @@ test('two documented changes of one line from two branches: every reader names t
 test('a write on the files of a key in conflict is told the conflict, never one of its lines as the decision that stands', async () => {
   const side = (value) => (id) => [limit(value, { supersedes: [`${id}/${KEY}`], files: [FILE] })];
   const { io, id } = await limitWorld([side('50'), side('200')]);
-  const { text } = await added(io, id, { t: 'decision', key: 'history.shape', value: 'a ring buffer', why: 'read in the store', by: 'ai',
+  const { text } = await added(io, id, { t: 'decision', key: 'history.shape', value: 'a ring buffer', why: 'read in the store', whose: 'assumed',
     effect: [`file:${FILE}`], files: [FILE] });
   for (const part of ['decisions already on these files', CONFLICT, '"Keep 50."', '"Keep 200."']) assert.ok(text.includes(part), text);
   assert.doesNotMatch(text, /history\.limit = (50|200)/, text);
@@ -81,7 +81,7 @@ test('a side that changed its answer twice meets the other side\'s answer as a r
     assert.ok(await waitsForAnswer(io, id), `${order}`);
   }
   // no line before them: one side answers and then changes it, the other answers once
-  const option = (value, more = {}) => () => [{ t: 'decision', key: 'history.option', value, why: 'theirs', by: 'the person',
+  const option = (value, more = {}) => () => [{ t: 'decision', key: 'history.option', value, why: 'theirs', whose: 'person',
     said: `Make it ${value}.`, answers: 'Q2', effect: [`file:${FILE}`], ...more }];
   const twice = (i) => [...option('on')(i), ...option('off', { supersedes: [`${i}/history.option`] })(i)];
   for (const order of [[0, 1], [1, 0]]) {
@@ -110,7 +110,7 @@ test('a line with no stamp replaces none, so such a file shows its conflict; the
 });
 
 test('a READY plan whose key two branches changed covers no edit until the person answers; then it does, with no new yes', async () => {
-  const option = { t: 'decision', key: 'history.option', value: 'yes', why: 'theirs', by: 'the person', said: 'Yes, an option.', answers: 'Q2',
+  const option = { t: 'decision', key: 'history.option', value: 'yes', why: 'theirs', whose: 'person', said: 'Yes, an option.', answers: 'Q2',
     effect: [`file:${FILE}`] };
   const { io, id } = await limitWorld([change('50'), change('200')], [option]);
   assert.equal(planRecords(io, id).filter((r) => r.t === 'ready').length, 1, 'READY before the branches');

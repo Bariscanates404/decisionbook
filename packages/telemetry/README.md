@@ -2,7 +2,7 @@
 
 The one package allowed on the network. It reads the product's own trace, folds each closed day into one report per module of counts,
 ranges and closed words, and sends it only for a module a person turned on. Nothing a repository wrote (code, a path, a name, a value)
-has a field to ride in. In this build the address is empty: nothing is dialled, whatever is chosen.
+has a field to ride in. The address is data (`contracts/wire.json`): one service; with the row empty nothing is dialled.
 
 ## Flows the tests prove
 
@@ -37,5 +37,8 @@ environment switch. A module registers by its own `contracts/telemetry.json`; te
   old ids sent (pending while it cannot be reached, at most 14 tries).
 - With an address set and nobody's choice, setup asks a person at a plain terminal once per module (Enter = yes); an AI session, a
   pipe, `--json` or an environment switch is asked nothing.
+- Under the beta's default (`unchosen: on`) nothing is asked: the notice is said once, by setup at a person's plain terminal or as the
+  host's own line at a session start, and the default holds from then on. An AI session's setup gets one line to pass on, which turns
+  nothing on.
 
 Works the same on any repository and language: it reads only the product's own trace files, never the repository's source.

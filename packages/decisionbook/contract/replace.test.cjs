@@ -49,7 +49,7 @@ async function replaceWorld(words, { naming = true, asks = words.asks, value = w
   const draft = [{ t: 'research', tool: 'read', asked: 'the presets', answer: 'a PRE list', source: `${LESSON}:1` }, { t: 'item', kind: 'precedent', text: 'the PRE list' },
     { t: 'link', rel: 'plans', to: `file:${LESSON}`, why: 'the calculator' }, { t: 'check', id: 'AC-1', text: 'it shows', command: 'node --check x' }];
   const old = (await verbs.create(io, { rest: [wire({ ...head, title: 'Hohmann calculator', records: [...draft,
-    { t: 'decision', key: 'inputs', value, why: 'scope', by: 'Elif', said: words.old }, { t: 'confirm', by: 'Elif', said: 'yes' }] })] })).out.id;
+    { t: 'decision', key: 'inputs', value, why: 'scope', whose: 'person', said: words.old }, { t: 'confirm', by: 'Eve', said: 'yes' }] })] })).out.id;
   io.state.branch = 'lesson-change';
   await handlers.start(starting('s1'), io);
   io.session = 's1';
@@ -74,15 +74,15 @@ test('[I-3] the person\'s answer that names a teammate\'s decision in supersedes
     const w = await replaceWorld(words);
     await w.say(asNumbered(words.said));
     const res = await w.add(theirThree(words, w.ref));
-    assert.deepEqual(w.decided(), [['Q1', 'the person', [w.ref]], ['Q2', 'the person', []], ['Q3', 'the person', []]], 'what their answer replaces, as the AI read it');
+    assert.deepEqual(w.decided(), [['Q1', 'Amy', [w.ref]], ['Q2', 'Amy', []], ['Q3', 'Amy', []]], 'what their answer replaces, as the AI read it');
     assert.equal(stateOf(res), 'READY', 'their answers are their yes: no second message');
     assert.deepEqual(await w.inputs(), [['old', 'superseded'], ['new', 'active']], 'one live decision of the key, never two');
     const shown = (await verbs.show(w.io, { rest: ['decision:inputs'] })).text;
-    assert.ok(shown.includes(` superseded by ${w.id}/inputs (the person, 2026-11-02: "${words.said[0]}")`), `who replaced it, when, their sentence:\n${shown}`);
+    assert.ok(shown.includes(` superseded by ${w.id}/inputs (Amy, 2026-11-02: "${words.said[0]}")`), `who replaced it, when, their sentence:\n${shown}`);
     const card = (await verbs.related(w.io, { rest: [LESSON] })).text;
-    assert.ok(card.includes(` replaced by ${w.id}/inputs (the person, 2026-11-02: "${words.said[0]}")`), card);
+    assert.ok(card.includes(` replaced by ${w.id}/inputs (Amy, 2026-11-02: "${words.said[0]}")`), card);
     w.io.state.branch = 'master'; // the teammate's next session on their READY plan reads their decision as replaced, never as settled
-    assert.ok((await verbs.resume(w.io, { rest: [] })).text.includes(`", replaced by ${w.id}/inputs (the person, 2026-11-02: "${words.said[0]}")`));
+    assert.ok((await verbs.resume(w.io, { rest: [] })).text.includes(`", replaced by ${w.id}/inputs (Amy, 2026-11-02: "${words.said[0]}")`));
   }
 });
 
@@ -92,7 +92,7 @@ test('[I-3] a replaced decision says so before the person\'s own sentence, in sh
   const w = await replaceWorld(TR, { value: 'Jüpiter yok, 0,4–5 AU.' });
   await w.say(asNumbered(TR.said));
   await w.add(theirThree(TR, w.ref));
-  const mark = `- inputs = Jüpiter yok, 0,4–5 AU. (scope; by the person) superseded by ${w.id}/inputs (the person, 2026-11-02: "${TR.said[0]}"); the person: "${TR.old}"`;
+  const mark = `- inputs = Jüpiter yok, 0,4–5 AU. (scope; by Amy) superseded by ${w.id}/inputs (Amy, 2026-11-02: "${TR.said[0]}"); Amy: "${TR.old}"`;
   assert.equal((await verbs.show(w.io, { rest: ['decision:inputs'] })).text.split('\n')[1], `${mark} in ${w.old}`);
   assert.ok((await verbs.show(w.io, { rest: [w.old, 'decisions'] })).text.split('\n').includes(mark));
 });
@@ -111,8 +111,6 @@ test('a question whose text or key names a person\'s decision is refused until i
   }
 });
 
-// A team session on Windows: the person's one answer to the replacing question was refused for the negation in what they decided,
-// their decisions were stored as "Evet." and "Aynen kalsın." with nothing of what they agreed to, and "5. Önerdiğin gibi." was the AI's.
 test('[I-3] a draft\'s decision that replaces one on the person\'s words shows as replacing it, pending until READY, no conflict', async () => {
   const w = await replaceWorld(TR, { asks: TR.asks.slice(0, 1) });
   await w.say('Evet.');
@@ -120,5 +118,14 @@ test('[I-3] a draft\'s decision that replaces one on the person\'s words shows a
     { t: 'question', q: 'Q2', text: 'Renk ne olsun?', decides: 'color', whyNotCode: 'taste', proposal: 'Mavi.', blocking: true }]);
   const lines = (await verbs.show(w.io, { rest: ['decision:inputs'] })).text.split('\n').filter((line) => line.startsWith('- inputs'));
   assert.deepEqual(lines.map((line) => [line.includes('CONFLICT'), line.includes(`replaces ${w.ref} (pending until READY)`)]), [[false, false], [false, true]],
-    lines.join('\n'));
+    lines.join('\n'));  // set aside before it was ever READY, the draft's line is history to every reader, as it is to the core
+  await w.say('Bunu bırak, vazgeçtim.');
+  await w.add([{ t: 'aside', by: '', said: 'Bunu bırak, vazgeçtim.' }]);
+  const after = (await verbs.show(w.io, { rest: ['decision:inputs'] })).text.split('\n').filter((line) => line.startsWith('- inputs'));
+  assert.deepEqual(after.map((line) => / (active|set aside)(?:[;, ]|$)/.exec(line)?.[1]), ['active', 'set aside'], after.join('\n'));
+  const value = TR.asks[0].proposal;
+  for (const verb of ['pack', 'related']) {
+    const text = (await verbs[verb](w.io, { rest: [LESSON] })).text;
+    assert.ok(!text.split('\n').some((line) => /^- inputs = /.test(line) && line.includes(value)), `${verb} serves no line of the plan set aside:\n${text}`);
+  }
 });

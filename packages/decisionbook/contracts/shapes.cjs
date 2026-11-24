@@ -12,9 +12,10 @@ const RECORD = require('./record.json');
 
 const SCHEMA = 'decisionbook-record/1';
 const DIR = '.decisionbook';
+const isBookFile = (key) => key.startsWith(`${DIR}/`); // a file of the store itself: a plan's records, the policy; never the work
 const CONFIG = `${DIR}/config.json`;
 /** One record as one line of a store's file, stamped with its time. */
-const storedLine = (record, at) => `${JSON.stringify({ ...record, at })}\n`;
+const storedLine = (record, at) => `${JSON.stringify({ ...record, at }, (key, value) => (typeof value === 'string' && secrets.find(value).length ? secrets.scrub(value) : value))}\n`; // one write path, screened
 const NUDGE_MIN = 20; // a prompt shorter than this is a reply, not a task
 /** A task prompt (the nudge's and the recall cards' one reading): neither a slash command nor a short reply. */
 const isTaskPrompt = (text) => text.length >= NUDGE_MIN && !text.startsWith('/');
@@ -35,7 +36,12 @@ const VERB_ONLY = ['plan', 'ready', 'closed']; // written by their own verb only
 
 const ENUMS = { ...RECORD.enums, schema: [SCHEMA], rel: Object.keys(RELS).filter((rel) => !RELS[rel].derived), level: LEVELS,
   gap: GAPS };
-const SHAPES = RECORD.shapes;
+// a decision as it is sent: the stored shape without what the product writes (who recorded it, whose answer it is, the commit, the
+// lines it revises), and `whose` (person, a teammate's name, assumed) in their place; an answer may leave key and why to its question
+const WRITTEN = ['by', 'saidBy', 'confirmed', 'head', 'revises'];
+const sentDecision = ({ t, key, value, why, said, ...rest }) => ({ t, key, value, why, whose: 'str', said,
+  ...Object.fromEntries(Object.entries(rest).filter(([field]) => !WRITTEN.includes(field))) });
+const SHAPES = { ...RECORD.shapes, DecisionSent: sentDecision(RECORD.shapes.decision) };
 /** The shape a record is read by: its type's, or the variant one of its fields names (record.json variants: a step item, a run probe). */
 function shapeOf(value) {
   const [field, by] = Object.hasOwn(RECORD.variants, value.t) ? RECORD.variants[value.t] : [];
@@ -84,9 +90,12 @@ function fieldsAsked(words) {
 const CHECKS = {
   link: [[(v) => !RELS[v.rel] || nodeOf(v.to).type === RELS[v.rel].to, 'node-invalid', (v) => `${v.rel} points at a ${RELS[v.rel].to}`],
     [(v) => v.why || (v.source && v.rel !== 'compared'), 'link-unsourced', (v) => `${v.rel} ${v.to}`]], // a comparison says what the code holds
+  // a question for someone else rests on what names them as the one to answer it
+  question: [[(v) => !v.to || v.source, 'question-unsourced', (v) => `${v.q} for ${v.to}`]],
   confirm: [[(v) => !isAi(v.by), 'confirm-by-person', (v) => v.by]],
   unlink: [[(v) => !isAi(v.by), 'unlink-by-person', (v) => v.by]], // removing a link DecisionBook wrote is the person's
   aside: [[(v) => !isAi(v.by), 'aside-not-asked', (v) => v.by]], // leaving an open plan for other work is the person's
+  later: [[(v) => !isAi(v.by), 'later-not-said', (v) => v.by]], // putting a question off is the person's
   // the refusal says what an effect is and the next step
   decision: [[effectHolds, 'decision-no-effect', (v) => `${v.key}: effect ${asList(v.effect).join(', ') || 'none'}: ${WORDS.effectIs}`],
     // a ref the person's answer both replaces and keeps is placed nowhere
@@ -114,17 +123,18 @@ function recordProblems(value) {
 
 /** For each record of `values` whose shape does not hold, once per kind: that kind's record with each required field a placeholder of
  * its type, and its optional fields, for the refusal to show the shape it takes. -> { routes } | {} */
+const SENT = { decision: 'DecisionSent' };
 function shapesTold(values) {
-  const told = values.filter((v) => v && typeof v === 'object' && SHAPES[shapeOf(v)] && bound.problems(shapeOf(v), v).length).map((v) => {
+  const sentAs = (v) => SENT[v.t] ?? shapeOf(v); // the shape a sender fills, where it is not the stored one
+  const told = values.filter((v) => v && typeof v === 'object' && SHAPES[shapeOf(v)] && bound.problems(sentAs(v), v).length).map((v) => {
     const [field] = shapeOf(v) === v.t ? [] : RECORD.variants[v.t]; // a variant (a step item, a run probe) keeps the word that names it
-    const { value, optional } = bound.example(shapeOf(v), { fixed: { t: v.t, ...(field ? { [field]: v[field] } : {}) } });
+    const { value, optional } = bound.example(sentAs(v), { fixed: { t: v.t, ...(field ? { [field]: v[field] } : {}) } });
     return `a ${field ? v[field] : v.t} record: ${JSON.stringify(value)}${optional.length ? ` (optional: ${optional.join(', ')})` : ''}`;
   });
   return told.length ? { routes: [...new Set(told)] } : {};
 }
 
-/** the name of the first text field kit's secret reader would clip (`said`, `answer`, `files.0`), or null; the value itself is never
- * named. */
+/** the name of the first text field kit's secret reader would clip (`said`, `files.0`), or null; never the value itself. */
 function secretField(value, at = null) {
   if (typeof value === 'string') return secrets.find(value).length ? at || 'value' : null;
   if (!value || typeof value !== 'object') return null;
@@ -136,5 +146,5 @@ function refuseSecrets(items, place) {
   if (at >= 0) throw fail('record-secret', `${place(at)}: ${secretField(items[at])}`);
 }
 
-module.exports = { SCHEMA, DIR, CONFIG, storedLine, isTaskPrompt, promptAs, asksLeave, RELS, BUILT_ON, SHAPES, shapeOf, isPlanLink,
-  plannedPath, refOf, refValue, refIs, bound, nodeOf, argOf, fieldsAsked, problemOf, recordProblems, shapesTold, refuseSecrets };
+module.exports = { SCHEMA, DIR, isBookFile, CONFIG, storedLine, isTaskPrompt, promptAs, asksLeave, RELS, BUILT_ON, SHAPES, shapeOf, bound,
+  isPlanLink, plannedPath, refOf, refValue, refIs, nodeOf, argOf, fieldsAsked, problemOf, recordProblems, shapesTold, refuseSecrets };

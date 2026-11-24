@@ -5,15 +5,16 @@ This describes the package `atlasbound` (the shared base, the command line, Deci
 ## Where it runs
 
 On your machine, inside your repository, when your AI session (Claude Code) calls its hooks or when you type an `atlasbound` command.
-It has no server. Its code opens one kind of network connection, described under Telemetry; in this build it opens none.
+Your code, your records and your prompts stay there. Its code opens one kind of network connection: the daily usage report described
+under Telemetry, to a service AtlasBound runs.
 
 ## What it stores, and where
 
 In the repository:
 
 - What `setup` wires: the hooks and the commands it allows in `.claude/settings.local.json`, the four slash commands in
-  `.claude/commands/`, and a block in `.gitignore` that keeps all of these out of git, and
-  `.atlasbound/*` too. In a clone nobody set up yet, also one team notice row in `.claude/settings.json`, a file a team
+  `.claude/commands/` (kept out of git in this clone's own `.git/info/exclude`), and a block in `.gitignore` for
+  `.claude/settings.local.json` and `.atlasbound/*`. In a clone nobody set up yet, also one team notice row in `.claude/settings.json`, a file a team
   commits: it holds no path of this machine and no text of yours, and it tells a teammate's session once that the repository
   uses DecisionBook.
 - `.decisionbook/`: the plans, decisions, assumptions and checks your AI session recorded, and its config. A decision, a
@@ -32,9 +33,13 @@ such modes, so there it has the permissions it inherits from your user profile:
 
 - `decisionbook-here/<key>/` and `handoff-here/<key>/`, one key per repository (a digest of its path). DecisionBook keeps there the
   statements of yours it took from your prompts, what each session read and was given, and which prompts of a session were yours, with
-  their times. Handoff keeps there its notes per branch, the prompts it journals and the files each session edited. What you
+  their times and their sentences (so a record quoting you keeps the whole sentence, and can tell whose words it holds). A session's
+  sentences are let go when the plan it worked on closes, and every session's after 30 days at most; `atlasbound uninstall` leaves
+  this folder and says so, `atlasbound uninstall --purge` removes it. Handoff keeps there its notes per branch, the prompts it journals and the files each session edited. What you
   typed is kept here and not in the repository, with the one exception above: the answers a plan file records. The
   trace keeps a digest of what a step was given, never the text of your prompt; telemetry holds step counts, ranges and outcome codes.
+- `cli-here/<key>/person.json`: the name your decisions are recorded under in that repository, as setup kept it (git's name, or the
+  one you typed), with the day. It is sent nowhere; `atlasbound whoami` shows it, and only you change it.
 - `telemetry-consent.json`: your choice per module. `telemetry-period.json`: a random id that changes every 30 days and the token that
   can delete what it sent.
 
@@ -45,7 +50,7 @@ keeps the team's files and says what is left in `~/.atlasbound/`, which `rm -rf 
 
 ## What it sends
 
-Nothing in this build: telemetry has no address.
+The daily usage report described under Telemetry, and nothing else.
 
 - Your code, your records, your prompts and your paths are never sent by this package.
 - The texts the hooks add to your AI session become part of that session, which your own AI provider receives under your own account, as
@@ -54,13 +59,17 @@ Nothing in this build: telemetry has no address.
 
 ## Telemetry
 
-In this build the address is empty: nothing is sent and setup does not ask. You can turn it on to read the reports it would send
-(`atlasbound telemetry on`, then `atlasbound telemetry next` and `history`).
+During the beta (until 2027-03-31) telemetry is on by default for the command line, DecisionBook and Handoff. At most once a day, from a
+command you or your AI session runs (never from a hook), it sends one report per module and finished day to AtlasBound, through a
+Cloudflare Worker at api.atlasbound.dev, to find the product's faults and slow steps and to see where a plan's flow stops.
 
-What a later release with an address does: once a day, from a command you or your AI session runs (never from a hook), it sends one
-report per module and finished day to AtlasBound, through a Cloudflare Worker at telemetry.atlasbound.dev, to find the product's faults
-and slow steps. Setup tells you first, at a plain terminal, and asks (Enter = yes); `atlasbound telemetry on [module]`, typed by you
-with the phrase it names, turns it on; no environment variable, AI session or program that types for you can. Every field of a report:
+Nothing is counted for a report before its notice has been shown to you, and no day before that one is ever reported. The notice is
+shown where you read it yourself: by `atlasbound setup` at your plain terminal, or by Claude Code at a session start, as a message of
+its own ("SessionStart says: AtlasBound telemetry is on during the beta ..."). When an AI session runs setup, it is handed a line to pass
+on to you; that line turns nothing on. A session that runs with no screen (a script) has nobody to read the message: set one of the
+switches below there. After the beta, or for a module added later, nothing is on until you turn it on: `atlasbound telemetry on
+[module]`, typed by you with the phrase it names; no environment variable, AI session or program that types for you can. Every field of
+a report:
 
 | field | what it holds |
 |---|---|
@@ -80,6 +89,9 @@ with the phrase it names, turns it on; no environment variable, AI session or pr
 | every module | step, step_ms, code, failure, decision | how often each of its steps ran and how it ended, how long it took (in ranges; never for a step that asks you), the outcome codes it said, a failure's code (never its text), a gate's verdict and reason code |
 | cli | hook_incomplete, health, doctor_problems | host calls that came in and never went out, telemetry's own losses and refusals, doctor's problems (a range) |
 | db | ready_unmet, phase_seconds, phase_turns, create_records, answers_bound, stop_unrecorded | open points at READY, time and turns until a plan is READY (your and the AI's pace), decisions per plan, answers recorded as yours, answers not recorded at stop (ranges, or counts) |
+| db | flow_ready_seconds, flow_research, flow_questions, flow_answered, flow_routed | of a plan when it first becomes READY: the time since it was opened, its research records, its questions, those you answered and those routed to someone else (each a range; no plan id, title or text) |
+| db | flow_build_seconds, flow_total_seconds, flow_resumes | of a plan when it is closed: the time since it first became READY, the time since it was opened, and the later sessions that went on with it (ranges) |
+| db | stale_draft, stale_ready | at a session start, how many open plans are older than 7 days: never READY, or READY and never closed (ranges) |
 | handoff | note_kept, note_messages | lines and messages of a handoff note (ranges) |
 
 Each count carries only these words with it: the step (a name of the product's own steps), the outcome (ok or failed), the outcome or
@@ -93,10 +105,18 @@ turned off: not which module, not what the handler did.
 is still in the local trace; if a later process runs without the switch while telemetry is on, that day's report counts it. Set the
 switch for your whole session, or use `atlasbound telemetry off`, to keep a day out.
 
+The flow of a plan from opened to closed is read from these: how often each step ran and how long it took (step, step_ms: a plan
+opened, research, a question asked, an answer recorded, READY, the first allowed write, close, a handoff note kept or resumed), the
+ranges above, and the open plans that stopped. No report holds an id of a plan, a repository or a person, so two reports can be told
+to be of one install only by the random period id, for 30 days.
+
 A request carries the content type and the fixed headers of Node's fetch (user-agent `node`, accept, accept-language, sec-fetch-mode,
-accept-encoding), nothing of your machine or of you. When the service opens: Cloudflare will process your IP address to deliver the request; our store will keep no IP address and request
-logging will be off, checked with a real request before it opens. Reports are kept 30 days per id, then only monthly totals for 13
-months, with small groups left out.
+accept-encoding), nothing of your machine or of you. Cloudflare processes your IP address to deliver the request, as for any web
+request. The service reads no header but the content type and length, stores no IP address, header or time of day, and runs with
+request logging and log export off; this was checked with a real request. What it stores: each report's bytes as `atlasbound telemetry
+history` shows them, the UTC day it arrived, and per random period id the SHA-256 of its deletion token and a count of that day's
+requests. Reports are kept 30 days, then only monthly totals for 13 months, with groups of fewer than 10 ids left out; a period id's
+row goes with its last report.
 
 See: `atlasbound telemetry next` (the exact request, before it leaves) and `history`. Stop: `atlasbound telemetry off [module]`. Delete:
 `atlasbound telemetry reset --forget`. `atlasbound uninstall` removes the reports kept here; to have the server's copy deleted, run

@@ -6,7 +6,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const decisionbook = require('@atlasbound/decisionbook');
-const { bookWorld: world, begin, added, writeConfig, readyOne, starting, textOf, lastN, recordsFor, planRecords, theirAnswer } = require('./world.cjs');
+const { bookWorld: world, begin, added, writeConfig, readyOne, starting, textOf, lastN, recordsFor, planRecords, theirAnswer, LEVEL_KEPT } = require('./world.cjs');
 
 const { verbs, handlers } = decisionbook;
 const { WORDS } = decisionbook.codes;
@@ -36,19 +36,19 @@ test('an earlier session\'s READY plan is the start\'s intake: frozen, files, st
     theirAnswer('Q8', 'report.page', '50 rows', 'Fifty rows a page, as the old report had.'),
     { t: 'question', q: 'Q9', text: 'which colour?', decides: 'report.colour', whyNotCode: 'a product rule', blocking: false },
     theirAnswer('Q9', 'report.colour', 'Blue, like the logo.', 'Blue, like the logo.'),
-    { t: 'decision', key: 'report.cache', value: 'none', why: 'simplest', by: 'ai' }]);
+    { t: 'decision', key: 'report.cache', value: 'none', why: 'simplest', whose: 'assumed' }]);
   await handlers.start(starting('s2'), io);
   const start = textOf(await handlers.session(starting('s2'), io));
   // one text a new session builds from: no session reads the plan again to find what is left, what was found or what was said
-  assert.deepEqual(start.split('\n'), [`Plan ${id} READY on feat/export: Report export is slow`, WORDS.frozen, WORDS.data, 'level: normal work',
+  assert.deepEqual(start.split('\n'), [`Plan ${id} READY on feat/export: Report export is slow`, WORDS.frozen, WORDS.data, LEVEL_KEPT,
     'why: large exports time out', 'files: app/x.rb',
     'steps:', '- step 1 app/x.rb: stream the rows (verify AC-1)',
     'found by the research:', ...[1, 2, 3].map((n) => `- src/report/export.js:${n} (src/report/export.js:${n})`),
-    'confirmed by the person: yes, go ahead',
+    'confirmed by Amy: yes, go ahead',
     `settled, do not re-ask unless its source, scope or requirement changed (whole: atlasbound decisionbook show ${id} decisions):`,
-    ...[1, 2, 3].map((n) => `- report.export.rule${n} = v${n} (support; by the person, 2026-11-02)`),
-    '- report.page = 50 rows; the person, 2026-11-02: "Fifty rows a page, as the old report had."', // their own sentence beside the value
-    '- report.colour; the person, 2026-11-02: "Blue, like the logo."', // the value is their sentence: said once
+    ...[1, 2, 3].map((n) => `- report.export.rule${n} = v${n} (support; by Amy, 2026-11-02)`),
+    '- report.page = 50 rows; Amy, 2026-11-02: "Fifty rows a page, as the old report had."', // their own sentence beside the value
+    '- report.colour; Amy, 2026-11-02: "Blue, like the logo."', // the value is their sentence: said once
     '- report.cache = none (simplest; by the AI, 2026-11-02)',
     // how a person replaces one: a question that names it, with this plan's id in the name, and their answer that places it
     `a person replaces one, never you: record a question naming it ("supersedes":["${id}/<key>"]), then ask; their answer, one word too, or what they say of it `
@@ -58,7 +58,7 @@ test('an earlier session\'s READY plan is the start\'s intake: frozen, files, st
   const asked = await handlers.prompt({ hook_event_name: 'UserPromptSubmit', session_id: 's2', prompt: 'Add a CSV download to the report page' }, io);
   // the start gave the plan: the task prompt says nothing more and hands no new while the plan is open
   assert.deepEqual([asked, textOf(asked)], [{ code: 'prompt-passed' }, '']);
-  assert.deepEqual(lastN(io, 'decisionbook.session'), { changed: 0, decision_allow: 1 }, 'the start row counts no earlier session');
+  assert.deepEqual(lastN(io, 'decisionbook.session'), { changed: 0, stale_draft: 0, stale_ready: 0, decision_allow: 1 }, 'the start row counts no earlier session');
   assert.equal(textOf(await handlers.session(starting('s2', 'resume'), io)), start, 'a resumed session: the same intake');
   const own = world({ files: { 'app/x.rb': 'class X\n' } });
   writeConfig(own, { protect: ['app/**'] });
@@ -91,12 +91,12 @@ test('[I-30] a plan of a test file where a promise is heard carries the contract
   assert.equal(planRecords(plain, none.out.id).filter((r) => r.rel === 'contract').length, 0);
 });
 
-test('[I-30] two test files that break one promise are asked once a session; the second passes and its row says why', async () => {
+test('[I-30] two test files that break one promise are asked until a yes; then the second passes and its row says why', async () => {
   const io = world({ files: SCHED, heard: HEARD });
   const write = (file) => ({ hook_event_name: 'PreToolUse', session_id: 's1', permission_mode: 'default', tool_name: 'Write',
     tool_input: { file_path: `/fake/${file}`, content: "const createScheduler = require('../../lib/sched')\n" } });
   assert.equal((await handlers.preEdit(write('test/e2e/a.test.js'), io)).verdict, 'ask');
-  assert.equal((await handlers.preEdit(write('test/e2e/b.test.js'), io)).verdict, 'allow', 'the same promise, another file: asked already');
+  assert.equal((await handlers.postEdit({ ...write('test/e2e/a.test.js'), hook_event_name: 'PostToolUse' }, io), await handlers.preEdit(write('test/e2e/b.test.js'), io)).verdict, 'allow', 'the same promise, another file: the person said yes to it');
   assert.equal(lastN(io, 'decisionbook.gate').contractAsked, 1);
 });
 
@@ -117,7 +117,7 @@ test('a session start of a READY plan with no decision says no settled heading; 
   await verbs.create(io, { rest: [JSON.stringify({ title: 'Fix x', why: 'w', success: 's', kind: 'bug', level: 'micro', records: [
     { t: 'research', tool: 'read', asked: 'a', answer: 'b', source: 'app/x.rb:1' }, { t: 'item', kind: 'feature', text: 'x' }, { t: 'item', kind: 'repro', text: 'r' },
     { t: 'link', rel: 'plans', to: 'file:app/x.rb', why: 'w' }, { t: 'check', id: 'AC-1', text: 'c', command: 'rake' }, { t: 'item', kind: 'task', text: 't', covers: ['AC-1'] },
-    { t: 'confirm', by: 'Ayse', said: 'yes' }] })] });
+    { t: 'confirm', by: 'Amy', said: 'yes' }] })] });
   assert.doesNotMatch(textOf(await handlers.session(starting('s2'), io)), /^settled/m);
   const other = world({ files: { 'app/x.rb': 'class X\n' } });
   writeConfig(other, { protect: ['app/**'] });

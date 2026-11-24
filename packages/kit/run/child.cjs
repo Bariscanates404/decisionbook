@@ -11,10 +11,10 @@ const STOP_ENV = 'ATLASBOUND_CHILD_STOP_MS'; // a child's own hard stop in ms, h
 const SELF_ENV = 'ATLASBOUND_SELF_CHECK'; // a run of the product's own self-check (doctor's probe), handed by its starter: its rows say so
 
 /** One detached `<this node> <this bin> ...words` at the repository root: its env is exactly `envKeys` (PATH with no repository directory)
- * and the hard stop `stopMs` when given -> { pid, error }. `handedStop(env)`: the stop this process was handed, or null (a person's own
- * run). */
+ * and the hard stop `stopMs` when given -> { pid, error }. */
 const startSelf = (io, words, envKeys, stopMs = null) => io.proc.startDetached({ cmd: io.self.node, args: [io.self.bin, ...words],
   env: { ...childEnv(io.env, envKeys, io.root), ...(stopMs ? { [STOP_ENV]: String(stopMs) } : {}) }, cwd: io.root });
+/** The stop this process was handed, or null (a person's own run). */
 const handedStop = (env) => [Number(env.get(STOP_ENV))].find((ms) => Number.isInteger(ms) && ms > 0) ?? null;
 const selfCheck = (env) => env.get(SELF_ENV) === '1';
 

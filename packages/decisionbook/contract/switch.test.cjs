@@ -20,29 +20,29 @@ test('[I-13] who, when and why on every answer; an AI assumption is its own reco
   const id = await begin(io);
   for (const record of recordsFor('normal', ['src/report/**']).filter((r) => r.t !== 'confirm')) await added(io, id, record);
   await added(io, id, { t: 'question', q: 'Q9', text: 'keep the old column?', decides: 'report.export.column', whyNotCode: 'a customer rule', blocking: true });
-  await added(io, id, { t: 'decision', key: 'report.export.column', value: 'keep', why: 'seems safe', by: 'ai', answers: 'Q9', effect: ['check:AC-2'] });
+  await added(io, id, { t: 'decision', key: 'report.export.column', value: 'keep', why: 'seems safe', whose: 'assumed', answers: 'Q9', effect: ['check:AC-2'] });
   await added(io, id, { t: 'assumption', text: 'nobody reads the old column', why: 'no reader found by grep', q: 'Q9' });
   assert.deepEqual(await unmetOf(io, id), ['ready-open-question', 'ready-no-confirm'], 'neither the AI\'s decision nor its assumption answers for a person');
-  await added(io, id, { t: 'decision', key: 'report.export.column', value: 'drop', why: 'the BI team moved off it', by: 'Ayse', answers: 'Q9',
+  await added(io, id, { t: 'decision', key: 'report.export.column', value: 'drop', why: 'the BI team moved off it', whose: 'person', answers: 'Q9',
     effect: ['check:AC-2'] });
   await assert.rejects(added(io, id, { t: 'confirm', by: 'ai', said: 'looks good' }), { code: 'confirm-by-person' });
-  await added(io, id, { t: 'confirm', by: 'Ayse', said: 'yes' }); // the last row: the plan is READY, frozen
+  await added(io, id, { t: 'confirm', by: 'Amy', said: 'yes' }); // the last row: the plan is READY, frozen
   await added(io, id, { t: 'link', rel: 'plans', to: 'file:src/other/extra.js', why: 'grew after the yes' });
   await added(io, id, { t: 'item', kind: 'step', order: 9, file: 'src/other/extra.js', change: 'the extra column', verify: 'AC-2' });
   assert.deepEqual(await unmetOf(io, id), [], 'the yes holds for the plan it saw and for what the READY plan grew by since');
   const readies = () => io.fs.readText(`.decisionbook/${id}.jsonl`).trim().split('\n').map((line) => JSON.parse(line)).filter((r) => r.t === 'ready');
   assert.deepEqual(readies().map((r) => r.scope), [['src/report/**']], 'a READY plan that holds is told, never stored again');
-  await added(io, id, { t: 'confirm', by: 'Ayse', said: 'yes, with extra.js' });
+  await added(io, id, { t: 'confirm', by: 'Amy', said: 'yes, with extra.js' });
   assert.equal((await verbs.ready(io, { rest: [id] })).out.code, 'plan-ready');
   assert.deepEqual(readies().map((r) => r.scope), [['src/report/**'], ['src/report/**', 'src/other/extra.js']], 'a newer yes: READY once more, with what it saw');
   const lines = io.fs.readText(`.decisionbook/${id}.jsonl`).trim().split('\n').map((line) => JSON.parse(line));
   assert.ok(lines.filter((r) => r.t === 'decision').every((r) => r.by && r.why && /^2026-/.test(r.at)), 'who, why and when on every decision');
   const said = (await verbs.resume(io, { rest: [] })).text;
-  assert.match(said, /\n- report\.export\.column = drop \(the BI team moved off it; by the person, 2026-11-02\)\n/);
+  assert.match(said, /\n- report\.export\.column = drop \(the BI team moved off it; by Amy, 2026-11-02\)\n/);
   assert.match(said, /assumed by the AI, not a person's answer:\n- nobody reads the old column \(no reader found by grep\)/);
-  assert.match(said, /confirmed by the person: yes, with extra\.js/);
+  assert.match(said, /confirmed by Amy: yes, with extra\.js/);
   const ai = await begin(io, { title: 'AI answers only' });
-  for (const record of recordsFor('normal', ['src/report/**'], '.ai').map((r) => (r.t === 'decision' ? { ...r, by: 'ai' } : r))) await added(io, ai, record);
+  for (const record of recordsFor('normal', ['src/report/**'], '.ai').map((r) => (r.t === 'decision' ? { ...r, whose: 'assumed' } : r))) await added(io, ai, record);
   await leavesOthers(io, ai);
   assert.deepEqual(await unmetOf(io, ai), ['ready-open-question', 'ready-answers'], 'questions the AI answered itself are not a person\'s answers');
 });
@@ -85,7 +85,7 @@ test('[I-16] at a prompt, /resume-handoff adds DecisionBook\'s shared part, and 
   const prompt = (text) => handlers.prompt({ hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt: text }, io);
   writeConfig(io, { protect: ['src/**'] });
   const nudge = await prompt('please make the export stream its rows instead of buffering');
-  assert.deepEqual([nudge.code, /^write this JSON with your Write tool to \.atlasbound\/drafts\/[0-9a-f]{12}\/new\.json:\n\{/m.test(textOf(nudge))], ['prompt-nudge', true], 'the plan pack\'s calls (as fill-in JSON)');
+  assert.deepEqual([nudge.code, /^write this JSON with your Write tool \(it makes the folder; no shell write\) to \.atlasbound\/drafts\/[0-9a-f]{12}\/new\.json:\n\{/m.test(textOf(nudge))], ['prompt-nudge', true], 'the plan pack\'s calls (as fill-in JSON)');
   for (const text of ['ok', '/decisionbook export', '/handoff']) assert.equal((await prompt(text)).code, 'prompt-passed', text);
   const { id } = await readyOne(io);
   await added(io, id, { t: 'question', q: 'Q7', text: 'a cap on rows?', decides: 'report.export.cap', whyNotCode: 'a product rule', blocking: false });
@@ -160,12 +160,12 @@ test('[I-18] the manifest declares the eight hooks and the three commands, and t
   // the research steps by name, every question at once and none offered as a whole, the colleague, the freeze
   for (const word of [/the issue or task thread, read whole/, /past plans of the area/, /a sideways search/, /Ask every open question in one message/,
     /do not offer to take your proposals as a whole/,
-    /Ask a colleague/, /"to":"<who>"/, /READY is the freeze/]) assert.match(plan, word);
+    /Who answers/, /"to":"<who>"/, /READY is the freeze/]) assert.match(plan, word);
   assert.doesNotMatch(plan, /"t":"resume"|"kind":"gap"|earlier session/, 'no resume call and no gap record is asked of a session');
   assert.doesNotMatch(plan, /"t":"confirm"|"kind":"step"|"rel":"plans"/, 'no second copy of a shape the pack hands');
 });
 
-test('the /decisionbook command\'s last step closes only after its commits exist', () => {
+test('the /decisionbook command\'s last step closes before the commit, so one commit carries the code and the plan', () => {
   const last = fs.readFileSync(path.join(PKG, 'commands', 'decisionbook.md'), 'utf8').split('\n').filter((l) => /^\d+\. /.test(l)).at(-1);
-  assert.match(last, /^9\. When the work is done and its commits exist, on its branch .*`atlasbound decisionbook close <id>`/);
+  assert.match(last, /^9\. When the work is done, before its commit, on its branch .*`atlasbound decisionbook close <id>` .*one commit carries the code and the plan/);
 });

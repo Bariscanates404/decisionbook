@@ -64,6 +64,9 @@ function saidAfter(actor, at) {
   return Date.parse(actor.at) > Date.parse(at) ? 'yes' : 'no';
 }
 
+/** Whether `name` is one the AI's own records are signed with, in any case: never a person's. */
+const isAiName = (name) => RULES.aiNames.includes(String(name).trim().toLowerCase());
+
 /** Is a hook's ask put to a person in this permission mode? In any other it passes with no one asked, so its gate must deny. */
 const asksPerson = (mode) => RULES.askingModes.includes(mode || 'default');
 
@@ -99,4 +102,4 @@ function hostCalled(caller) {
   return commandNames(caller.words, RULES.aiHosts.names) ? { host: true, why: 'host-socket' } : { host: false, why: 'parent-not-host' };
 }
 
-module.exports = { saidAfter, asksPerson, createActor, hostCalled };
+module.exports = { saidAfter, isAiName, asksPerson, createActor, hostCalled };

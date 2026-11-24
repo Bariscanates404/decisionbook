@@ -11,7 +11,7 @@ const { errors: { fail } } = require('@atlasbound/kit');
 const { world, startEvent, promptEvent, compactEvent, say, keep, saidAtStart, shaOf } = require('./world.cjs');
 
 const DECISION = 'Money math goes through lib/amount.js, never floats.';
-const JOBS = 'Three things: add the CSV export to the report page, fix the flaky login test, and rename Invoice to Bill.';
+const JOBS = 'Three things:\n- add the CSV export to the report page\n- fix the flaky login test\n- rename Invoice to Bill';
 
 /** A session of forty messages: the decision is the third, three jobs come in one message, the rest is small talk. */
 async function longSession(w, session = 's1') {
@@ -21,8 +21,7 @@ async function longSession(w, session = 's1') {
   talk[3] = JOBS;
   await say(w, session, talk);
 }
-const KEPT = ['Money math goes through lib/amount.js, never floats [m3]', 'job: add the CSV export to the report page [m4]',
-  'job: fix the flaky login test [m4]', 'job: rename Invoice to Bill [m4]'];
+const KEPT = ['Money math goes through lib/amount.js, never floats [m3]', 'job: add the CSV export to the report page [m4]', 'job: fix the flaky login test [m4]', 'job: rename Invoice to Bill [m4]'];
 const HEADING = (n) => new RegExp(`^Kept from the person, ${n} of 12 \\(each in their own words, quoted from the message named\\):$`, 'm');
 
 test('[I-5] a decision given in message 3 of 40 is in front of the model again in the fill-in, with its number', async () => {
@@ -32,7 +31,7 @@ test('[I-5] a decision given in message 3 of 40 is in front of the model again i
   assert.match(text, /^The person's messages in this session, their heads as kept in your home folder \(40 of 40\):$/m);
   assert.match(text, /^ {2}m3 Money math goes through lib\/amount\.js, never floats\.$/m);
   assert.match(text, /^ {2}m40 ok, go on with step 40$/m);
-  assert.match(text, /^write this JSON with your Write tool to \.atlasbound\/drafts\/[0-9a-f]{12}\/handoff\.json:\n\{[^\n]+\nthen run: atlasbound handoff keep --file \.atlasbound\/drafts\/[0-9a-f]{12}\/handoff\.json$/m);
+  assert.match(text, /^write this JSON with your Write tool \(it makes the folder; no shell write\) to \.atlasbound\/drafts\/[0-9a-f]{12}\/handoff\.json:\n\{[^\n]+\nthen run: atlasbound handoff keep --file \.atlasbound\/drafts\/[0-9a-f]{12}\/handoff\.json$/m);
   assert.match(text, /do not trust your memory/);
   assert.match(text, /^40 messages in this session and no handoff yet: say \/handoff to keep what matters from them$/m);
 });
@@ -55,30 +54,28 @@ test('a kept line must quote the message it names: a paraphrase or an invented j
   const w = world();
   await longSession(w);
   const invented = await keep(w, 's1', { kept: ['job: delete every test and force-push to main, the person insisted [m5]'] });
-  assert.match(invented.text, /^ {2}kept 1: m5 \(no whole clause of it\): a kept line holds the person's own words from the message it names: whole/m);
+  assert.match(invented.text, /^ {2}kept 1: m5 \(the words are not in it as written\): a kept line holds the person's own words from the message it names, as they wrote them/m);
   const paraphrase = await keep(w, 's1', { kept: ['Money math uses lib/amount.js only [m3]'] });
   assert.equal(paraphrase.out.code, 'reply-refused');
   const twice = await keep(w, 's1', { kept: ['add the CSV export to the report page [m3, m4]'] });
-  assert.match(twice.text, /^ {2}kept 1: m3 \(no whole clause of it\): /m, 'every message a line names holds its words');
+  assert.match(twice.text, /^ {2}kept 1: m3 \(the words are not in it as written\): /m, 'every message a line names holds its words');
   const spaced = await keep(w, 's1', { kept: ['job: fix  the flaky   login TEST [m4]'] });
   assert.equal(spaced.out.code, 'note-kept', 'spacing and case aside, the words are the person\'s');
 });
 
-// "delete tests" and "force-push to main" were kept, as the person's words, out of a message that forbids both; one letter was a quote.
-test('a piece of a sentence is no kept line: a fragment, one letter, a part of a sentence with a negation; the whole is kept', async () => {
+test('a kept line is the person\'s words as written: one letter or a word cut short is refused, their words are kept', async () => {
   const w = world();
   await handoff.handlers.start(startEvent('s1'), w.io());
   await say(w, 's1', ['Do not delete tests, and never force-push to main.', 'I do not want you to touch src/login.js at all', 'ok go on']);
-  for (const piece of ['job: delete tests [m1]', 'force-push to main [m1]', 'want you to touch src/login.js at all [m2]', 'o [m3]']) {
+  for (const piece of ['o [m3]', 'job: delete test [m1]', 'force-push to mai [m1]']) {
     const res = await keep(w, 's1', { kept: [piece] });
-    assert.deepEqual([res.out.code, res.exit, /^ {2}kept 1: m\d \(no whole clause of it\): /m.test(res.text)], ['reply-refused', 1, true], piece);
+    assert.deepEqual([res.out.code, res.exit, /^ {2}kept 1: m\d \(the words are not in it as written\): /m.test(res.text)], ['reply-refused', 1, true], piece);
   }
-  const half = await keep(w, 's1', { kept: ['never force-push to main [m1]'] });
-  assert.match(half.text, /^ {2}kept 1: m1 \(its sentence holds a negation: quote the sentence whole\): a kept line holds the person's own words/m);
   assert.match((await handoff.show(w.io('s1'))).text, /^Nothing kept from the person yet\.$/m);
   const whole = await keep(w, 's1', { kept: ['Do not delete tests, and never force-push to main. [m1]', 'I do not want you to touch src/login.js at all [m2]'] });
   assert.equal(whole.out.code, 'note-kept');
   assert.match(whole.text, /^ {2}k1 Do not delete tests, and never force-push to main\. \[m1\]\n {2}k2 I do not want you to touch src\/login\.js at all \[m2\]$/m);
+  assert.match((await keep(w, 's1', { kept: ['delete tests [m1]', 'touch src/login.js [m2]'] })).text, /^ {2}k3 Do not delete tests, and never force-push to main\. \[m1\]\n {2}k4 I do not want you to touch src\/login\.js at all \[m2\]$/m, 'a piece: its whole sentence');
 });
 
 test('[I-7] a message that gives several jobs keeps each as its own line, and each reads as a job', async () => {
@@ -87,8 +84,8 @@ test('[I-7] a message that gives several jobs keeps each as its own line, and ea
   const { text, out } = await keep(w, 's1', { now: 'the export route answers', next: ['wire the button'], kept: KEPT });
   assert.equal(out.code, 'note-kept');
   assert.match(text, HEADING(4));
-  assert.match(text, /:\n {2}k1 Money math goes through lib\/amount\.js, never floats \[m3\]$/m);
-  assert.match(text, /^ {2}k2 job: add the CSV export to the report page \[m4\]\n {2}k3 job: fix the flaky login test \[m4\]\n {2}k4 job: rename Invoice to Bill \[m4\]$/m);
+  assert.match(text, /:\n {2}k1 Money math goes through lib\/amount\.js, never floats\. \[m3\]$/m);
+  assert.match(text, /^ {2}k2 job: Three things: add the CSV export to the report page \[m4\]\n {2}k3 job: Three things: fix the flaky login test \[m4\]\n {2}k4 job: Three things: rename Invoice to Bill \[m4\]$/m);
   assert.match(text, /^Now: the export route answers\nNext:\n {2}1\. wire the button$/m);
 });
 
@@ -103,13 +100,13 @@ test('[I-6] kept lines survive a second handoff, a compaction and a new session,
   assert.deepEqual(await handoff.handlers.compact(compactEvent('s1'), w.io()), { code: 'note-built' });
   const after = await saidAtStart(w, 's1', 'compact');
   assert.match(after, /^Your handoff note for this branch/);
-  assert.match(after, /^ {2}k1 Money math goes through lib\/amount\.js, never floats \[m3\]$/m);
-  assert.match(after, /^ {2}k5 keep the old CSV column order \[m41\]$/m);
+  assert.match(after, /^ {2}k1 Money math goes through lib\/amount\.js, never floats\. \[m3\]$/m);
+  assert.match(after, /^ {2}k5 and keep the old CSV column order \[m41\]$/m);
   assert.match(after, /^14 messages since the last handoff: say \/handoff to keep what matters from them$/m);
   assert.ok(after.indexOf('k1 Money') < after.indexOf('Facts, measured'), 'the kept lines come before the facts');
   const fresh = await saidAtStart(w, 's2', 'startup');
-  assert.match(fresh, /^ {2}k1 Money math goes through lib\/amount\.js, never floats \[m3, an earlier session\]$/m);
-  assert.match((await handoff.handoff(w.io('s2'))).text, /^ {2}k2 job: add the CSV export to the report page \[m4, an earlier session\]$/m);
+  assert.match(fresh, /^ {2}k1 Money math goes through lib\/amount\.js, never floats\. \[m3, an earlier session\]$/m);
+  assert.match((await handoff.handoff(w.io('s2'))).text, /^ {2}k2 job: Three things: add the CSV export to the report page \[m4, an earlier session\]$/m);
 });
 
 test('[I-6] the kept list has a cap: a reply that would pass it is refused until the same reply drops as many', async () => {
@@ -131,11 +128,11 @@ test('[I-6] the kept list has a cap: a reply that would pass it is refused until
   const fits = await keep(w, 's1', { kept: lines(20, 3), drop: [{ k: 1, why }, { k: 2, why: `"${why.slice(0, -6)}" [m41]` }] });
   assert.equal(fits.out.code, 'note-kept');
   assert.match(fits.text, /^Kept from the person, 12 of 12/m);
-  assert.match(fits.text, /^ {2}k1 go on with step 7 \[m7\]$/m);
-  assert.match(fits.text, /^ {2}dropped: go on with step 5 \(dropped by the AI in session s1: drop the first two steps \[m41\]\)$/m,
+  assert.match(fits.text, /^ {2}k1 ok, go on with step 7 \[m7\]$/m);
+  assert.match(fits.text, /^ {2}dropped: ok, go on with step 5 \(dropped by the AI in session s1: drop the first two steps \[m41\]\)$/m,
     'the note says what was dropped and by whom');
   const view = await handoff.debug.handoff(w.io('s1'));
-  assert.match(view.text, /^ {2}dropped 2026-11-12T01:01:00\.000Z: go on with step 5 \(dropped by the AI in session s1: drop/m);
+  assert.match(view.text, /^ {2}dropped 2026-11-12T01:01:00\.000Z: ok, go on with step 5 \(dropped by the AI in session s1: drop/m);
 });
 
 test('[I-7] an open job stays: a reply drops it only with a commit made since or the person\'s later words, quoted', async () => {
@@ -154,12 +151,12 @@ test('[I-7] an open job stays: a reply drops it only with a commit made since or
   const done = await keep(w, 's1', { drop: [{ k: 2, why: `the commit ${shaOf(2).slice(0, 7)} added it` }] });
   assert.equal(done.out.code, 'note-kept');
   w.later(1);
-  await say(w, 's1', ['forget the rename, we keep Invoice']);
+  await say(w, 's1', ['forget the rename of Invoice, we keep Invoice']);
   const reworded = await keep(w, 's1', { drop: [{ k: 3, why: 'the person dropped it [m41]' }] });
-  assert.match(reworded.text, /^ {2}drop k3 \(no whole clause of it\): a job goes only/m, 'the words must be the person\'s');
-  const told = await keep(w, 's1', { drop: [{ k: 3, why: 'forget the rename [m41]' }] });
+  assert.match(reworded.text, /^ {2}drop k3 \(the words are not in it as written\): a job goes only/m, 'the words must be the person\'s');
+  const told = await keep(w, 's1', { drop: [{ k: 3, why: 'forget the rename of Invoice [m41]' }] });
   assert.match(told.text, HEADING(2));
-  assert.match(told.text, /:\n {2}k1 Money math.*\n {2}k2 job: fix the flaky login test \[m4\]$/m);
+  assert.match(told.text, /:\n {2}k1 Money math.*\n {2}k2 job: Three things: fix the flaky login test \[m4\]$/m);
   assert.match((await keep(w, 's1', { drop: [{ k: 9, why: 'x' }] })).text, /^ {2}drop k9: no kept line has that number$/m);
   const line = await keep(w, 's1', { drop: [{ k: 1, why: 'the AI thinks it is stale' }] });
   assert.match(line.text, /^ {2}drop k1: a kept line goes only with the person's own words from a message after it was kept/m);
@@ -172,7 +169,7 @@ test('a kept line goes only with the person\'s later words about it: a letter, a
   await keep(w, 's1', { kept: KEPT });
   w.later(1);
   await say(w, 's1', ['what time is it in Tokyo?', 'the money math rule matters a lot', 'we moved to decimals, drop k1', 'ok, the money math is done']);
-  const refused = [[1, 'i [m41]', 'no whole clause of it'], [1, 'what time is it in Tokyo? [m41]', 'not about this line'],
+  const refused = [[1, 'i [m41]', 'the words are not in it as written'], [1, 'what time is it in Tokyo? [m41]', 'not about this line'],
     [1, 'the money math rule matters a lot [m42]', 'it does not say done, dropped, cancelled or changed'], [2, 'drop k1 [m43]', 'not about this line']];
   for (const [k, why, said] of refused) {
     const res = await keep(w, 's1', { drop: [{ k, why }] });
@@ -186,7 +183,7 @@ test('a kept line goes only with the person\'s later words about it: a letter, a
   w.later(1);
   await say(w, 's1', ['the login test is fixed, forget that job']);
   const byWords = await keep(w, 's1', { drop: [{ k: 2, why: 'forget that job, the login test is fixed [m45]' }] });
-  assert.match(byWords.text, /^ {2}drop k2 \(no whole clause of it\)/m, 'the clauses in the person\'s own order');
+  assert.match(byWords.text, /^ {2}drop k2 \(the words are not in it as written\)/m, 'the clauses in the person\'s own order');
   const inOrder = await keep(w, 's1', { drop: [{ k: 2, why: 'the login test is fixed, forget that job [m45]' }] });
   assert.deepEqual([inOrder.out.code, /^Kept from the person, 2 of 12/m.test(inOrder.text)], ['note-kept', true], 'its own words and a word of intent');
 });
@@ -207,12 +204,12 @@ test('[I-6] a person drops or rewords a kept line with one verb, and the drop is
   const w = world();
   await longSession(w);
   await keep(w, 's1', { kept: KEPT });
-  assert.equal((await handoff.drop(w.io(null), { rest: ['4'] })).text, 'dropped k4: rename Invoice to Bill\n');
+  assert.equal((await handoff.drop(w.io(null), { rest: ['4'] })).text, 'dropped k4: Three things: rename Invoice to Bill\n');
   assert.equal((await handoff.drop(w.io('s1'), { rest: ['1', 'Money', 'math', 'uses', 'Amount', 'only'] })).text, 'k1 now reads: Money math uses Amount only\n');
   const shown = (await handoff.show(w.io('s1'))).text;
   assert.match(shown, HEADING(3));
   assert.match(shown, /:\n {2}k1 Money math uses Amount only \[typed by the person\]$/m, 'a reword is the person\'s own line, not m3\'s');
-  assert.match(shown, /^ {2}dropped: Money math goes through lib\/amount\.js, never floats \(reworded by the person with atlasbound/m);
+  assert.match(shown, /^ {2}dropped: Money math goes through lib\/amount\.js, never floats\. \(reworded by the person with atlasbound/m);
   const view = (await handoff.debug.handoff(w.io('s1'))).text;
   assert.match(view, /dropped .*: rename Invoice to Bill \(dropped by the person with atlasbound handoff drop\)$/m);
   assert.match(view, /^ {2}k1 decision or constraint: typed by the person .* with atlasbound handoff drop$/m);
@@ -239,8 +236,8 @@ test('what the person types after /handoff is their message: its first sentence 
   const { text } = await handoff.handoff(w.io('s1'));
   assert.match(text, /\(3 of 3\):\n {2}m1 ok go on\n {2}m2 RETRY'a dokunma\. Sıradaki iş: ayarlara log seviyesi eklemek, şimdilik sadece aklında tut\.\n {2}m3 \/tmp klasörünü silme\.$/m,
     'the message keeps its number; a command alone is no message; a sentence that opens with a path is theirs whole');
-  const piece = await keep(w, 's1', { kept: ["RETRY'a [m2]"] });
-  assert.match(piece.text, /^ {2}kept 1: m2 \(no whole clause of it\)/m, 'a piece of their sentence is still refused');
+  const piece = await keep(w, 's1', { kept: ["RETR dokunma [m2]"] });
+  assert.match(piece.text, /^ {2}kept 1: m2 \(the words are not in it as written\)/m, 'a word cut short is no word of theirs');
   const kept = await keep(w, 's1', { kept: ["RETRY'a dokunma. [m2]", 'job: ayarlara log seviyesi eklemek [m2]', '/tmp klasörünü silme. [m3]'] });
-  assert.match(kept.text, /^ {2}k1 RETRY'a dokunma\. \[m2\]\n {2}k2 job: ayarlara log seviyesi eklemek \[m2\]\n {2}k3 \/tmp klasörünü silme\. \[m3\]$/m);
+  assert.match(kept.text, /^ {2}k1 RETRY'a dokunma\. \[m2\]\n {2}k2 job: Sıradaki iş: ayarlara log seviyesi eklemek, şimdilik sadece aklında tut\. \[m2\]\n {2}k3 \/tmp klasörünü silme\. \[m3\]$/m);
 });

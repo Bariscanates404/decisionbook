@@ -37,7 +37,7 @@ const hookInput = (text) => Promise.resolve().then(() => validate.shape('Payload
   .then((payload) => ({ payload: core.hostPaths(payload), why: null }), (err) => ({ payload: null, why: String(err.message || err.name) }));
 const deadlineMs = (seconds) => Math.max(500, seconds * 1000 - 1000);
 
-function within(promise, ms, label) {
+function beforeDeadline(promise, ms, label) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(fail('hook-timeout', label)), ms);
     const done = (fn) => (value) => {
@@ -55,7 +55,7 @@ function runOne(io, decl, payload, ref) {
   const step = traced(io, 'hook.handler', async (input) => {
     const fn = (io.packages.load(decl.pkg).handlers || {})[decl.handler];
     if (typeof fn !== 'function') throw fail('package-broken', filled(W.noHandler, { label }));
-    const said = await within(Promise.resolve(fn(input, io.packages.ioFor(decl.pkg))), deadlineMs(decl.timeout), label);
+    const said = await beforeDeadline(Promise.resolve(fn(input, io.packages.ioFor(decl.pkg))), deadlineMs(decl.timeout), label);
     decision = validate.shape('Decision', said || {});
     return { out: { handler: label, decision }, n: {}, codes: { [`hook-${decision.verdict || 'none'}`]: 1 } };
   });
@@ -82,9 +82,18 @@ function unjudgedOf(io, event, payload, setup) {
   return gap ? [...config, `hook (hook-input-invalid: ${gap})`] : config;
 }
 
+/** Telemetry's notice while one is due (its answer `startLine`), at a session start: the host shows it to the person as its own line,
+ * never into the agent's context. One that cannot be had is a note. */
+const noticeLines = (io, event, heard, notes) => Promise.resolve()
+  .then(async () => [event === 'SessionStart' && heard ? (await io.answer('startLine', {}))?.line : null].filter(Boolean))
+  .catch((err) => {
+    notes.add(`notice (${err.code || err.name})`);
+    return [];
+  });
+
 /** The port's whole answer to the host's input as read (`hookInput`): the reply, and per package what reached the agent (`agent`) and what
  * was the person's (`person`), which debug inject reads. */
-async function answer(io, event, text, { payload, why }) {
+async function answer(io, event, text, { payload, why, started = io.clock.elapsedMs() }) { // hook.out keeps the port's time from here
   const notes = new Set();
   const call = hostCall(io, event); // a call that carries the person's words is heard only from the host: else no handler runs
   const noting = (fn, what) => Promise.resolve().then(fn).catch((err) => {
@@ -109,13 +118,13 @@ async function answer(io, event, text, { payload, why }) {
   const agent = core.reachedAgent(event, merged.verdict, told.sizes);
   const sum = (key) => Object.values(agent).reduce((total, row) => total + row[key], 0);
   const err = notes.size ? { code: 'hook-noted', msg: `hook-noted: ${[...notes].join(', ')}` } : null; // a run with a note says whose, never a bare failed
-  await noting(() => io.trace.record({ run: io.run, step: 'hook.out', ok: !err, err, n: { handlers: results.length, ...told.n, chars: sum('said'), held: sum('held') },
+  await noting(() => io.trace.record({ run: io.run, step: 'hook.out', ms: io.clock.elapsedMs() - started, ok: !err, err, n: { handlers: results.length, ...told.n, chars: sum('said'), held: sum('held') },
     codes: { [`hook-${merged.verdict || 'none'}`]: 1, ...call.codes }, ref }), 'trace');
   await noting(() => told.sizes.forEach((s) => { // one row per item that reached the agent: whose, its key and form, its characters
     const chars = core.reachedAgent(event, merged.verdict, [s])[s.pkg].said;
     if (chars) io.trace.record({ run: io.run, step: 'hook.said', ok: true, n: { chars }, ref: { ...ref, pkg: s.pkg, key: s.key, as: s.as } });
   }), 'trace');
-  const plain = [...told.plain, ...call.plain];
+  const plain = [...told.plain, ...call.plain, ...await noticeLines(io, event, call.heard, notes)];
   const reply = core.replyOf(event, { verdict: merged.verdict, texts: told.texts, reasons: told.reasons }, [...notes], plain);
   return { reply, agent, verdict: merged.verdict, notes: [...notes], handlers: results.length };
 }

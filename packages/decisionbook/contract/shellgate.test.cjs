@@ -264,7 +264,8 @@ test('[I-26] Stop blocks once on a protected file this session changed with no p
   assert.equal((await handlers.start(starting(), io)).code, 'start-kept', 'a resumed or compacted session keeps the head it began on');
   assert.deepEqual((await handlers.stop(stopping(), io)).files, ['app/x.rb', 'app/old.rb', 'app/new.rb']);
   await readyOne(io, { plans: ['app/x.rb', 'app/old.rb', 'app/new.rb'] });
-  assert.deepEqual(shellRuling(await handlers.stop(stopping(), io)), ['allow', 'stop-clean'], 'a READY plan of this branch covers them');
+  assert.deepEqual(shellRuling(await handlers.stop(stopping(), io)), ['deny', 'stop-unclosed'], 'a READY plan of this branch covers them: the turn is held for its close');
+  assert.deepEqual(shellRuling(await handlers.stop(stopping(), io)), ['allow', 'stop-clean'], 'once: the tree is as it was told');
 });
 
 test('[I-26] Stop with no start kept reads only uncommitted changes and says so; nothing protected reads no git at all', async () => {

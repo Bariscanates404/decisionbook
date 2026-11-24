@@ -12,10 +12,10 @@ const tokensOf = (text) => text.split(NOT_WORD).filter(Boolean);
 // a list's word is read whole: a hyphen between two letters joins one ("non-blocking" holds no "non")
 const wholeWordsOf = (text) => text.split(/[^\p{L}\p{N}'-]+|(?<!\p{L})-|-(?!\p{L})/u).filter(Boolean);
 
-/** One role (`path`: "takes.names") of a language-keyed reading file ({ <language>: { <role>: [words] | { words, parts } } }) as one
+/** One role of a language-keyed reading file ({ <language>: { <role>: [words] | { words, parts } } }) as one
  * list of each listed language's `words` and `parts`. */
-function roleList(languages, path) {
-  const roles = Object.values(languages).map((entry) => path.split('.').reduce((at, key) => at?.[key], entry)).filter(Boolean);
+function roleList(languages, name) {
+  const roles = Object.values(languages).map((entry) => entry[name]).filter(Boolean);
   const words = roles.flatMap((role) => (Array.isArray(role) ? role : role.words ?? []));
   return { words, parts: roles.flatMap((role) => (Array.isArray(role) ? [] : role.parts ?? [])) };
 }
@@ -23,10 +23,8 @@ function roleList(languages, path) {
 const holdsAny = ({ words, parts }, text) => wholeWordsOf(text).some((word) => words.includes(word))
   || parts.some((part) => text.includes(part));
 
-const { negations: NEGATIONS, common: { words: COMMON } } = Object.fromEntries(['negations', 'common']
-  .map((role) => [role, roleList(RULES.languages, role)]));
-const saysOf = (text) => tokensOf(lowered(text)).filter((word) => !COMMON.includes(word) && !NEGATIONS.words.includes(word));
-const contentOf = (text) => [...new Set(saysOf(text).filter((word) => word.length >= 3))];
+const COMMON = roleList(RULES.languages, 'common').words;
+const contentOf = (text) => [...new Set(tokensOf(lowered(text)).filter((word) => !COMMON.includes(word) && word.length >= 3))];
 
 const TAILS = new RegExp(`^(?:${roleList(RULES.languages, 'endings').words.join('|')}){0,3}$`, 'u'); // what a word's form adds to its stem
 const stemLength = (a, b, at = [...a].findIndex((letter, i) => letter !== b[i])) => (at < 0 ? a.length : at); // how far two words are one

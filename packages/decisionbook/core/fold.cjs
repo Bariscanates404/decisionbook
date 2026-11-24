@@ -6,7 +6,7 @@
 // stale.
 const { shapeOf, isPlanLink, plannedPath } = require('../contracts/shapes.cjs');
 const { isDangerPath } = require('../contracts/rubric.cjs');
-const { isTheirs } = require('../base/text.cjs');
+const { isTheirs, sameWords } = require('../base/text.cjs');
 
 const HEADER = ['title', 'why', 'success', 'goal', 'kind', 'level', 'tags'];
 // the records that change what will be done, by kind; written after the person last saw the plan, the yes keeps their kinds, never their
@@ -14,7 +14,7 @@ const HEADER = ['title', 'why', 'success', 'goal', 'kind', 'level', 'tags'];
 const CHANGES = ['amend', 'check', 'task', 'step'];
 const planChange = (r) => (isPlanLink(r) && 'plans') || CHANGES.find((kind) => kind === (r.t === 'item' ? r.kind : r.t)) || null;
 
-const relayed = (r) => (r.saidBy ? { saidBy: r.saidBy } : {}); // whose answer the person relayed (steps/batch)
+const relayed = ({ saidBy, confirmed }) => ({ ...(saidBy && { saidBy }), ...(confirmed && { confirmed }) }); // whose words, and the reply
 // a decision's lists, empty where it holds none: what it replaces, what the person's answer keeps, the files it governs, its effect
 const decisionLists = (r) => Object.fromEntries(['supersedes', 'keeps', 'files', 'effect'].map((field) => [field, r[field] ?? []]));
 const APPLY = {
@@ -37,12 +37,12 @@ const APPLY = {
   // someone else (`to`) never blocks; `supersedes`: the standing decisions it asks the person to replace (their answer places each,
   // core/yes); written again in the same words, naming the same ones, it is the question that was asked then: the person's answer to it
   // stands; naming others, it is asked now, so only words typed after it answer it
-  question: (v, r) => {
+  question: (v, r, line) => {
     const was = v.questions.find((q) => q.q === r.q && q.text === r.text && `${q.supersedes}` === `${r.supersedes ?? []}`);
     v.questions = [...v.questions.filter((q) => q.q !== r.q),
       { q: r.q, text: r.text, decides: r.decides ?? null, whyNotCode: r.whyNotCode ?? null, blocking: r.blocking !== false && !r.to,
         proposal: r.proposal ?? null, to: r.to ?? null, source: r.source ?? null, at: (was || r).at ?? null,
-        supersedes: r.supersedes ?? [] }];
+        supersedes: r.supersedes ?? [], line }];
   },
   decision: (v, r, line) => v.decisions.push(
     { plan: v.id, key: r.key, value: r.value, why: r.why, by: r.by, source: r.source ?? null, answers: r.answers ?? null, at: r.at
@@ -71,6 +71,8 @@ const APPLY = {
     v.aside = { by: r.by, said: r.said, at: r.at ?? null };
     v.stage = 'aside';
   },
+  // the person put a question off: it stays open as it was, and readers say so until a person's answer ends it
+  later: (v, r) => v.later.push({ q: r.answers, by: r.by, said: r.said, at: r.at ?? null }),
   unlink: (v, r) => {
     v.links = v.links.filter((l) => !(l.rel === r.rel && l.to === r.to));
     v.unlinked.push(`${r.rel} ${r.to}`);
@@ -80,8 +82,8 @@ const APPLY = {
     v.builtAt ??= r.at; // when it was first built: a READY stored again later never moves it (core/lost)
     v.stage = 'ready';
   },
-  closed: (v, r) => {
-    v.closed = r;
+  closed: (v, r, line) => {
+    v.closed = { ...r, line }; // its line: git blame of it names the commit that carries the record (steps/close)
     v.stage = 'closed';
   },
 };
@@ -93,7 +95,7 @@ function foldPlan(records, refused = [], lines = records.map((r, i) => i + 1)) {
     why: null, success: null, goal: null, kind: null,
     level: null, tags: [], research: [], pointers: [], questions: [], decisions: [], assumptions: [], confirm: null, amended: [],
     checks: [], items: [], receipts: { read: [], there: [] }, // read receipts: a plan read alone has none (steps/store hands them)
-      steps: [], gaps: [], links: [], unlinked: [], notes: [],
+      steps: [], gaps: [], links: [], unlinked: [], notes: [], later: [],
     resumes: [], waiver: null, ready: null, closed: null, aside: null, stage: 'draft', refused };
   records.forEach((rec, i) => {
     const apply = APPLY[i ? shapeOf(rec) : 'amend']; // the plan record sets the fields an amend may change later
@@ -116,11 +118,11 @@ const seenView = (view, more = []) => ({ ...view, links: [...view.links.filter((
  * every other file it grows by. */
 const dangerSince = (view, danger) => scopeOf(view).slice(view.confirm.after).filter((file) => isDangerPath(danger, file));
 
-/** Each decision, and on a person's whose value is not its question's proposal, that proposal (`proposedThen`): no new field kept. Whether
- * the person took it is their AI's reading (the value is its words): the product shows both and never says the proposal was refused. */
+/** Each decision, and on a person's whose value is not its question's proposal in other words (sameWords), that proposal (`proposedThen`,
+ * no field kept): whether they took it is their AI's reading, so both are shown and the proposal is never said refused. */
 const withProposed = (view, decisions) => decisions.map((d) => {
   const q = isTheirs(d) && view.questions.find((one) => one.q === d.answers);
-  return q && q.proposal && q.proposal.trim() !== String(d.value).trim() ? { ...d, proposedThen: q.proposal } : d;
+  return q && q.proposal && !sameWords(q.proposal, d.value) ? { ...d, proposedThen: q.proposal } : d;
 });
 
 module.exports = { foldPlan, scopeOf, seenLinks, seenView, dangerSince, planChange, withProposed };

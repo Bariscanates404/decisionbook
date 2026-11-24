@@ -32,8 +32,8 @@ test('with no prompt journal, a prompt holding an import statement gets the cont
   const whole = await handlers.preEdit(asMode(testWrite('test/x.test.js', "const a = require('../lib/x')\n"), 'default'), io);
   assert.deepEqual(ruling(whole), ['ask', 'contract-unpromised']);
   assert.match(whole.reason, /test\/x\.test\.js:1 `const a = require\('\.\.\/lib\/x'\)` .*\(in prompt:s1\)/);
-  assert.deepEqual(ruling(await handlers.preEdit(asMode(testWrite('test/x.test.js', "const a = require('../lib/x')\n"), 'default'), io)), ['allow', 'gate-off'],
-    'asked once');
+  await handlers.postEdit({ ...testWrite('test/x.test.js', "const a = require('../lib/x')\n"), hook_event_name: 'PostToolUse' }, io); // the person's yes: it ran
+  assert.deepEqual(ruling(await handlers.preEdit(asMode(testWrite('test/x.test.js', "const a = require('../lib/x')\n"), 'default'), io)), ['allow', 'gate-off'], 'after a yes');
 });
 
 test('the kept row holds the matched statement, the module, the names, the session and the time: no other word of the prompt', async () => {
@@ -87,7 +87,7 @@ test('debug decisionbook reads the own store with no journal and says the journa
 
 test('a promise decided in the same call as the plan link is linked in that call', async () => {
   const io = noJournal(); // a whole plan with its yes is a person's own call, outside a session
-  const decision = { t: 'decision', key: 'api.x', value: STATEMENT, why: 'the task promised it', by: 'Ayse' };
+  const decision = { t: 'decision', key: 'api.x', value: STATEMENT, why: 'the task promised it', whose: 'person' };
   const res = await verbs.create(io, { rest: [JSON.stringify({ title: 'Unit tests for x', why: 'w', success: 's', kind: 'chore', level: 'micro',
     records: [decision, ...recordsFor('micro', ['test/x.test.js'])] })] });
   assert.deepEqual(planRecords(io, res.out.id).filter((r) => r.rel === 'contract').map((r) => [r.to, r.source]), [['file:lib/x/index.js', 'decision:api.x']]);
@@ -127,7 +127,7 @@ test('a secret-looking statement from each of the three sources is not shown, sa
   await screened(kept, 'the kept store (an older version wrote it)');
   await screened(bookWorld({ files: FILES, heard: [{ id: 'h0.1', at: '2026-11-01T09:00:00.000Z', text: `Wire it: ${SECRET} please.` }] }), 'the journal');
   const planned = noJournal();
-  const decision = { t: 'decision', key: 'api.x', value: SECRET, why: 'the task promised it', by: 'Ayse' };
+  const decision = { t: 'decision', key: 'api.x', value: SECRET, why: 'the task promised it', whose: 'person' };
   const asked = { title: 'Unit tests for x', why: 'w', success: 's', kind: 'chore', level: 'micro' };
   await assert.rejects(verbs.create(planned, { rest: [JSON.stringify({ ...asked, records: [decision] })] }), (err) => err.code === 'record-secret',
     'new refuses it at the door');
@@ -163,7 +163,7 @@ test('new and add refuse a record holding a secret, naming the field and its pla
   const before = io.fs.readText(`.decisionbook/${id}.jsonl`);
   const add = (records) => verbs.add(io, { rest: [id, JSON.stringify(records)] }).then(() => null, (err) => [err.code, err.message]);
   const planted = [
-    [[{ t: 'note', text: 'fine' }, { t: 'decision', key: 'api.key', value: `use ${KEY} for staging`, why: 'w', by: 'ana' }], 'record 2 of 2: value'],
+    [[{ t: 'note', text: 'fine' }, { t: 'decision', key: 'api.key', value: `use ${KEY} for staging`, why: 'w', whose: 'person' }], 'record 2 of 2: value'],
     [[{ t: 'research', tool: 'grep', asked: 'which key', answer: `the key is ${KEY}` }], 'record 1 of 1: answer'],
     [[{ t: 'confirm', by: 'ana', said: `yes, with ${KEY}` }], 'record 1 of 1: said'],
   ];
@@ -173,9 +173,9 @@ test('new and add refuse a record holding a secret, naming the field and its pla
   }
   assert.equal(io.fs.readText(`.decisionbook/${id}.jsonl`), before, 'none of any batch was written');
   const fresh = await verbs.create(io, { rest: [JSON.stringify({ title: 'Other', why: 'w', success: 's', kind: 'feature', level: 'micro',
-    records: [{ t: 'decision', key: 'k.k', value: KEY, why: 'w', by: 'ana' }] })] }).then(() => null, (err) => [err.code, err.message]);
+    records: [{ t: 'decision', key: 'k.k', value: KEY, why: 'w', whose: 'person' }] })] }).then(() => null, (err) => [err.code, err.message]);
   assert.deepEqual([fresh[0], /record 1 of 1: value$/.test(fresh[1])], ['record-secret', true]);
   assert.equal((io.fs.list('.decisionbook') || []).length, 1, 'new with a secret starts no plan');
   assert.doesNotMatch(traceText(io), /sk-ant-api03/, 'no trace row carries it');
-  assert.equal(await add([{ t: 'decision', key: 'api.key', value: 'kept in the STAGING_KEY variable', why: 'w', by: 'ana' }]), null, 'a name of where it lives is fine');
+  assert.equal(await add([{ t: 'decision', key: 'api.key', value: 'kept in the STAGING_KEY variable', why: 'w', whose: 'person' }]), null, 'a name of where it lives is fine');
 });

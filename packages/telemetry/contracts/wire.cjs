@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // See LICENSE and NOTICE in the package root.
 'use strict';
-// THE report validator, shared byte for byte with the server (cloud/telemetry-worker/src/generated/validate.cjs is its copy): pure, no
+// THE report validator, shared byte for byte with the server (cloud/server/modules/telemetry/generated/validate.cjs is its copy): pure, no
 // require. A report is the envelope below, in this order, and its metric rows; every string is a word of a closed list, a version, a day
 // or a random id. An unknown key, a long list, nesting beyond `d`/`b` or an out-of-list word refuses the whole report.
 const isRecord = (value) => Object.prototype.toString.call(value) === '[object Object]';

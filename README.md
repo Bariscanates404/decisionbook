@@ -70,7 +70,8 @@ keep it on 22 or newer while you use AtlasBound.
 
 `setup` wires six hooks and four slash commands (`/decisionbook`, `/decide`, `/handoff`, `/resume-handoff`) into this repository's
 local Claude Code settings, adds a block to `.gitignore` and one team notice row to `.claude/settings.json`, and then asks
-you one question: what to protect. It shows what it would pick, for example:
+you two things: the name your decisions are recorded under (once per machine, git's name offered first) and what to protect.
+For the second it shows what it would pick, for example:
 
     automatic: lib/** (6 files), tests/** (110 files), typings/** (2 files)  ->  atlasbound protect --source
     choose: the paths the person names  ->  atlasbound protect "<path or glob>[,...]"
@@ -95,17 +96,17 @@ protected file:
 | Step | What happens |
 |---|---|
 | **It researches and asks** | The product hands the agent a pre-filled plan skeleton for the area; the agent reads the code itself, sends the plan with one `atlasbound decisionbook new`, and shows you every open question in one message, each with the answer it proposes. No code yet. |
-| **You answer in your own words** | Answer any way you like: one by one, "go with your suggestions", "yes, but keep the old limit". Your AI records what it understood you decided, with your words beside it; a record whose words are not in a message you typed in that session is refused, and so is a yes with no message of yours behind it. An answer you relay ("I asked Ayşe: keep 100") is recorded as yours, with the name of the one you asked. |
-| **It builds from the plan** | Once the plan is READY it is frozen, and the edits inside it go through in the sessions that work on it; a session that began with another task plans its own. A protected file the plan does not name is asked first: your yes to that edit adds it to the plan. When the work is done, `atlasbound decisionbook close <id>` links the plan's own commits, files and tests and prints the one `git commit` command for that record: the product never commits for you. |
+| **You answer in your own words** | Answer any way you like: one by one, "go with your suggestions", "yes, but keep the old limit". Your AI records what it understood you decided, with your words beside it; a record whose words are not in a message you typed in that session is refused, and so is a yes with no message of yours behind it. Every decision carries your name, kept on your machine at setup (`atlasbound whoami`). A colleague is credited only where the format names them: a chat line `Emma: …` you paste (its own line, the first line under a chat header, the `>` lines under `Emma wrote:`) is recorded as hers, relayed by you; for anything else ("I asked Emma: keep 100"), a relay in prose with no format proof, Claude Code's permission prompt lists the sentences and they are credited to her only on your Allow, otherwise recorded as your words; one your AI copies from an issue comment is recorded as the commenter's only after the product read that comment itself and found the words there. Anything else you said is your own decision, and the READY plan lists who decided what so you can correct it. A blanket answer settles the open questions and never replaces a decision a colleague made (your AI asks you about that one by name), and a question you put off ("as a todo") is recorded as put off: it decides nothing and stays open. |
+| **It builds from the plan** | Once the plan is READY it is frozen, and the edits inside it go through in the sessions that work on it; a session that began with another task plans its own. A protected file the plan does not name is asked first: your yes to that edit adds it to the plan. When the work is done your AI is brought to close the plan: a turn that ends on finished work is held once until it runs `atlasbound decisionbook close <id>`, and when you ask what to commit it is handed the answer. Close links the plan's own commits, files and tests and prints one `git commit` command for the work and the plan together; if you committed first, the command puts the plan's record into that commit while it is still only yours. The product never commits for you. |
 | **It continues in a fresh session** | Type `/handoff`: the note keeps up to seven lines quoted from your own messages, what is half-done and the next steps. Then `/clear`, then `/resume-handoff`: the new context starts from that note and from DecisionBook's settled decisions, and does not ask again what you already decided. |
 
 To take it all out again: `atlasbound uninstall` (you type the phrase it names, at your own terminal).
 
-![A real Claude Code session with DecisionBook and Handoff on a demo repository with a fictional team: the agent reads issue #2 and its comments, links the plan to it, researches the code and asks only what the code can't answer, parking the pricing question for the BA; the BA's answer is recorded as hers with a link to her comment; after the person's yes, the agent builds parts 1 and 2 and the tests pass; with the context at 19%, /handoff, /clear and /resume-handoff start a fresh context that picks up at part 3 without asking anything again; parts 3 and 4 follow and all 8 tests pass; the person's terminal then shows every decision with who gave it and their words, and the BA's decision as a plain JSON line with its source link.](https://raw.githubusercontent.com/Bariscanates404/decisionbook/main/docs/demo.gif)
+![A real Claude Code session with DecisionBook and Handoff on a demo repository with a fictional team: Mark hands over the issue in one plain line; Claude reads the issue and its comments, looks at what the code does today, and asks only what is still open; one numbered message from Mark carries every answer: Emma's (BA) answers pasted from the team chat, what Olivia (PM) said passed on in his own words, and "go with your proposals"; Claude runs the record command, Claude Code's permission prompt asks to record Olivia's words as hers, and he allows it; the plan is READY and frozen, with who decided what; because it is a big job, /handoff, /clear and /resume-handoff start a fresh context, which asks before building; Claude shows the record, each decision with who made it, the Olivia line saying it was allowed on the prompt; the build runs from the frozen plan and the tests pass; nothing is committed.](https://raw.githubusercontent.com/Bariscanates404/decisionbook/main/docs/demo.gif)
 
-<sub>Real session, not a mock-up: Claude Code 2.1.326, Sonnet 5.5 with the standard 200k context, atlasbound 0.25.3. Demo
-repository, fictional team. Model waits are cut, key moments are held for about 5 s with a highlight, and the banner's
-account name and folder path are masked; nothing is sped up.</sub>
+<sub>Real session, not a mock-up: Claude Code 2.1.326, Sonnet 5.5, atlasbound 0.25.4. Demo repository, fictional team. Model
+waits are cut and key moments are held with a highlight; nothing is sped up. You can run the commands yourself, but you don't
+have to: Claude runs them as it works.</sub>
 
 ### More videos
 
@@ -120,16 +121,17 @@ The same videos, with pause and replay, are on [atlasbound.dev](https://atlasbou
 <details>
 <summary><b>Bug fix from history: the agent finds the earlier decision and the commit that broke it</b></summary>
 
-![A real Claude Code session with DecisionBook on a demo repository with a fictional team: asked to look into bug #4 (a negative total), the agent reads the issue and the code and, as it reads the file, DecisionBook hands it the earlier plan for that file; it names the commit that broke the rule (Mark's refactor), quotes the decision Emma made earlier, writes a fix plan built on that decision, fixes the code and the tests pass; the person's terminal then shows the fix linked to the earlier plan and Emma's rule in her words.](https://raw.githubusercontent.com/Bariscanates404/decisionbook/main/docs/bug-fix-from-history.gif)
+![A real Claude Code session with DecisionBook on a demo repository with a fictional team: Lee reports a bug, a coupon larger than the order gives a negative total; Claude reads the code and its tests, finds the commit that dropped the earlier rule, and quotes what was decided before: Emma's rule, from the earlier plan; it writes a fix plan that keeps that rule, fixes the code with a test, closes the plan and prints one commit command; the record then shows the rule as Emma's, relayed by Mark.](https://raw.githubusercontent.com/Bariscanates404/decisionbook/main/docs/bug-fix-from-history.gif)
 </details>
 
 <details>
-<summary><b>Team: one question goes to the BA and waits without blocking</b></summary>
+<summary><b>You hand over the issue: decisions already made are found, credited and linked</b></summary>
 
-![A real Claude Code session with DecisionBook on a demo repository with a fictional team: asked to develop issue #1, the agent reads the issue and its comments, researches the code and asks four questions with its own proposals before touching code, parking the pricing question for the BA; the person answers two in one line; once the BA answers on the issue, her decision is recorded in her own words, the plan becomes READY, the agent edits and the tests pass; after /handoff, /clear and /resume-handoff the new context starts from the settled rules; then the person's terminal shows every decision, who gave it and their words, and the BA's decision as a plain JSON line with its source.](https://raw.githubusercontent.com/Bariscanates404/decisionbook/main/docs/team-question-to-the-ba.gif)
+![A real Claude Code session with DecisionBook on a demo repository with a fictional team: the person hands over the issue in one plain line; Claude reads the issue and its comments, records the decisions already made there under Emma's (BA) and Olivia's (PM) names with links to their comments, and asks only what is still missing, each with its proposal; the record is shown; the person answers in one message and the plan is READY and frozen; the build runs from the plan and the tests pass; nothing is committed.](https://raw.githubusercontent.com/Bariscanates404/decisionbook/main/docs/team-question-to-the-ba.gif)
 </details>
 
-<sub>All recorded with atlasbound 0.25.3 on demo repositories with fictional teams; waits are cut, nothing is sped up.</sub>
+<sub>The three sessions were recorded with atlasbound 0.25.4; the explainer's clips with 0.25.3, as its own card says. Demo
+repositories, fictional teams; waits are cut, nothing is sped up.</sub>
 
 ## Local by design
 
@@ -138,7 +140,7 @@ The same videos, with pause and replay, are on [atlasbound.dev](https://atlasbou
 | **Work records** | Plain JSON lines in `.decisionbook/`, one file per plan, appended and never rewritten; yours to review and commit with the code. |
 | **Handoff** | A note per branch and short excerpts of your messages, in your home folder (`~/.atlasbound/`), never in the repository. |
 | **Model use** | The product calls no model. What its hooks add to your Claude Code session becomes part of that session, which goes to the model provider your session already uses, under your account, like the rest of the session. |
-| **Network** | This build sends nothing: telemetry has no address. It is off unless you turn it on yourself at a plain terminal, and setup does not ask about it while there is no address. |
+| **Network** | Your code never leaves your machine. During the beta one thing does: a daily usage report of step counts, time ranges and outcome codes, which helps us find the product's faults. It starts once its notice has been shown to you, `atlasbound telemetry next` prints every byte before it leaves, and `atlasbound telemetry off` turns it off. |
 | **Package** | Node.js built-ins only: no dependencies, no bundled third-party code, no install scripts. |
 
 [PRIVACY.md](PRIVACY.md) says exactly what is kept where and how to remove it.
@@ -154,7 +156,7 @@ Here is an abbreviated example for undo and redo in a small state library, laid 
 >
 > **Question Q1:** How many past states should the store keep? *Proposed:* keep the last 50.
 >
-> **Decision, by the person:** "Keep 100, and make it an option." *(answers Q1; the AI's reading: a `historyLimit` option, default 100)*
+> **Decision, by Maya:** "Keep 100, and make it an option." *(answers Q1; the AI's reading: a `historyLimit` option, default 100)*
 >
 > **Check AC-1:** undo after two changes restores the first. *Command:* `npm test -- store`
 >
@@ -165,8 +167,8 @@ Later sessions can retrieve the recorded decisions for `src/store.js`, with the 
 ## What DecisionBook does
 
 - Before an AI session edits a protected file, it needs a READY plan at its level (small fix, normal, critical). The agent
-  proposes the level and code only raises it: a small fix that plans more than 2 files, a glob or any risk signal runs as
-  normal work (unless it writes only tests, fixtures or docs); a path under `danger` or another hard signal, or a soft one you did not waive, makes it critical; no level
+  proposes the level and code only raises it: a small fix that plans more than 2 files, a glob or a shared path runs as
+  normal work (unless it writes only tests, fixtures or docs); a path under `danger` or a database schema path, or a risk area (a folder or file named for money or for who gets in; your repository can name its own) you did not waive, makes it critical; no level
   proposed is critical; a proposal is never lowered. A small fix needs its files, your answers to its blocking questions and your yes; normal work adds a success signal, a check with its command and the questions the task
   leaves open; critical work the whole form ([levels](GUIDE.md#settings)). While a decision of the plan holds a conflict (two
   answers a merge kept), the plan covers no edit until you say which holds.
@@ -237,6 +239,13 @@ interrupted work is what the product is built for. The tasks, runs and scripts a
   stops, after the fact. It is not designed to stop a deliberate bypass.
 - **Claude Code only.** No other coding agent, no editor plugin and no server today. Tested on macOS and Linux; on Windows,
   see the next section.
+- **Whose words: by format, else by your one Allow.** A teammate's words are proven only by their format: a chat line
+  `Emma: …`, the first line under a chat header with a name and a time, the `>` lines under `Emma wrote:`, or an issue
+  comment the product reads itself through your `gh`. A line you type right under a paste is yours. Anything else is asked
+  once per batch with Claude Code's own permission prompt listing the sentences; Allow credits them: everything on a list you
+  Allow is credited to the teammate, so read the list before you click. When a teammate's words are mixed into your own sentence, or you choose Deny, they are recorded as your words. Separate them on an `Emma:` line to credit Emma. A change a PM made that you pass on in your own
+  prose ("Olivia dropped the minimum") is often recorded under your name, Olivia's name lost; the READY
+  plan lists who decided what, so correct it there.
 - **A plan covers files, not intentions.** An existing READY plan can cover later work on the same files. Check that a
   new piece of work has its own plan.
 - **Your AI decides what you meant.** The product checks only that the words beside a decision are yours: it refuses a
@@ -255,9 +264,10 @@ asks you instead of passing.
 
 What was run on Windows: release 0.25.2 by hand on Windows 11, with real Claude Code sessions (install, `doctor`, the answer
 flows, a team's shared history); before it, an automated job installed the packed package on Windows and Linux, ran setup,
-protect and doctor, and sent scripted writes through the hooks setup wrote. This release, 0.25.3, was run the same way on
+protect and doctor, and sent scripted writes through the hooks setup wrote. Release 0.25.3 was run the same way on
 Windows 11: an upgrade from 0.25.2, a clean install, the answer flows, Handoff after `/clear`, and two- and three-person team
-histories, with real Claude Code sessions. CHANGELOG.md lists each change.
+histories, with real Claude Code sessions. This release, 0.25.4, was run on macOS with real Claude Code sessions; it was not run
+again on Windows before it was published. CHANGELOG.md lists each change.
 
 - **Git Bash is needed.** The hooks `setup` writes are shell commands. Claude Code on Windows runs them through Git Bash,
   which comes with Git for Windows; without it these commands fail, and nothing is gated.
@@ -273,16 +283,22 @@ If something does not work on Windows, please tell us in an issue.
 ## Privacy
 
 Plans and decisions are in your repository: the plan file under `.decisionbook/` holds your answers in your own words, by
-design, and it is yours to commit. The heads of your messages and the handoff note are only in your home folder. A draft
+design, and it is yours to commit. The sentences of your messages and the handoff note are only in your home folder: DecisionBook
+lets a session's sentences go when its plan closes and after 30 days at most, `atlasbound uninstall --purge` removes them. A draft
 your AI session writes for a command (`.atlasbound/drafts/`, out of git) is removed once the command takes it, and kept when
 the command refuses it, so a refused one may hold your words. The trace keeps a digest of what a step was given, never the
-text of your prompt. Telemetry holds step counts, ranges and outcome codes, never your text, and it is off unless you turn
-it on yourself at a plain terminal (`atlasbound telemetry on`). The product sends nothing anywhere in this build: telemetry
-has no address yet, so setup does not ask about it. What it gives your Claude Code session goes where that session already
-goes. A later release that can send tells you at setup before anything leaves; `atlasbound telemetry status` says what is
-set. Details: PRIVACY.md.
+text of your prompt. What it gives your Claude Code session goes where that session already goes.
 
-Versions before 0.25 were an earlier, closed product under the same name, and it did send telemetry by default. If you
+Your code never leaves your machine. During the beta telemetry is on by default: once its notice has been shown to you (by
+setup at your plain terminal, or by Claude Code at a session start), one report per module and finished day goes to
+api.atlasbound.dev, at most once a day. A report holds step counts, time ranges and outcome codes, the version, Node's major
+version, the OS family and a random id that changes every 30 days; never your code, prompts, answers, names or paths. It
+helps us find the product's faults and where a plan's flow stops. `atlasbound telemetry next` prints the exact request before
+it leaves and `atlasbound telemetry history` what left; `atlasbound telemetry off` turns it off, `atlasbound telemetry reset
+--forget` has the server's copy deleted, and `DO_NOT_TRACK`, `ATLASBOUND_TELEMETRY=0` and `CI` close it too. Every field:
+PRIVACY.md.
+
+Versions before 0.25 were an earlier, closed product under the same name, with a telemetry of its own, on by default. If you
 used it, CHANGELOG.md says what it sent and how to remove what it left in your home folder. A Claude Code session that was
 open before you upgraded keeps that product's server running in memory, still sending: close every such session and start it
 again, then run `atlasbound leftovers`, which names what is left and any such server that still runs.
@@ -307,7 +323,7 @@ optional, closed add-on in a closed beta for enterprise customers. It is not par
 
 AGPL-3.0-only. Copyright (C) 2026 AtlasBound; see NOTICE and LICENSE.
 
-The source of this exact release is the public repository at tag `v0.25.3`: https://github.com/Bariscanates404/decisionbook. The npm package is
+The source of this exact release is the public repository at tag `v0.25.4`: https://github.com/Bariscanates404/decisionbook. The npm package is
 the five folders of `packages/` there and the six root documents, byte for byte for every file it ships, and three files
 written when it is packed: `kit.cjs` (one line that loads the kit folder), the npm `package.json`, and `MANIFEST.json`, which
 lists every other file's sha256. The README and the repository's presentation on its default branch may change between

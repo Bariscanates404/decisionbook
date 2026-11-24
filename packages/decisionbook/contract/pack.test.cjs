@@ -13,26 +13,29 @@ const { host: { draftsOf } } = require('@atlasbound/kit');
 const { bookWorld, readyOne, added, starting, writeConfig, textOf, lastN, readOf, sentBy, noForks, planRecords, readFor } = require('./world.cjs');
 
 const { handlers, verbs } = decisionbook;
-const PACK = { budget: 5418 }; // contracts/pack.json; the normal layout alone is 2,733 characters
+const PACK = { budget: 5938 }; // contracts/pack.json; the normal layout alone is 3,327 characters
 const FILES = { 'lib/sched/index.js': 'x\n', 'lib/sched/parse.js': 'y\n', 'test/sched.test.js': 't\n' };
 const TASK = 'Add tenants and quotas to lib/sched/index.js, with tests';
 // the calls line says to plan every file, tests included (a plan otherwise names the source files only), and to send the plan with its
 // questions in it before asking anything: an AI that asks first and writes the plan after makes the person say every decision twice
-// words.json `packCalls`: the research steps are named and no question is asked before them; every question goes to the person in
-// one message, each asked on its own (proposals offered as a whole get one yes over many questions); the product
-// records their answers from their message; a question for someone else is parked
+// words.json `packCalls`: the research steps are named and no question is asked before them; a question is what a human must decide,
+// an implementation choice is the AI's stated assumption; every question goes to the person in one message, each asked on its own
+// (proposals offered as a whole get one yes over many questions); someone else's answer names who said it; a question a source gives
+// to someone else is parked
 const RESEARCH = 'the issue thread whole; past plans: this pack; a sideways search: git log of the files, the issues; then the code';
 const CALLS = `If this request changes code: research first, no question yet (${RESEARCH}), fill every "" of this \`new\` (plan EVERY file you will change, tests `
-  + 'included; add a record of a row you need more of; every behaviour the task and the code leave open is a question to the person in it, one each, '
-  + 'however many (what a user sees or reads: an output, a help or error text, a wording, a format; a default; a limit; an edge the task does not name; '
-  + 'the level\'s number is a floor, never a ceiling: reaching it ends nothing): '
-  + '{"t":"question","q":"Q1","text":"","decides":"<area.topic>","whyNotCode":"","proposal":"<the answer you propose>","blocking":true}, and before the first '
-  + 'one what the research answered, else it is refused: {"t":"research","tool":"read","asked":"","answer":"","source":"<file you read>"}) and send it once, before you ask the person anything and before your first edit; then show '
-  + 'the person the plan and EVERY question in one message, each with your proposal, never the proposals as a whole, and stop. Then record their answers '
-  + 'in one add, a decision per question answered: "answers" its q, "value" what you understood they decided, "said" their own words copied from their '
-  + 'message. A question for someone else carries "to" and "source": parked, it blocks nothing. If it only asks or reads, go on.';
+  + 'included; add a record of a row you need more of; a question is only what the code cannot answer and a human must decide (a business or product '
+  + 'rule; what a user or an operator sees, pays or loses; a trade-off), one each, never invented and never asked to reach a number: '
+  + '{"t":"question","q":"Q1","text":"","decides":"<area.topic>","whyNotCode":"","proposal":"<the answer you propose>","blocking":true}; an implementation '
+  + 'choice is yours, stated, never asked: {"t":"assumption","text":"<what you will do>","why":""}; before the first question what the research answered, '
+  + 'else it is refused: {"t":"research","tool":"read","asked":"","answer":"","source":"<file you read>"}) and send it once, before you ask the person '
+  + 'anything and before your first edit; then show the person the plan, EVERY question in one message, each with your proposal, never the proposals as a '
+  + 'whole, then your assumptions, and stop. Then record their answers in one add, a decision per question answered: "answers" its q, "value" what you '
+  + 'understood they decided, whose words it holds and the words, by the rule of whose words a decision holds. A rule the issue, the repository or the person gives to someone else to decide (an owners table, "Emma will confirm", "that is Emma\'s call") is their question, never the '
+  + 'person\'s: it carries "to":"<who>" and "source":"<where they are named>", waits for them without blocking, and the person may relay their answer. '
+  + 'If it only asks or reads, go on.';
 // a prompt naming no file is laid out as normal work, and ONE line says the small form in the gate's own words
-const RAISERS = 'more than 2 files, a glob, a shared or entry path, a danger zone, a schema path, a sensitive path, a risk word or 3+ shared consumers';
+const RAISERS = 'more than 2 files, a glob, a shared or entry path, a danger zone, a schema path, a risk area in a planned path or 3+ shared consumers';
 // the light form: the rows a blank plan misses at each level
 const UNNAMED = 'this task runs as normal work (the prompt names no file, so the plan is laid out for several files); READY there needs: success, plan, checks, '
   + 'command, answers 3, confirm';
@@ -44,23 +47,24 @@ const CRITICAL_NEEDS = 'success, research 5, feature, plan, checks 2, command, t
 // blank must hold where its published type is not free text
 const SHAPED = 'where a blank is not free text: `kind`: bug, feature, chore or refactor';
 // without this line a request that only sets a value ("the fee is 100") became a small fix with a yes and no decision: nothing to compare later
-const STATED = 'A value the person\'s message sets, or says stays, is their decision at any level, unasked: {"t":"decision","key":"<area.topic>","value":"",'
-  + '"why":"","by":"","said":"<their own words>"} in the new; of the same thing as a decision above: its key, naming it in "supersedes" (changed) or "keeps" '
+const STATED = 'A value the person\'s message sets, or says stays, is a decision at any level, unasked: {"t":"decision","key":"<area.topic>","value":"",'
+  + '"why":"","whose":"<person | the teammate whose words the message gives>","said":"<the words, copied>"} in the new, by the rule of whose words a '
+  + 'decision holds; of the same thing as a decision above: its key, naming it in "supersedes" (changed) or "keeps" '
   + '(it stays; in that decision\'s own plan under a key of its own).';
 const S1 = draftsOf('s1'); // the drafts folder of the session the prompts come from
-const NORMAL_NEW = `write this JSON with your Write tool to ${S1}new.json:\n{"title":"","why":"","success":"","kind":"","level":"normal","records":[`;
-const SMALL = 'this task runs as small fix (from its files and words, as the gate decides); READY there needs: plan, confirm';
+const NORMAL_NEW = `write this JSON with your Write tool (it makes the folder; no shell write) to ${S1}new.json:\n{"title":"","why":"","success":"","kind":"","level":"normal","records":[`;
+const SMALL = 'this task runs as small fix (from its files, as the gate decides); READY there needs: plan, confirm';
 // the two calls a small fix sends, as the pack hands them (`file`: the path the prompt names, else "" to fill); each a draft to write
 // and the call that reads it
-const MICRO = (file = '') => [`write this JSON with your Write tool to ${S1}new.json:`,
+const MICRO = (file = '') => [`write this JSON with your Write tool (it makes the folder; no shell write) to ${S1}new.json:`,
   `{"title":"","why":"","level":"micro","records":[{"t":"link","rel":"plans","to":"file:${file}","why":""}]}`,
-  `then run: atlasbound decisionbook new --file ${S1}new.json`, `write this JSON with your Write tool to ${S1}<id>.json:`,
+  `then run: atlasbound decisionbook new --file ${S1}new.json`, `write this JSON with your Write tool (it makes the folder; no shell write) to ${S1}<id>.json:`,
   '[{"t":"confirm","by":"","said":""}]', `then run: atlasbound decisionbook add <id> --file ${S1}<id>.json`];
 const askAt =(io, text = TASK, session = 's1') => handlers.prompt({ hook_event_name: 'UserPromptSubmit', session_id: session, prompt: text }, io);
 const packOf = (said) => (said.say || []).find((s) => s.key === 'decisionbook.pack');
 // the decisions a pack lists, `key = value` as it says them, the decider cut off
 const listedOf = async (io) => packOf(await askAt(io)).text.split('\n').filter((line) => line.startsWith('- report.export.'))
-  .map((line) => line.slice(2).replace(/ \(the person\)$/, ''));
+  .map((line) => line.slice(2).replace(/ \(Amy\)$/, ''));
 
 /** Five earlier plans of lib/sched on another branch (three planned parse.js, two index.js); the fourth replaces a decision of the newest; one assumption no
  * person confirmed. The work is on a new branch with no plan. */
@@ -71,7 +75,7 @@ async function fiveEarlier() {
   for (const [i, title] of ['One', 'Two', 'Three', 'Four', 'Five'].entries()) {
     ids.push((await readyOne(io, { plans: [i % 2 ? 'lib/sched/index.js' : 'lib/sched/parse.js'], title })).id);
   }
-  await added(io, ids[3], { t: 'decision', key: 'report.export.five.rule1', value: 'v9', why: 'changed', by: 'Ayse', supersedes: [`${ids[4]}/report.export.five.rule1`] });
+  await added(io, ids[3], { t: 'decision', key: 'report.export.five.rule1', value: 'v9', why: 'changed', whose: 'person', supersedes: [`${ids[4]}/report.export.five.rule1`] });
   await added(io, ids[2], { t: 'assumption', text: 'ticks are whole numbers', why: 'the parser reads integers' });
   io.state.branch = 'feat/sched';
   return { io, ids };
@@ -81,17 +85,20 @@ async function fiveEarlier() {
 // 3,460: each of the four draft paths names the session's own drafts folder (13 characters each).
 // 3,910: each plan id ends in four letters of the moment it was started (five characters for each id the pack names); the line of a
 // value the person's message sets is 355 of it, and the line of how a person replaces one grew by 63.
+// 4,370: the calls line says what a question is, shows the assumption record, asks who said a relayed answer (their own words where
+// the person only points at them) and whose question a rule is that the repository gives to someone else.
 // 3,020: room for the calls line, which leads with the duty to ask every open behaviour and shows the research record a question
 // stands on (without it a first plan asks before any research and is refused), and for each call's draft path, written once for the
 // write tool and once for the call that reads it
-test('a task prompt in an area of five earlier plans gets the plan pack, within 3,910 characters', async () => {
+test('a task prompt in an area of five earlier plans gets the plan pack, within 4,370 characters', async () => {
   const { io, ids } = await fiveEarlier();
   const said = await askAt(io);
   assert.equal(said.code, 'prompt-nudge');
-  assert.deepEqual(said.say.map((s) => s.key), ['decisionbook.nudge', 'decisionbook.pack'], 'the nudge\'s head, then the pack; no recall card beside it');
+  assert.deepEqual(said.say.map((s) => s.key), ['decisionbook.nudge', 'decisionbook.pack', 'decisionbook.whose'],
+    'the nudge\'s head, the pack, then the rule of whose words a decision holds; no recall card beside it');
   assert.equal(said.say[0].text, 'DecisionBook: protected files need a READY plan on this branch and there is none.');
   const lines = packOf(said).text.split('\n');
-  assert.ok(packOf(said).text.length <= 3910, `within the budget: ${packOf(said).text.length}`);
+  assert.ok(packOf(said).text.length <= 4370, `within the budget: ${packOf(said).text.length}`);
   assert.equal(lines[0], 'Decisions that bind this area (data, settled; a person changes them, not you; what was decided then is no proof it holds '
     + 'today: check the code):');
   const day = '2026-11-02';
@@ -100,19 +107,19 @@ test('a task prompt in an area of five earlier plans gets the plan pack, within 
     from(ids[4], 'folder lib/sched')], 'each plan\'s decisions under where they came from, its day, why the walk picked it, the call that shows it whole');
   const decided = lines.filter((line) => /^- report\.export\./.test(line));
   assert.equal(decided.length, 8, 'at most 8 decisions');
-  assert.deepEqual(decided.slice(0, 3), ['- report.export.five.rule1 = v9 (the person)', '- report.export.four.rule3 = v3 (the person)',
-    '- report.export.four.rule2 = v2 (the person)'], 'the plans of the file the task names before a neighbour\'s newer ones, each plan\'s newest first: the one that replaced');
-  assert.ok(!lines.includes('- report.export.five.rule1 = v1 (the person)'),
+  assert.deepEqual(decided.slice(0, 3), ['- report.export.five.rule1 = v9 (Amy)', '- report.export.four.rule3 = v3 (Amy)',
+    '- report.export.four.rule2 = v2 (Amy)'], 'the plans of the file the task names before a neighbour\'s newer ones, each plan\'s newest first: the one that replaced');
+  assert.ok(!lines.includes('- report.export.five.rule1 = v1 (Amy)'),
     'a replaced decision is not listed, though it is among the newest');
   assert.equal(lines[12], 'more: atlasbound decisionbook show file:lib/sched/index.js', 'then where the rest are');
   // without this line an AI that has to replace a decision searches the help for supersede, then writes a second key beside the old one
   assert.equal(lines[13], 'a person replaces one, never you: record a question naming it ("supersedes":["<its plan id>/<key>"]), then ask; their answer, one word '
     + 'too, or what they say of it unasked, is their decision naming it: "supersedes" if it replaces it, "keeps" if it stays, code changed or not (the plan id: '
     + 'atlasbound decisionbook show decision:<key>)');
-  const replacing = { t: 'decision', key: 'report.export.five.rule3', value: 'v7', why: 'audit', by: 'Ayse', supersedes: [`${ids[4]}/report.export.five.rule3`] };
+  const replacing = { t: 'decision', key: 'report.export.five.rule3', value: 'v7', why: 'audit', whose: 'person', supersedes: [`${ids[4]}/report.export.five.rule3`] };
   await added(io, ids[3], replacing); // at their own terminal the person replaces one with the record itself
   assert.match((await verbs.show(io, { rest: ['decision:report.export.five.rule3'] })).text,
-    new RegExp(`= v3 \\(.*\\) superseded by ${ids[3]}/report\\.export\\.five\\.rule3 \\(the person, 2026-11-02\\)`), 'the old one shows as superseded, with who replaced it and when');
+    new RegExp(`= v3 \\(.*\\) superseded by ${ids[3]}/report\\.export\\.five\\.rule3 \\(Amy, 2026-11-02\\)`), 'the old one shows as superseded, with who replaced it and when');
   assert.equal(lines[14], `- ticks are whole numbers (assumed in ${ids[2]}, no person confirmed it)`, 'the unconfirmed assumption, marked');
   assert.equal(lines[15], 'how this area is checked: `npm test -- export` (5 plans)', 'the distinct check commands, most used first');
   assert.equal(lines[16], 'files earlier plans planned and built: lib/sched/parse.js (3), lib/sched/index.js (2)', 'files with the count of plans');
@@ -147,21 +154,22 @@ test('where another package names the research to do first, the calls line sends
   assert.notEqual(lines[3], CALLS, 'the research named first is in the line');
 });
 
-test('the level line comes from the gate\'s own rule: a risk word or a hard path in the area raises it',
+test('the level line comes from the gate\'s own rule: a risk area or a hard path the prompt names raises it, its words never',
   async () => {
-  const io = bookWorld({ files: FILES });
+  const io = bookWorld({ files: { ...FILES, 'lib/billing/hook.js': 'h\n' } });
   writeConfig(io, { protect: ['lib/**'] });
-  assert.equal(packOf(await askAt(io, 'Add a payment webhook to the scheduler language')).text.split('\n')[1], 'this task runs as critical work (from the '
-    + 'prompt\'s words only: it names no file; more than 2 files, a glob, a shared or entry path, a danger zone, a schema path, a sensitive path, a risk word or '
-    + `3+ shared consumers raise it: a risk word (payment)); READY there needs: ${CRITICAL_NEEDS}`); // tasks too, from the level's rows whole
+  assert.equal(packOf(await askAt(io, 'Add a payment webhook to the scheduler language')).text.split('\n')[1], UNNAMED, 'words alone raise nothing');
+  io.state.branch = 'feat/hook'; // a prompt of its own, on a branch with no draft
+  assert.equal(packOf(await askAt(io, 'Add a webhook to lib/billing/hook.js')).text.split('\n')[1], 'this task runs as critical work (from its files, as the '
+    + `gate decides: a risk area in a planned path (billing: lib/billing/hook.js)); READY there needs: ${CRITICAL_NEEDS}`); // tasks too, from the level's rows whole
   const hard = bookWorld({ files: { ...FILES, 'db/schema.rb': 's\n' }, branch: 'feat/old' });
   writeConfig(hard, { protect: ['lib/**', 'db/**'] });
   await readyOne(hard, { plans: ['db/schema.rb'], level: 'critical' });
   hard.state.branch = 'feat/new';
-  assert.match(packOf(await askAt(hard, 'Change db/schema.rb so quotas have a column')).text, /^this task runs as critical work \(from its files and words, as the gate decides: a schema path \(db\/schema\.rb\)\); /m);
+  assert.match(packOf(await askAt(hard, 'Change db/schema.rb so quotas have a column')).text, /^this task runs as critical work \(from its files, as the gate decides: a schema path \(db\/schema\.rb\)\); /m);
 });
 
-// the level line is what `new` for THIS prompt is judged on, the files it names and its words, never the area's history
+// the level line is what `new` for THIS prompt is judged on, the files it names, never the area's history
 test('a one-file, test-only prompt in an area of normal work: the pack says small fix, and a new runs as one',
   async () => {
   const files = { 'lib/sched/a.js': 'a\n', 'lib/sched/b.js': 'b\n', 'lib/sched/c.js': 'c\n', 'test/sched.test.js': 't\n' };
@@ -169,10 +177,10 @@ test('a one-file, test-only prompt in an area of normal work: the pack says smal
   writeConfig(io, { protect: ['lib/**', 'test/**'] });
   await readyOne(io, { plans: Object.keys(files), title: 'Old' });
   io.state.branch = 'feat/new';
-  io.state.changed = ['lib/sched/a.js', 'lib/sched/b.js', 'lib/sched/c.js']; // the branch's own changes seed the walk, not the level (the `files: seeds` mutant)
+  io.state.changed = ['lib/sched/a.js', 'lib/sched/b.js', 'lib/sched/c.js']; // the branch's own changes seed the walk, not the level
   const said = packOf(await askAt(io, 'Add a case for an empty source to test/sched.test.js'));
   assert.match(said.text, /\nfiles earlier plans planned and built: [^\n]*lib\/sched\/c\.js/, 'the area holds the normal plan\'s files');
-  assert.match(said.text, /^this task runs as small fix \(from its files and words, as the gate decides\); /m, said.text);
+  assert.match(said.text, /^this task runs as small fix \(from its files, as the gate decides\); /m, said.text);
   const made = await verbs.create(io, { rest: [JSON.stringify({ title: 'Empty source case', why: 'w', level: 'micro',
     records: [{ t: 'link', rel: 'plans', to: 'file:test/sched.test.js', why: 'the case' }] })] });
   assert.equal(made.out.state.level.level, 'micro', 'the gate judges the same plan as small fix');
@@ -189,7 +197,7 @@ test('eight earlier plans of long values give a pack cut to its budget, and the 
   const ids = [];
   for (let i = 0; i < 8; i += 1) ids.push((await readyOne(io, { plans: ['lib/sched/parse.js'], title: `T${i}` })).id);
   for (const [i, id] of ids.entries()) {
-    await added(io, id, [...['a', 'b', 'c'].map((n) => ({ t: 'decision', key: `sched.${'k'.repeat(70)}${i}${n}`, value: long, why: 'w', by: 'Ayse' })),
+    await added(io, id, [...['a', 'b', 'c'].map((n) => ({ t: 'decision', key: `sched.${'k'.repeat(70)}${i}${n}`, value: long, why: 'w', whose: 'person' })),
       { t: 'assumption', text: `${long} ${i}`, why: 'w' }, { t: 'check', id: `AC-${i}9`, text: 'c', command: `npm test -- ${long} ${i}` }]);
   }
   io.state.branch = 'feat/new';
@@ -201,13 +209,13 @@ test('eight earlier plans of long values give a pack cut to its budget, and the 
   assert.ok(decided >= 1 && decided < 8, `decisions cut last: ${decided} said`);
   assert.equal(JSON.parse(lines.at(-5)).records.filter((r) => r.rel === 'plans').length, parts.length, 'every file the prompt names is in the new');
   // a value cut at 80 can lose the part the AI then has to ask for again; a value keeps 160 characters
-  assert.match(lines.find((line) => line.startsWith('- sched.')), / = x{159}~ \(the person\)$/, 'a decision\'s value keeps 160 characters');
+  assert.match(lines.find((line) => line.startsWith('- sched.')), / = x{159}~ \(Amy\)$/, 'a decision\'s value keeps 160 characters');
   assert.equal(lines.filter((line) => line.endsWith('no person confirmed it)')).length, 0, 'the assumptions cut before the decisions');
   assert.ok(!lines.some((line) => line.startsWith('files earlier plans')), 'the files line cut first');
   assert.match(lines.at(-10), /^this task runs as normal work /);
   assert.deepEqual(lines.slice(-9, -6), [CALLS, STATED, SHAPED]);
-  assert.deepEqual([lines.at(-6), lines.at(-4), lines.at(-3), lines.at(-1)], [`write this JSON with your Write tool to ${S1}new.json:`,
-    `then run: atlasbound decisionbook new --file ${S1}new.json`, `write this JSON with your Write tool to ${S1}<id>.json:`,
+  assert.deepEqual([lines.at(-6), lines.at(-4), lines.at(-3), lines.at(-1)], [`write this JSON with your Write tool (it makes the folder; no shell write) to ${S1}new.json:`,
+    `then run: atlasbound decisionbook new --file ${S1}new.json`, `write this JSON with your Write tool (it makes the folder; no shell write) to ${S1}<id>.json:`,
     `then run: atlasbound decisionbook add <id> --file ${S1}<id>.json`],
     'the calls whole, last');
 });
@@ -226,7 +234,7 @@ test('an earlier session\'s READY plan is given by the start as the frozen intak
   assert.deepEqual(intake.slice(0, 2), [`Plan ${id} READY on feat/export: Report export is slow`, 'Frozen: this plan is the settled intake of the work. Build from it; '
     + 'in a session that works on it, edits inside it pass in silence (a session that began with a new task plans its own); a protected file outside it is asked, and the person\'s yes to that edit adds it to the plan. /clear if the context is full, then continue '
     + 'from it: the next session starts from this plan.']);
-  assert.ok(intake.includes('files: lib/sched/parse.js') && intake.includes('- report.export.rule1 = v1 (support; by the person, 2026-11-02)'), textOf(start));
+  assert.ok(intake.includes('files: lib/sched/parse.js') && intake.includes('- report.export.rule1 = v1 (support; by Amy, 2026-11-02)'), textOf(start));
   assert.doesNotMatch(textOf(start), /"t":"resume"|earlier session/, 'no resume call, no word of an earlier session');
   const said = await askAt(io, TASK, 's2');
   assert.deepEqual(said, { code: 'prompt-passed' }, 'the task prompt says nothing: no pack, no nudge, no new handed while the plan is open');
@@ -306,17 +314,19 @@ function fillIn(record, shape, cite) {
 }
 const callsOf = (text) => ({ made: sentBy(text, 'new'), add: sentBy(text, 'add <id>') });
 const SCHED = { 'lib/sched/index.js': 'x\n', 'lib/sched/parse.js': 'y\n', 'lib/sched/run.js': 'r\n', 'test/sched.test.js': 't\n' };
+const HOOK = 'lib/billing/hook.js'; // a path in a risk area: what makes a plan of it critical
 /** `records` with `more` set before the person's yes: the filled add of a plan that asked nothing says of each planned file what was read. */
 const beforeYes = (records, more) => [...records.filter((r) => r.t !== 'confirm'), ...more, ...records.filter((r) => r.t === 'confirm')];
-for (const [level, prompt] of [['micro', 'Fix the default priority in lib/sched/parse.js'], ['normal', 'Add workers to lib/sched/index.js, lib/sched/parse.js and lib/sched/run.js'],
-  ['critical', 'Add a payment webhook to lib/sched/index.js'], ['normal', LOG_TASK], ['normal', COST_TASK]]) { // the two prompts that name no file
+for (const [level, prompt, file = 'lib/sched/index.js'] of [['micro', 'Fix the default priority in lib/sched/parse.js'],
+  ['normal', 'Add workers to lib/sched/index.js, lib/sched/parse.js and lib/sched/run.js'],
+  ['critical', `Add a webhook to ${HOOK}`, HOOK], ['normal', LOG_TASK], ['normal', COST_TASK]]) { // the two prompts that name no file
   test(`${level}: the pack's new with every blank filled is accepted at once, and its add makes it READY (${prompt.slice(0, 40)})`, async () => {
-    const io = bookWorld({ files: SCHED });
+    const io = bookWorld({ files: { ...SCHED, [HOOK]: 'h\n' } });
     writeConfig(io, { protect: ['lib/**'] });
     const pack = packOf(await askAt(io, prompt)).text; // asked once: with its draft on the branch the prompt says that draft, no pack
     const { made, add } = callsOf(pack);
     assert.equal(made.level, level);
-    const filledNew = { ...fillIn(made, 'plan', 'lib/sched/index.js'), records: made.records.map((r) => fillIn(r, shapeName(r), 'lib/sched/index.js')) };
+    const filledNew = { ...fillIn(made, 'plan', file), records: made.records.map((r) => fillIn(r, shapeName(r), file)) };
     const created = await verbs.create(io, { rest: [JSON.stringify(filledNew)] });
     assert.equal(created.out.state.level.level, level, 'the gate runs it at the level the pack said');
     // no blank question is handed at any level (it made the AI invent one). No blank no-fork item either (it made
@@ -324,8 +334,8 @@ for (const [level, prompt] of [['micro', 'Fix the default priority in lib/sched/
     // critical research counts once it rests on a file read in the plan's sessions: not yet, so the row names the file
     const unread = level === 'critical' ? ['ready-research'] : [];
     assert.deepEqual(created.out.state.unmet.map((u) => u.code), level === 'micro' ? ['ready-no-confirm'] : [...unread, 'ready-answers', 'ready-no-confirm'], created.text);
-    if (unread.length) assert.match(created.text, /0 of 5 research records cite a file read in this plan's sessions; the planned files here not read yet: lib\/sched\/index\.js/);
-    if (unread.length) await readFor(io, created.out.id, ['lib/sched/index.js']);
+    if (unread.length) assert.ok(created.text.includes(`0 of 5 research records cite a file read in this plan's sessions; the planned files here not read yet: ${file}`));
+    if (unread.length) await readFor(io, created.out.id, [file]);
     assert.equal(made.records.filter((r) => r.t === 'question').length, 0, 'no blank question in the pack');
     assert.equal(made.records.filter((r) => r.kind === 'no-fork').length, 0, 'no blank no-fork item in the pack');
     // the add the reply hands is the pack's own add, and it is the one sent here
@@ -336,7 +346,7 @@ for (const [level, prompt] of [['micro', 'Fix the default priority in lib/sched/
       && ['word', 'ref', 'kind'].includes(String(decisionbook.SHAPES[shapeName(r)][f]).replace('?', '')))))].sort();
     const named = (text) => [...(text.split('where a blank is not free text: ')[1] || '').split('\n')[0].matchAll(/`(\w+)`/g)].map((m) => m[1]).sort();
     assert.deepEqual([named(pack), named(created.text)], [typed([{ t: 'plan', ...made }, ...made.records, ...add]), typed(add)]);
-    const second = await verbs.add(io, { rest: [created.out.id, JSON.stringify(beforeYes(handed.map((r) => fillIn(r, shapeName(r), 'lib/sched/index.js')),
+    const second = await verbs.add(io, { rest: [created.out.id, JSON.stringify(beforeYes(handed.map((r) => fillIn(r, shapeName(r), file)),
       noForks(planRecords(io, created.out.id))))] });
     assert.equal(second.out.state.ready, true, second.text);
   });
@@ -349,7 +359,7 @@ test('a third file keeps a small fix READY; a danger path joining says in one re
   writeConfig(io, { protect: ['lib/**'] });
   const small = [{ t: 'research', tool: 'read', asked: 'how runs start', answer: 'build() starts them', source: 'lib/sched/index.js:1' }, { t: 'item', kind: 'feature', text: 'workers' },
     { t: 'link', rel: 'plans', to: 'file:lib/sched/index.js', why: 'the limit' }, { t: 'check', id: 'AC-1', text: 'the limit holds', command: 'npm test' },
-    { t: 'item', kind: 'task', text: 'limit runs', covers: ['AC-1'] }, { t: 'confirm', by: 'Ayse', said: 'yes' }];
+    { t: 'item', kind: 'task', text: 'limit runs', covers: ['AC-1'] }, { t: 'confirm', by: 'Amy', said: 'yes' }];
   const { out: made } = await verbs.create(io, { rest: [JSON.stringify({ title: 'Workers', why: 'runs compete', success: 'a limit holds', kind: 'feature', level: 'micro', records: small })] });
   assert.equal(made.state.ready, true);
   await readFor(io, made.id, Object.keys(SCHED).slice(0, 3)); // its research and its no-fork items rest on files the session read

@@ -27,9 +27,9 @@ test('[I-9] a title\'s letters are written in ASCII in its plan id, and find mat
 });
 
 test('two people who start the same task the same day in two clones write two plan files, so a merge of both is clean', async () => {
-  const [ali, zeynep] = [bookWorld(), bookWorld()];
-  zeynep.clock.now(); // the second clone starts a moment later
-  const ids = [await begin(ali, { title: 'Remove the phase angle line' }), await begin(zeynep, { title: 'Remove the phase angle line' })];
+  const [abe, zoe] = [bookWorld(), bookWorld()];
+  zoe.clock.now(); // the second clone starts a moment later
+  const ids = [await begin(abe, { title: 'Remove the phase angle line' }), await begin(zoe, { title: 'Remove the phase angle line' })];
   ids.forEach((id) => assert.match(id, idOf('remove-the-phase-angle-line')));
   assert.notEqual(ids[0], ids[1]);
 });
