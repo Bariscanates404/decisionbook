@@ -1,6 +1,6 @@
-# DecisionBook + Handoff
+# DecisionBook
 
-**Your code has history. Your decisions should too.**
+**Everything behind your code, kept with your code.**
 
 [Quick start](#quick-start) · [Example record](#what-a-plan-looks-like) · [Guide](GUIDE.md) · [Privacy](PRIVACY.md) ·
 [Security](https://github.com/Bariscanates404/decisionbook/blob/main/SECURITY.md) · [Changelog](CHANGELOG.md)
@@ -9,7 +9,9 @@
 > Why is this code like this? Nobody knows.<br>
 > The developer left. The reasons left too.
 
-Ground the task. Keep what you learn. A local work record for Claude Code, kept beside your code.
+The issue and its documents, the research in the code, the questions, the answers, the decisions and the checks:
+DecisionBook keeps them beside your code, for Claude Code, and hands them to the next session, the next teammate and
+the next agent. Handoff comes with it. DecisionBook is the first product of [AtlasBound](https://atlasbound.dev).
 
 ## See it work
 
@@ -307,8 +309,9 @@ sends anything to it. To ask about it, open an issue in the public repository.
 
 ## AtlasBound and Bound
 
-AtlasBound is the name over the products. DecisionBook and Handoff are its open product: this package. Bound is a separate,
-optional, closed add-on in a closed beta for enterprise customers. It is not part of this package, and nothing here needs it.
+AtlasBound is the name over the products. DecisionBook is its first product, open source: this package, with Handoff inside
+it as a helper. Bound is a separate, closed product in a closed beta for enterprise customers only. It is not part of this
+package, and nothing here needs it.
 
 ## Licence
 
